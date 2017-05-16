@@ -1,3 +1,10 @@
+'''
+Sketch RNN decoder for pix2svg
+
+Based off of: https://github.com/hardmaru/sketch-rnn/blob/master/model.py
+
+'''
+
 import tensorflow as tf 
 from tensorflow.contrib.rnn import core_rnn_cell as rnn_cell
 
