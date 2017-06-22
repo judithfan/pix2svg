@@ -89,3 +89,6 @@ ENV/
 .ropeproject
 
 *.tflearn
+*.jpg
+*.png
+*.svg
