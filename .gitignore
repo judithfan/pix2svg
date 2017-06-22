@@ -89,3 +89,10 @@ ENV/
 .ropeproject
 
 *.tflearn
+*.jpg
+*.png
+*.svg
+*.caffemodel
+sketchy/triplet_features/*.npy
+
+
