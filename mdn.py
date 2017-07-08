@@ -33,24 +33,12 @@ def get_lossfunc(z_pi, z_mu1, z_mu2, z_sigma1, z_sigma2, z_corr,
     result1 = tf.reduce_sum(result1, 1, keep_dims=True)
     result1 = -tf.log(result1 + epsilon)  # avoid log(0)
 
-    #fs = 1.0 - pen_data[:, 2]  # use training data for this
-    #fs = tf.reshape(fs, [-1, 1])
-    ### Zero out loss terms beyond N_s, the last actual stroke
-    #result1 = tf.multiply(result1, fs)
     # result2: loss wrt pen state, (L_p in equation 9)
     result2 = tf.nn.sparse_softmax_cross_entropy_with_logits(
-      labels=pen_data.eval().astype('int32'), logits=z_pen_logits)
-    #print('pen state shape: ', result2.get_shape())
-    #result2 = tf.reshape(result2, [-1, 1])
-    #if not self.hps.is_training:  # eval mode, mask eos columns
-        #result2 = tf.multiply(result2, fs)
-
-    #print('Pen offset loss: ', result1.eval())
-    #print('Pen state loss: ', result2.eval())
+      labels=tf.cast(pen_data, tf.int32), logits=z_pen_logits)
         
-    #result = result1 + result2
-    result = result1
-    return result
+    result = result1 + result2
+    return result1, result2
 
 # below is where we need to do MDN (Mixture Density Network) splitting of
 # distribution params
