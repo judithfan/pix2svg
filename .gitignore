@@ -97,3 +97,7 @@ sketchy/triplet_features/*.npy
 
 checkpoints/*
 
+# custom settings
+generative/data
+generative/notebooks
+
