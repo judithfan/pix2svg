@@ -15,6 +15,14 @@ from torch.autograd import Variable
 from scipy.spatial.distance import cosine
 
 
+def gen_interpretable_label(label_index):
+    with open('class_index.json') as fp:
+        class_idx = json.load(fp)
+        idx2label = [class_idx[str(k)][1]
+                     for k in range(len(class_idx))]
+    return idx2label[label_index]
+
+
 def build_vgg19_feature_extractor(vgg):
     """Take features from the activations of the hidden layer
     immediately before the VGG's object classifier (4096 size).
@@ -152,7 +160,8 @@ def sample_endpoints(x_s, y_s, std=10, size=1, min_x=0, max_x=256, min_y=0, max_
     return samples
 
 
-def compute_losses(natural_image, sketch_images, label=None, label_weight=1.0):
+def compute_losses(natural_image, sketch_images, vgg_features,
+                   label=None, label_weight=1.0, vgg_scores=None):
     """Compute a loss to describe how semantically far apart
     the natural image and the sketch image are. If label is not
     None, compute an additional penalty for getting the label wrong.
@@ -163,14 +172,29 @@ def compute_losses(natural_image, sketch_images, label=None, label_weight=1.0):
 
     :param natural_image: PyTorch Variable (1 x C x H x W)
     :param sketch_image: PyTorch Variable (N x C x H x W)
+    :param vgg_features: VGG19 PyTorch instance that produces features
     :param label: float - a number from 0 to # classes - 1
     :param label_weight: regularization parameter to weight xentropy
+    :param vgg_scores: VGG19 PyTorch instance that produces scores
     """
+
+    def extract_features(data):
+        """:param data: 4d array of NxCxHxW"""
+        vgg_features.eval()
+        features = vgg_features(data).data.numpy()
+        return features / np.linalg.norm(features, axis=1)[:, None]
+
+    def extract_scores(data):
+        """:param data: 4d array of NxCxHxW"""
+        vgg_scores.eval()
+        scores = np.exp(vgg_scores(data).data.numpy())
+        return scores / np.linalg.norm(scores, axis=1)[:, None]
+
     natural_features = extract_features(natural_image)
     # compute features for all sketches at once
     sketch_features_arr = extract_features(sketch_images)
     num_sketches = sketch_features_arr.shape[0]
-    if label is not None:
+    if label is not None and vgg_scores is not None:
         # if we are weighting the class, compute all scores at once
         sketch_class_probas_arr = extract_scores(sketch_images)
 
@@ -178,7 +202,7 @@ def compute_losses(natural_image, sketch_images, label=None, label_weight=1.0):
     losses = np.zeros(num_sketches)
     for i in range(num_sketches):
         dist = 1 - cosine(natural_features, sketch_features_arr[i])
-        if label is not None:
+        if label is not None and vgg_scores is not None:
             dist += label_weight * F.nll_loss(
                 Variable(torch.from_numpy(sketch_class_probas_arr[i][np.newaxis])),
                 Variable(torch.from_numpy(np.array([label])))
@@ -200,12 +224,9 @@ if __name__ == '__main__':
                         help='number of samples per iteration')
     parser.add_argument('--n_iters', type=int, default=20,
                         help='number of iterations')
+    parser.add_argument('--std', type=float, default=15.0,
+                        help='std for Gaussian when sampling')
     args = parser.parse_args()
-
-    with open('class_index.json') as fp:
-        class_idx = json.load(fp)
-        idx2label = [class_idx[str(k)][1]
-                     for k in range(len(class_idx))]
 
     # pretrained on imagenet
     vgg19 = models.vgg19(pretrained=True)
@@ -224,24 +245,12 @@ if __name__ == '__main__':
     # cut off part of the net to generate features
     vgg_ext = build_vgg19_feature_extractor(vgg19)
 
-    def extract_features(data):
-        """:param data: 4d array of NxCxHxW"""
-        vgg_ext.eval()
-        features = vgg_ext(data).data.numpy()
-        return features / np.linalg.norm(features, axis=1)[:, None]
-
-    def extract_scores(data):
-        """:param data: 4d array of NxCxHxW"""
-        vgg19.eval()
-        scores = np.exp(vgg19(data).data.numpy())
-        return scores / np.linalg.norm(scores, axis=1)[:, None]
-
     x_e, y_e = 128, 128  # start in center
     x_selected, y_selected, action_selected = [x_e], [y_e], []
 
     for iter in range(args['n_iters']):
         print('ITER (%i/%i):' % iter + 1, args['n_iters'])
-        coord_samples = sample_endpoints(x_e, y_e, std=15, size=args['n_samples'],
+        coord_samples = sample_endpoints(x_e, y_e, std=args['std'], size=args['n_samples'],
                                          min_x=0, max_x=256, min_y=0, max_y=256)
         x_samples, y_samples = coord_samples[:, 0], coord_samples[:, 1]
         print('- generated %i samples' % args['n_samples'])
@@ -271,7 +280,7 @@ if __name__ == '__main__':
         print('- converted to %i png canvases' % args['n_samples'])
 
         sketches = load_canvases(png_paths)
-        losses = compute_losses(natural, sketches)
+        losses = compute_losses(natural, sketches, vgg_ext)
         winning_index = np.argmax(losses)
         print('- calculated loss; best loss: %f' % max(losses))
 
