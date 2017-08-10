@@ -3,6 +3,8 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 import copy
+import math
+import svgwrite
 import numpy as np
 from PIL import Image
 import torch
@@ -62,7 +64,7 @@ def gen_action(iter, min_iter=10, max_iter=20, min_stop_proba=0.0,
         move_proba = 1 - draw_proba - stop_proba
     action_proba = np.array([draw_proba, move_proba, stop_proba])
     action_state = np.array(['draw', 'move', 'stop'])
-    return np.random.choice(action_state, 1, p=action_proba)
+    return np.random.choice(action_state, 1, p=action_proba)[0]
 
 
 def gen_canvas(x_list, y_list, action_list, outpath='./tmp.svg', size=256):
@@ -86,11 +88,10 @@ def gen_canvas(x_list, y_list, action_list, outpath='./tmp.svg', size=256):
                  fill='white'))
 
     # start with first point and draw/move/stop a segment
-    x_s, y_s = x_list[0], y_list[0]
-    x_list, y_list = x_list[1:], y_list[1:]
     num_coords = len(x_list)
-    for i in range(num_coords):
-        x_e, y_e = x_list[i], y_list[i]
+    for i in range(num_coords - 1):
+        x_s, y_s = x_list[i], y_list[i]
+        x_e, y_e = x_list[i + 1], y_list[i + 1]
         if action_list[i] == 'draw':
             path = "M {x_s},{y_s} L {x_e},{y_e} ".format(x_s=x_s, y_s=y_s,
                                                          x_e=x_e, y_e=y_e)
@@ -191,11 +192,35 @@ def compute_losses(natural_image, sketch_images, vgg_features,
         return scores / np.linalg.norm(scores, axis=1)[:, None]
 
     natural_features = extract_features(natural_image)
-    # compute features for all sketches at once
-    sketch_features_arr = extract_features(sketch_images)
-    num_sketches = sketch_features_arr.shape[0]
+    # compute features for all sketches in batches (if batch is too
+    # large then we will have memory issues)
+    num_sketches = sketch_images.size()[0]  # number of images total
+    num_reads = int(math.floor(num_sketches / args.batch_size))  # number of passes needed
+    num_processed = 0  # track the number of batches processed
+    sketch_features_arr = []
+
+    for i in range(num_reads):
+        sketch_images_batch = sketch_images[
+            num_processed:num_processed+args.batch_size,
+        ]
+        sketch_features_batch = extract_features(sketch_images_batch)
+        sketch_features_arr.append(sketch_features_batch)
+        num_processed += args.batch_size
+
+    # process remaining images
+    if num_sketches - num_processed > 0:
+        sketch_images_batch = sketch_images[
+            num_processed:num_sketches,
+        ]
+        sketch_features_batch = extract_features(sketch_images_batch)
+        sketch_features_arr.append(sketch_features_batch)
+
+    # stack all of them together
+    sketch_features_arr = np.vstack(sketch_features_arr)
+
     if label is not None and vgg_scores is not None:
         # if we are weighting the class, compute all scores at once
+        # TODO: convert me to batch based if i'm going to use this
         sketch_class_probas_arr = extract_scores(sketch_images)
 
     # for each sketch, compute loss with natural image
@@ -217,6 +242,10 @@ if __name__ == '__main__':
     import json
     import argparse
 
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    sns.set_style('whitegrid')
+
     parser = argparse.ArgumentParser(description="generate sketches")
     parser.add_argument('--imagepath', type=str, help='path to image file')
     parser.add_argument('--sketchdir', type=str, help='directory to store sketches')
@@ -224,6 +253,8 @@ if __name__ == '__main__':
                         help='number of samples per iteration')
     parser.add_argument('--n_iters', type=int, default=20,
                         help='number of iterations')
+    parser.add_argument('--batch_size', type=int, default=100,
+                        help='size when running forward pass (memory issues)')
     parser.add_argument('--std', type=float, default=15.0,
                         help='std for Gaussian when sampling')
     args = parser.parse_args()
@@ -239,7 +270,7 @@ if __name__ == '__main__':
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
-    img = Image.open(args['imagepath'])
+    img = Image.open(args.imagepath)
     natural = Variable(preprocessing(img).unsqueeze(0))
 
     # cut off part of the net to generate features
@@ -247,42 +278,40 @@ if __name__ == '__main__':
 
     x_e, y_e = 128, 128  # start in center
     x_selected, y_selected, action_selected = [x_e], [y_e], []
+    loss_per_epoch = []
 
-    for iter in range(args['n_iters']):
-        print('ITER (%i/%i):' % iter + 1, args['n_iters'])
-        coord_samples = sample_endpoints(x_e, y_e, std=args['std'], size=args['n_samples'],
+    for iter in range(args.n_iters):
+        print('ITER (%i/%i):' % (iter + 1, args.n_iters))
+        coord_samples = sample_endpoints(x_e, y_e, std=args.std, size=args.n_samples,
                                          min_x=0, max_x=256, min_y=0, max_y=256)
         x_samples, y_samples = coord_samples[:, 0], coord_samples[:, 1]
-        print('- generated %i samples' % args['n_samples'])
-        # once we hit a stop, always stop
-        if 'stop' in action_selected:
-            action_samples = ['stop' for i in range(args['n_samples'])]
-            print('- stop override')
-        else:
-            action_sample = gen_action(1)
-            print('- sampled %s action' % action_sample)
+        print('- generated %i samples' % args.n_samples)
+        # action_sample = gen_action(1)
+        action_sample = 'draw'
+        print('- sampled \'%s\' action' % action_sample)
 
         svg_paths = []
-        for i in range(args['n_samples']):
+        for i in range(args.n_samples):
             x_path = x_selected + [x_samples[i]]
             y_path = y_selected + [y_samples[i]]
             action_path = action_selected + [action_sample]
             svg_path = gen_canvas(x_path, y_path, action_path,
-                                  outpath=os.path.join(args['sketchdir'], '{}.svg'.format(i)))
+                                  outpath=os.path.join(args.sketchdir, '{}.svg'.format(i)))
             svg_paths.append(svg_path)
-        print('- generated %i svg canvases' % args['n_samples'])
+        print('- generated %i svg canvases' % args.n_samples)
 
         # do this in a separate for loop to avoid conflicts in render time
         png_paths = []  # convert svgs to pngs
-        for i in range(args['n_samples']):
-            png_path = svg2png(os.path.join(args['sketchdir'], '{}.svg'.format(i)))
+        for i in range(args.n_samples):
+            png_path = svg2png(os.path.join(args.sketchdir, '{}.svg'.format(i)))
             png_paths.append(png_path)
-        print('- converted to %i png canvases' % args['n_samples'])
+        print('- converted to %i png canvases' % args.n_samples)
 
         sketches = load_canvases(png_paths)
         losses = compute_losses(natural, sketches, vgg_ext)
         winning_index = np.argmax(losses)
-        print('- calculated loss; best loss: %f' % max(losses))
+        print('- calculated loss; best loss: %f' % losses[winning_index])
+        loss_per_epoch.append(losses[winning_index])
 
         x_selected.append(x_samples[winning_index])
         y_selected.append(y_samples[winning_index])
@@ -297,9 +326,19 @@ if __name__ == '__main__':
     print('deleted %i generated files' % len(generated_paths))
 
     # save output to savedir
-    save_path = os.path.join(args['sketchdir'], 'sketch.svg')
+    save_path = os.path.join(args.sketchdir, 'sketch.svg')
     svg_path = gen_canvas(x_selected, y_selected, action_selected,
                           outpath=save_path)
     png_path = svg2png(svg_path)
     os.remove(svg_path)
-    print('saved sketch to %s' % png_path)
+    print('saved sketch to \'%s\'' % png_path)
+
+    # save plot to pngs
+    plot_path = os.path.join(args.sketchdir, 'distance_over_time.png')
+    plt.figure()
+    plt.plot(loss_per_epoch)
+    plt.xlabel('epoch')
+    plt.ylabel('distance')
+    plt.tight_layout()
+    plt.savefig(plot_path)
+    print('saved losses to \'%s\'' % plot_path)
