@@ -3,9 +3,10 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 import copy
+import numpy as np
+from PIL import Image
 import torch
 import torch.nn as nn
-import numpy as np
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
@@ -53,11 +54,10 @@ def gen_action(iter, min_iter=10, max_iter=20, min_stop_proba=0.0,
         move_proba = 1 - draw_proba - stop_proba
     action_proba = np.array([draw_proba, move_proba, stop_proba])
     action_state = np.array(['draw', 'move', 'stop'])
-    return np.random.choice(action_state, 1, p=action_proba)[0]
+    return np.random.choice(action_state, 1, p=action_proba)
 
 
-def gen_canvas(x_list, y_list, action_list,
-               outpath='./tmp.svg', size=256):
+def gen_canvas(x_list, y_list, action_list, outpath='./tmp.svg', size=256):
     """Draw a sequence of coordinates onto a canvas.
 
     :param x_list: list of floats - x coordinates
@@ -68,11 +68,11 @@ def gen_canvas(x_list, y_list, action_list,
     """
     assert len(x_list) == len(y_list)
     assert len(x_list) == len(action_list) + 1
-    assert set(action_list) == set('draw', 'move', 'stop')
+    assert set(action_list) <  set(['draw', 'move', 'stop'])
 
     # initialize canvas
     size ='{}px'.format(size)
-    dwg = svgwrite.Drawing(filename='../sketch/1.svg', size=(size, size))
+    dwg = svgwrite.Drawing(filename=outpath, size=(size, size))
     dwg.add(dwg.rect(insert=(0, 0),
                  size=(size, size),
                  fill='white'))
@@ -95,6 +95,20 @@ def gen_canvas(x_list, y_list, action_list,
 
     # save canvas
     dwg.save()
+    return outpath
+
+
+def svg2png(svgpath, width=256, height=256):
+    """Convert SVG files to PNGs"""
+    svgname = os.path.basename(svgpath)
+    directory = os.path.dirname(svgpath)
+    pngpath = os.path.join(directory, svgname.replace('.svg', '.png'))
+    cmd = 'rsvg -w {width} -h {height} "{svgpath}" -o "{pngpath}"'.format(
+        width=width, height=height,
+        svgpath=svgpath, pngpath=pngpath,
+    )
+    os.system(cmd)
+    return pngpath
 
 
 def load_canvases(paths):
@@ -110,7 +124,7 @@ def load_canvases(paths):
         img = Image.open(paths[i])
         imgs.append(preprocessing(img).unsqueeze(0))
     imgs = torch.cat(imgs)
-    return imgs
+    return Variable(imgs)
 
 
 def sample_endpoints(x_s, y_s, std=10, size=1, min_x=0, max_x=256, min_y=0, max_y=256):
@@ -128,7 +142,7 @@ def sample_endpoints(x_s, y_s, std=10, size=1, min_x=0, max_x=256, min_y=0, max_
     :return samples: 2d array of x_e and y_e coordinates
     """
     mean = np.array([x_s, y_s])
-    cov = np.eye(2) * std
+    cov = np.eye(2) * std**2
     samples = np.random.multivariate_normal(mean, cov, size=size)
     # cut off boundaries (this happens if std is too big)
     samples[:, 0][samples[:, 0] < min_x] = min_x
@@ -178,10 +192,14 @@ if __name__ == '__main__':
     import os
     import json
     import argparse
-    from PIL import Image
 
     parser = argparse.ArgumentParser(description="generate sketches")
     parser.add_argument('--imagepath', type=str, help='path to image file')
+    parser.add_argument('--sketchdir', type=str, help='directory to store sketches')
+    parser.add_argument('--n_samples', type=int, default=100,
+                        help='number of samples per iteration')
+    parser.add_argument('--n_iters', type=int, default=20,
+                        help='number of iterations')
     args = parser.parse_args()
 
     with open('class_index.json') as fp:
@@ -201,14 +219,78 @@ if __name__ == '__main__':
     ])
 
     img = Image.open(args['imagepath'])
-    data = Variable(preprocessing(img).unsqueeze(0))
+    natural = Variable(preprocessing(img).unsqueeze(0))
 
     # cut off part of the net to generate features
-    vgg_ext = chop_vgg19(vgg19)
+    vgg_ext = build_vgg19_feature_extractor(vgg19)
 
     def extract_features(data):
-        features = vgg_ext(data).data[0].numpy()
-        return features / np.linalg.norm(features)
+        """:param data: 4d array of NxCxHxW"""
+        vgg_ext.eval()
+        features = vgg_ext(data).data.numpy()
+        return features / np.linalg.norm(features, axis=1)[:, None]
 
     def extract_scores(data):
-        return vgg19(data).data[0].numpy()
+        """:param data: 4d array of NxCxHxW"""
+        vgg19.eval()
+        scores = np.exp(vgg19(data).data.numpy())
+        return scores / np.linalg.norm(scores, axis=1)[:, None]
+
+    x_e, y_e = 128, 128  # start in center
+    x_selected, y_selected, action_selected = [x_e], [y_e], []
+
+    for iter in range(args['n_iters']):
+        print('ITER (%i/%i):' % iter + 1, args['n_iters'])
+        coord_samples = sample_endpoints(x_e, y_e, std=15, size=args['n_samples'],
+                                         min_x=0, max_x=256, min_y=0, max_y=256)
+        x_samples, y_samples = coord_samples[:, 0], coord_samples[:, 1]
+        print('- generated %i samples' % args['n_samples'])
+        # once we hit a stop, always stop
+        if 'stop' in action_selected:
+            action_samples = ['stop' for i in range(args['n_samples'])]
+            print('- stop override')
+        else:
+            action_sample = gen_action(1)
+            print('- sampled %s action' % action_sample)
+
+        svg_paths = []
+        for i in range(args['n_samples']):
+            x_path = x_selected + [x_samples[i]]
+            y_path = y_selected + [y_samples[i]]
+            action_path = action_selected + [action_sample]
+            svg_path = gen_canvas(x_path, y_path, action_path,
+                                  outpath=os.path.join(args['sketchdir'], '{}.svg'.format(i)))
+            svg_paths.append(svg_path)
+        print('- generated %i svg canvases' % args['n_samples'])
+
+        # do this in a separate for loop to avoid conflicts in render time
+        png_paths = []  # convert svgs to pngs
+        for i in range(args['n_samples']):
+            png_path = svg2png(os.path.join(args['sketchdir'], '{}.svg'.format(i)))
+            png_paths.append(png_path)
+        print('- converted to %i png canvases' % args['n_samples'])
+
+        sketches = load_canvases(png_paths)
+        losses = compute_losses(natural, sketches)
+        winning_index = np.argmax(losses)
+        print('- calculated loss; best loss: %f' % max(losses))
+
+        x_selected.append(x_samples[winning_index])
+        y_selected.append(y_samples[winning_index])
+        action_selected.append(action_sample)
+        print('')  # new line
+
+    print('------------------------------')
+    # delete generated files
+    generated_paths = svg_paths + png_paths
+    for path in generated_paths:
+        os.remove(path)
+    print('deleted %i generated files' % len(generated_paths))
+
+    # save output to savedir
+    save_path = os.path.join(args['sketchdir'], 'sketch.svg')
+    svg_path = gen_canvas(x_selected, y_selected, action_selected,
+                          outpath=save_path)
+    png_path = svg2png(svg_path)
+    os.remove(svg_path)
+    print('saved sketch to %s' % png_path)
