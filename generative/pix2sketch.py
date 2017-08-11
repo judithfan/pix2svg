@@ -241,6 +241,7 @@ if __name__ == '__main__':
 
     # pretrained on imagenet
     vgg19 = models.vgg19(pretrained=True)
+    print('loaded vgg19')
 
     # needed for imagenet
     preprocessing = transforms.Compose([
@@ -253,10 +254,13 @@ if __name__ == '__main__':
     # load the natural image we want to sketch
     img = Image.open(args.imagepath)
     natural = Variable(preprocessing(img).unsqueeze(0))
+    print('loaded natural image')
 
     # load the distractions that we use to normalize our metric
-    distraction_paths = os.listdir(args.distractdir)
+    distraction_paths = [os.path.join(args.distractdir, i)
+                         for i in os.listdir(args.distractdir)]
     distractions = load_images_to_torch(distraction_paths)
+    print('loaded distraction images\n')
 
     # cut off part of the net to generate features
     vgg_ext = build_vgg19_feature_extractor(vgg19)
@@ -295,7 +299,7 @@ if __name__ == '__main__':
         print('- converted to %i png canvases' % args.n_samples)
 
         sketches = load_images_to_torch(png_paths)
-        losses = compute_losses(natural, sketches, vgg_ext, distractions=distractions)
+        losses = compute_losses(natural, sketches, distractions, vgg_ext)
         winning_index = np.argmax(losses)
         print('- calculated loss: %f' % losses[winning_index])
         loss_per_iter.append(losses[winning_index])
@@ -334,6 +338,21 @@ if __name__ == '__main__':
     png_path = svg2png(svg_path)
     os.remove(svg_path)
     print('saved sketch to \'%s\'' % png_path)
+
+    # save the internal components:
+    output_path = os.path.join(args.sketchdir, 'sketch_outputs.npy')
+    np.save(
+        output_path,
+        {
+            'x': x_selected,
+            'y': y_selected,
+            'action': action_selected,
+            'best_iter': best_loss_iter,
+            'best_loss': best_loss,
+            'patience': patience,
+        },
+    )
+    print('saved output variables to \'%s\'' % output_path)
 
     # save plot to pngs
     plot_path = os.path.join(args.sketchdir, 'distance_over_time.png')
