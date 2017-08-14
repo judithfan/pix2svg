@@ -2,6 +2,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
+import os
 import copy
 import math
 import svgwrite
@@ -98,18 +99,21 @@ def svg2png(svgpath, width=256, height=256):
     return pngpath
 
 
-def load_images_to_torch(paths):
+def load_images_to_torch(paths, preprocessing=None):
     """Load a bunch jpegs/pngs/etc. into a Torch environment
     as a single Torch Variable.
 
     :param paths: list of str
+    :param preprocessing: transforms.Compose([...])
     :return: Torch Variable
     """
     num_paths = len(paths)
     imgs = []
     for i in range(num_paths):
         img = Image.open(paths[i])
-        imgs.append(preprocessing(img).unsqueeze(0))
+        if preprocessing is not None:
+            img = preprocessing(img).unsqueeze(0)
+        imgs.append(img)
     imgs = torch.cat(imgs)
     return Variable(imgs)
 
@@ -139,7 +143,8 @@ def sample_endpoints(x_s, y_s, std=10, size=1, min_x=0, max_x=256, min_y=0, max_
     return samples
 
 
-def compute_losses(natural_image, sketch_images, distraction_images, vgg_features):
+def compute_losses(natural_image, sketch_images, distraction_images, vgg_features,
+                   batch_size=100):
     """Compute a loss to describe how semantically far apart
     the natural image and the sketch image are. If label is not
     None, compute an additional penalty for getting the label wrong.
@@ -153,6 +158,7 @@ def compute_losses(natural_image, sketch_images, distraction_images, vgg_feature
     :param sketch_images: PyTorch Variable (N x C x H x W)
     :param distraction_images: PyTorch Variable (M x C x H x W)
     :param vgg_features: VGG19 PyTorch instance that produces features
+    :param batch_size: run X images at a time through deep net
     """
 
     def extract_features(data):
@@ -175,17 +181,17 @@ def compute_losses(natural_image, sketch_images, distraction_images, vgg_feature
     # compute features for all sketches in batches (if batch is too
     # large then we will have memory issues)
     num_sketches = sketch_images.size()[0]  # number of images total
-    num_reads = int(math.floor(num_sketches / args.batch_size))  # number of passes needed
+    num_reads = int(math.floor(num_sketches / batch_size))  # number of passes needed
     num_processed = 0  # track the number of batches processed
     sketch_features_arr = []
 
     for i in range(num_reads):
         sketch_images_batch = sketch_images[
-            num_processed:num_processed+args.batch_size,
+            num_processed:num_processed+batch_size,
         ]
         sketch_features_batch = extract_features(sketch_images_batch)
         sketch_features_arr.append(sketch_features_batch)
-        num_processed += args.batch_size
+        num_processed += batch_size
 
     # process remaining images
     if num_sketches - num_processed > 0:
@@ -215,7 +221,6 @@ def compute_losses(natural_image, sketch_images, distraction_images, vgg_feature
 
 
 if __name__ == '__main__':
-    import os
     import json
     import argparse
 
@@ -262,7 +267,7 @@ if __name__ == '__main__':
     # load the distractions that we use to normalize our metric
     distraction_paths = [os.path.join(args.distract_dir, i)
                          for i in os.listdir(args.distract_dir)]
-    distractions = load_images_to_torch(distraction_paths)
+    distractions = load_images_to_torch(distraction_paths, preprocessing)
     print('loaded distraction images\n')
 
     # cut off part of the net to generate features
@@ -314,7 +319,7 @@ if __name__ == '__main__':
                 # create svg drawing
                 svg_path = gen_canvas(x_path, y_path, action_path,
                                       outpath=os.path.join(args.sketch_dir,
-                                                           '{}.svg'.format(i)))
+                                                           'iter_{}_beam_{}.svg'.format(i, b)))
                 svg_paths.append(svg_path)
             print('- generated %i svg canvases' % args.n_samples)
 
@@ -322,8 +327,9 @@ if __name__ == '__main__':
             png_paths = [svg2png(svg_paths[i]) for i in range(args.n_samples)]
             print('- converted to %i png canvases' % args.n_samples)
 
-            sketches = load_images_to_torch(png_paths)
-            losses = compute_losses(natural, sketches, distractions, vgg_ext)
+            sketches = load_images_to_torch(png_paths, preprocessing)
+            losses = compute_losses(natural, sketches, distractions, vgg_ext,
+                                    batch_size=args.batch_size)
 
             beam_losses += losses
             x_beam_samples += x_samples
@@ -344,10 +350,10 @@ if __name__ == '__main__':
         # these will hold updated beam paths
         _x_beam_paths, _y_beam_paths, _action_beam_paths = [], [], []
         for b in range(args.beam_width):  # update our beam paths
-            beam_parent = top_indexes[b] % args.n_samples  # which beam it originated from
-            _x_beam_paths[b] = x_beam_paths[beam_parent] + [x_beam_samples[top_indexes[b]]]
-            _y_beam_paths[b] = x_beam_paths[beam_parent] + [y_beam_samples[top_indexes[b]]]
-            _action_beam_paths[b] = action_beam_paths[beam_parent] + [action_beam_samples[b]]
+            beam_parent = int(np.floor(top_indexes[b] / args.n_samples))  # which beam it originated from
+            _x_beam_paths.append(x_beam_paths[beam_parent] + [x_beam_samples[top_indexes[b]]])
+            _y_beam_paths.append(x_beam_paths[beam_parent] + [y_beam_samples[top_indexes[b]]])
+            _action_beam_paths.append(action_beam_paths[beam_parent] + [action_beam_samples[b]])
 
         # overwrite old paths with new ones
         x_beam_paths = _x_beam_paths
@@ -355,8 +361,8 @@ if __name__ == '__main__':
         action_beam_paths = _action_beam_paths
 
         # update beam queue with top beam_width samples across beams
-        x_beam_queue = [x_beam_samples[top_indexes[b]] for b in args.beam_width]
-        y_beam_queue = [y_beam_samples[top_indexes[b]] for b in args.beam_width]
+        x_beam_queue = [x_beam_samples[top_indexes[b]] for b in range(args.beam_width)]
+        y_beam_queue = [y_beam_samples[top_indexes[b]] for b in range(args.beam_width)]
 
         # save loss statistics
         top_beam_loss = beam_losses[top_indexes[0]]
