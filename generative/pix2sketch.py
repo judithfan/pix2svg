@@ -26,19 +26,33 @@ def gen_interpretable_label(label_index):
     return idx2label[label_index]
 
 
-def build_vgg19_feature_extractor(vgg):
+def build_vgg19_feature_extractor(vgg, chop_index=42):
     """Take features from the activations of the hidden layer
     immediately before the VGG's object classifier (4096 size).
     The last linear layer and last dropout layer are removed,
     preserving the ReLU. The activations are L2 normalized.
 
     :param vgg: trained vgg19 model
-    :return: PyTorch Sequential model
+    :param chop_index: vgg19 has 44 total layers (37 of them are in the features container)
+                       7 of them are in the classifier container. By default, we use the
+                       last rectified linear layer before projecting into 1000 classes.
+    :return: 2 PyTorch Sequential models
+             - 1 to generate features
+             - 1 to run the rest of the network
     """
     vgg_copy = copy.deepcopy(vgg)
-    classifier = nn.Sequential(*list(vgg.classifier.children())[:-2])
-    vgg_copy.classifier = classifier
-    return vgg_copy
+    vgg_residual = copy.deepcopy(vgg)
+    if chop_index > 37:  # we can keep the features container as is
+        vgg_copy.classifier = nn.Sequential(*list(vgg.classifier.children())[:chop_index-37])
+        # the residual vgg doesn't need the features then
+        vgg_residual.features = nn.Sequential()
+        vgg_residual.classifier = nn.Sequential(*list(vgg.classifier.children())[chop_index-37:])
+    else:
+        vgg_copy.features = nn.Sequential(*list(vgg.features.children())[:chop_index])
+        vgg_copy.classifier = nn.Sequential()
+        vgg_residual.features = nn.Sequential(*list(vgg.features.children())[chop_index:])
+
+    return vgg_copy, vgg_residual
 
 
 def gen_action():
@@ -143,8 +157,43 @@ def sample_endpoints(x_s, y_s, std=10, size=1, min_x=0, max_x=256, min_y=0, max_
     return samples
 
 
-def compute_losses(natural_image, sketch_images, distraction_images, vgg_features,
-                   batch_size=100):
+def pytorch_batch_exec(fn, objects, batch_size):
+    """ Batch execution on Pytorch variables using Pytorch function.
+    The intended purpose is to save memory.
+
+    :param fn: function must take a PyTorch variable of sketches as input
+    :param objects: PyTorch Variable containing data
+    :batch_size: number to process at a time
+    """
+    num_objects = objects.size()[0]  # number of images total
+    num_reads = int(math.floor(num_objects / batch_size))  # number of passes needed
+    num_processed = 0  # track the number of batches processed
+    out_arr = []
+
+    for i in range(num_reads):
+        objects_batch = objects[
+            num_processed:num_processed+batch_size,
+        ]
+        out_batch = fn(objects_batch)
+        out_arr.append(out_batch)
+        num_processed += batch_size
+
+    # process remaining images
+    if num_objects - num_processed > 0:
+        objects_batch = objects[
+            num_processed:num_objects,
+        ]
+        out_batch = fn(objects_batch)
+        out_arr.append(out_batch)
+
+    # stack all of them together
+    out_arr = np.vstack(out_arr)
+    return out_arr
+
+
+def compute_losses(natural_image, sketch_images, distraction_images,
+                   vgg_features, vgg_residual, batch_size=100,
+                   label_weight=0.0):
     """Compute a loss to describe how semantically far apart
     the natural image and the sketch image are. If label is not
     None, compute an additional penalty for getting the label wrong.
@@ -158,21 +207,25 @@ def compute_losses(natural_image, sketch_images, distraction_images, vgg_feature
     :param sketch_images: PyTorch Variable (N x C x H x W)
     :param distraction_images: PyTorch Variable (M x C x H x W)
     :param vgg_features: VGG19 PyTorch instance that produces features
+    :param vgg_residual: VGG19 PyTorch instance that is the rest of vgg19 after
+                         vgg_features
     :param batch_size: run X images at a time through deep net
+    :param label_weight: if non-zero, penalize sketches for producing
+                         class probabilities that deviate from natural image
+                         class probabilities...
     """
 
     def extract_features(data):
         """:param data: 4d array of NxCxHxW"""
         vgg_features.eval()
-        features = vgg_features(data).data.numpy()
-        return features / np.linalg.norm(features, axis=1)[:, None]
+        return vgg_features(data).data.numpy()
 
-    def extract_scores(data):
-        """:param data: 4d array of NxCxHxW"""
-        vgg_scores.eval()
-        scores = np.exp(vgg_scores(data).data.numpy())
-        return scores / np.linalg.norm(scores, axis=1)[:, None]
+    def extract_log_scores(features):
+        """:param features: output of extract_features wrapped in a PyTorch Variable"""
+        vgg_residual.eval()
+        return F.log_softmax(vgg_residual(features)).data.numpy()
 
+    num_sketches = sketch_images.size()[0]
     natural_features = extract_features(natural_image)
     # compute features for all distraction images (not batching since this is a small number)
     num_distractions = distraction_images.size()[0]
@@ -180,29 +233,13 @@ def compute_losses(natural_image, sketch_images, distraction_images, vgg_feature
 
     # compute features for all sketches in batches (if batch is too
     # large then we will have memory issues)
-    num_sketches = sketch_images.size()[0]  # number of images total
-    num_reads = int(math.floor(num_sketches / batch_size))  # number of passes needed
-    num_processed = 0  # track the number of batches processed
-    sketch_features_arr = []
+    sketch_features_arr = pytorch_batch_exec(extract_features, sketch_images, batch_size)
 
-    for i in range(num_reads):
-        sketch_images_batch = sketch_images[
-            num_processed:num_processed+batch_size,
-        ]
-        sketch_features_batch = extract_features(sketch_images_batch)
-        sketch_features_arr.append(sketch_features_batch)
-        num_processed += batch_size
-
-    # process remaining images
-    if num_sketches - num_processed > 0:
-        sketch_images_batch = sketch_images[
-            num_processed:num_sketches,
-        ]
-        sketch_features_batch = extract_features(sketch_images_batch)
-        sketch_features_arr.append(sketch_features_batch)
-
-    # stack all of them together
-    sketch_features_arr = np.vstack(sketch_features_arr)
+    if label_weight > 0.0:
+        natural_log_scores = extract_log_scores(Variable(torch.from_numpy(natural_features)))
+        sketch_log_scores_arr = pytorch_batch_exec(extract_log_scores,
+                                                   torch.from_numpy(sketch_features_arr),
+                                                   batch_size)
 
     # for each sketch, compute loss with natural image
     losses = [0]*num_sketches
@@ -216,6 +253,13 @@ def compute_losses(natural_image, sketch_images, distraction_images, vgg_feature
         # normalize natural_dist by distraction_dists
         all_dists = np.array([natural_dist] + distraction_dists)
         losses[i] = natural_dist / np.linalg.norm(all_dists)
+
+        # add class penalty if provided
+        if label_weight > 0.0:
+            losses[i] += label_weight * F.nll_loss(
+                Variable(torch.from_numpy(sketch_log_scores_arr[i][np.newaxis])),
+                Variable(torch.from_numpy(np.argmax(natural_log_scores, axis=1))),
+            ).exp().data.numpy()[0]
 
     return losses
 
@@ -244,7 +288,14 @@ if __name__ == '__main__':
                         help='once the informativity measure stops improving, wait N epochs before quitting')
     parser.add_argument('--beam_width', type=int, default=1,
                         help='number of particles to preserve at each timestep')
+    parser.add_argument('--featext_layer_index', type=int, default=42,
+                        help='index of layer in vgg19 for feature extraction')
+    parser.add_argument('--label_weight', type=float, default=0.,
+                        help='if not zero, penalize sketches for producing the incorrect class')
     args = parser.parse_args()
+
+    assert args.beam_width <= args.n_samples
+    assert args.featext_layer_index > 0 and args.featext_layer_index < 45
 
     # pretrained on imagenet
     vgg19 = models.vgg19(pretrained=True)
@@ -271,7 +322,7 @@ if __name__ == '__main__':
     print('loaded distraction images\n')
 
     # cut off part of the net to generate features
-    vgg_ext = build_vgg19_feature_extractor(vgg19)
+    vgg_features, vgg_residual = build_vgg19_feature_extractor(vgg19, chop_index=args.featext_layer_index)
 
     x_init, y_init = 128, 128  # start in center
     # store the best & average beam loss as we traverse
@@ -328,8 +379,10 @@ if __name__ == '__main__':
             print('- converted to %i png canvases' % args.n_samples)
 
             sketches = load_images_to_torch(png_paths, preprocessing)
-            losses = compute_losses(natural, sketches, distractions, vgg_ext,
+            losses = compute_losses(natural, sketches, distractions,
+                                    vgg_features, vgg_residual,
                                     batch_size=args.batch_size)
+            print('- computed losses')
 
             beam_losses += losses
             x_beam_samples += x_samples
@@ -352,7 +405,7 @@ if __name__ == '__main__':
         for b in range(args.beam_width):  # update our beam paths
             beam_parent = int(np.floor(top_indexes[b] / args.n_samples))  # which beam it originated from
             _x_beam_paths.append(x_beam_paths[beam_parent] + [x_beam_samples[top_indexes[b]]])
-            _y_beam_paths.append(x_beam_paths[beam_parent] + [y_beam_samples[top_indexes[b]]])
+            _y_beam_paths.append(y_beam_paths[beam_parent] + [y_beam_samples[top_indexes[b]]])
             _action_beam_paths.append(action_beam_paths[beam_parent] + [action_beam_samples[b]])
 
         # overwrite old paths with new ones
@@ -373,13 +426,13 @@ if __name__ == '__main__':
         # update patience constants (and possibly break)
         if top_beam_loss >= best_loss:
             best_loss = top_beam_loss
-            best_loss_beam = top_indexes[0] % args.n_samples
+            best_loss_beam = int(np.floor(top_indexes[0] / args.n_samples))
             best_loss_iter = iter
             patience = args.patience
             print('- new best loss %f. patience reset to %d' % (best_loss, patience))
         else:
             patience -= 1
-            print('- no improvement. patience lowered to %d' % patience)
+            print('- no improvement %f. patience lowered to %d' % (best_loss, patience))
 
         if patience <= 0:  # this is equivalent to "stop" action
             print('- out of patience. quitting...')
@@ -404,6 +457,20 @@ if __name__ == '__main__':
     png_path = svg2png(svg_path)
     os.remove(svg_path)
     print('saved sketch to \'%s\'' % png_path)
+
+    # save the internal components:
+    output_path = os.path.join(args.sketch_dir, 'sketch_outputs.npy')
+    np.save(
+        output_path,
+        {
+            'x': x_beam_paths[best_loss_beam][:best_loss_iter+1],
+            'y': y_beam_paths[best_loss_beam][:best_loss_iter+1],
+            'action': action_beam_paths[best_loss_beam][:best_loss_iter],
+            'best_loss': best_loss,
+            'patience': patience,
+        },
+    )
+    print('saved output variables to \'%s\'' % output_path)
 
     # save plot to pngs
     plot_path = os.path.join(args.sketch_dir, 'distance_over_time.png')
