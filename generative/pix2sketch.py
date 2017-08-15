@@ -18,6 +18,10 @@ from torch.autograd import Variable
 from scipy.spatial.distance import cosine
 
 
+ALLOWABLE_SAMPLING_PRIORS = ['gaussian', 'angle']
+ALLOWABLE_ACTIONS = ['draw', 'move']
+
+
 def gen_interpretable_label(label_index):
     with open('class_index.json') as fp:
         class_idx = json.load(fp)
@@ -73,7 +77,7 @@ def gen_canvas(x_list, y_list, action_list, outpath='./tmp.svg', size=256):
     """
     assert len(x_list) == len(y_list)
     assert len(x_list) == len(action_list) + 1
-    assert set(action_list) <  set(['draw', 'move'])
+    assert set(action_list) <  set(ALLOWABLE_ACTIONS)
 
     # initialize canvas
     size ='{}px'.format(size)
@@ -132,14 +136,14 @@ def load_images_to_torch(paths, preprocessing=None):
     return Variable(imgs)
 
 
-def sample_endpoints(x_s, y_s, std=10, size=1, min_x=0, max_x=256, min_y=0, max_y=256):
+def sample_endpoint_gaussian2d(x_s, y_s, std=10, size=1, min_x=0, max_x=256, min_y=0, max_y=256):
     """Sample a coordinate (x_e, y_e) from a 2D gaussian with set deviation.
     The idea is to bias coordinates closer to the start to make smaller strokes.
 
     :param x_s: starting x coordinate
     :param y_s: starting y coordinate
     :param std: default 10 - controls stroke size
-    :param size:
+    :param size: default 1 - number of sample
     :param min_x: default 0
     :param max_x: default 256
     :param min_y: default 0
@@ -149,6 +153,43 @@ def sample_endpoints(x_s, y_s, std=10, size=1, min_x=0, max_x=256, min_y=0, max_
     mean = np.array([x_s, y_s])
     cov = np.eye(2) * std**2
     samples = np.random.multivariate_normal(mean, cov, size=size)
+    # cut off boundaries (this happens if std is too big)
+    samples[:, 0][samples[:, 0] < min_x] = min_x
+    samples[:, 0][samples[:, 0] > max_x] = max_x
+    samples[:, 1][samples[:, 1] < min_y] = min_y
+    samples[:, 1][samples[:, 1] > max_y] = max_y
+    return samples
+
+
+def sample_endpoint_angle(x_s, y_s, x_l, y_l, std=10, size=1,
+                          min_x=0, max_x=256, min_y=0, max_y=256):
+    """Sample a coordinate (x_e, y_e) by sampling an angle and a distance
+    from two separate 1d gaussians. The idea here is to prevent sampling
+    lines that go back and forth
+
+    :param x_s: starting x coordinate
+    :param y_s: starting y coordinate
+    :param x_l: last x coordinate
+    :param y_l: last y coordinate
+    :param std: default 10 - controls stroke size
+    :param size: default 1 - number of sample
+    :param min_x: default 0
+    :param max_x: default 256
+    :param min_y: default 0
+    :param max_y: default 256
+    :return samples: 2d array of x_e and y_e coordinates
+    """
+    d = math.sqrt((x_s - x_l)**2 + (y_s - y_l)**2)
+    init_angle = np.rad2deg(np.arccos((x_s - x_l) / d))
+
+    angles = np.clip(np.random.normal(loc=init_angle, scale=50, size=size),
+                    -180 + init_angle, 180 + init_angle)
+    lengths = np.random.normal(loc=d, scale=std, size=size)
+
+    x_samples = lengths * np.cos(np.deg2rad(angles)) + x_s
+    y_samples = lengths * np.sin(np.deg2rad(angles)) + y_s
+    samples = np.vstack((x_samples, y_samples)).T
+
     # cut off boundaries (this happens if std is too big)
     samples[:, 0][samples[:, 0] < min_x] = min_x
     samples[:, 0][samples[:, 0] > max_x] = max_x
@@ -292,10 +333,13 @@ if __name__ == '__main__':
                         help='index of layer in vgg19 for feature extraction')
     parser.add_argument('--label_weight', type=float, default=0.,
                         help='if not zero, penalize sketches for producing the incorrect class')
+    parser.add_argument('--sampling_prior', type=str, default='gaussian',
+                        help='gaussian|angle')
     args = parser.parse_args()
 
     assert args.beam_width <= args.n_samples
     assert args.featext_layer_index > 0 and args.featext_layer_index < 45
+    assert args.sampling_prior in ALLOWABLE_SAMPLING_PRIORS
 
     # pretrained on imagenet
     vgg19 = models.vgg19(pretrained=True)
@@ -353,9 +397,19 @@ if __name__ == '__main__':
 
         for b in range(args.beam_width):
             # load particle coordinates
-            coord_samples = sample_endpoints(x_beam_queue[b], y_beam_queue[b],
-                                             std=args.std, size=args.n_samples,
-                                             min_x=0, max_x=256, min_y=0, max_y=256)
+            if args.sampling_prior == 'gaussian':
+                coord_samples = sample_endpoint_gaussian2d(x_beam_queue[b], y_beam_queue[b],
+                                                           std=args.std, size=args.n_samples,
+                                                           min_x=0, max_x=256, min_y=0, max_y=256)
+            elif args.sampling_prior == 'angle':
+                coord_samples = sample_endpoint_angle(x_beam_queue[b], y_beam_queue[b],
+                                                      # estimate local context by the last 5 drawn points!
+                                                      np.mean(x_beam_paths[b][-3:]),
+                                                      np.mean(y_beam_paths[b][-3:]),
+                                                      std=args.std, size=args.n_samples,
+                                                      min_x=0, max_x=256, min_y=0, max_y=256)
+            else:
+                raise Exception('sampling prior <%s> not known' % args.sampling_prior)
             x_samples, y_samples = coord_samples[:, 0].tolist(), coord_samples[:, 1].tolist()
             print('- generated %d samples' % args.n_samples)
 
