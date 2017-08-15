@@ -161,7 +161,7 @@ def sample_endpoint_gaussian2d(x_s, y_s, std=10, size=1, min_x=0, max_x=256, min
     return samples
 
 
-def sample_endpoint_angle(x_s, y_s, x_l, y_l, std=10, size=1,
+def sample_endpoint_angle(x_s, y_s, x_l, y_l, std=10, angle_std=60, size=1,
                           min_x=0, max_x=256, min_y=0, max_y=256):
     """Sample a coordinate (x_e, y_e) by sampling an angle and a distance
     from two separate 1d gaussians. The idea here is to prevent sampling
@@ -182,7 +182,7 @@ def sample_endpoint_angle(x_s, y_s, x_l, y_l, std=10, size=1,
     d = math.sqrt((x_s - x_l)**2 + (y_s - y_l)**2)
     init_angle = np.rad2deg(np.arccos((x_s - x_l) / d))
 
-    angles = np.clip(np.random.normal(loc=init_angle, scale=50, size=size),
+    angles = np.clip(np.random.normal(loc=init_angle, scale=angle_std, size=size),
                     -180 + init_angle, 180 + init_angle)
     lengths = np.random.normal(loc=d, scale=std, size=size)
 
@@ -297,10 +297,11 @@ def compute_losses(natural_image, sketch_images, distraction_images,
 
         # add class penalty if provided
         if label_weight > 0.0:
-            losses[i] += label_weight * F.nll_loss(
+            label_loss = label_weight * F.nll_loss(
                 Variable(torch.from_numpy(sketch_log_scores_arr[i][np.newaxis])),
                 Variable(torch.from_numpy(np.argmax(natural_log_scores, axis=1))),
             ).exp().data.numpy()[0]
+            losses[i] -= label_loss
 
     return losses
 
@@ -335,6 +336,8 @@ if __name__ == '__main__':
                         help='if not zero, penalize sketches for producing the incorrect class')
     parser.add_argument('--sampling_prior', type=str, default='gaussian',
                         help='gaussian|angle')
+    parser.add_argument('--angle_std', type=int, default=60,
+                        help='std for angles when sampling_prior == angle')
     args = parser.parse_args()
 
     assert args.beam_width <= args.n_samples
@@ -373,7 +376,7 @@ if __name__ == '__main__':
     best_loss_per_iter, average_loss_per_iter = [], []
 
     # variables for early-stopping by loss
-    best_loss = 0.0
+    best_loss = -np.inf
     best_loss_iter = 0
     best_loss_beam = 0
     patience = args.patience
@@ -397,7 +400,7 @@ if __name__ == '__main__':
 
         for b in range(args.beam_width):
             # load particle coordinates
-            if args.sampling_prior == 'gaussian':
+            if args.sampling_prior == 'gaussian' or iter == 0:  # 1st iter has to be gaussian
                 coord_samples = sample_endpoint_gaussian2d(x_beam_queue[b], y_beam_queue[b],
                                                            std=args.std, size=args.n_samples,
                                                            min_x=0, max_x=256, min_y=0, max_y=256)
@@ -406,8 +409,9 @@ if __name__ == '__main__':
                                                       # estimate local context by the last 5 drawn points!
                                                       np.mean(x_beam_paths[b][-3:]),
                                                       np.mean(y_beam_paths[b][-3:]),
-                                                      std=args.std, size=args.n_samples,
-                                                      min_x=0, max_x=256, min_y=0, max_y=256)
+                                                      std=args.std, angle_std=args.angle_std,
+                                                      size=args.n_samples, min_x=0, max_x=256,
+                                                      min_y=0, max_y=256)
             else:
                 raise Exception('sampling prior <%s> not known' % args.sampling_prior)
             x_samples, y_samples = coord_samples[:, 0].tolist(), coord_samples[:, 1].tolist()
@@ -435,7 +439,8 @@ if __name__ == '__main__':
             sketches = load_images_to_torch(png_paths, preprocessing)
             losses = compute_losses(natural, sketches, distractions,
                                     vgg_features, vgg_residual,
-                                    batch_size=args.batch_size)
+                                    batch_size=args.batch_size,
+                                    label_weight=args.label_weight)
             print('- computed losses')
 
             beam_losses += losses
