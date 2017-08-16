@@ -16,6 +16,8 @@ import torchvision.models as models
 import torch.nn.functional as F
 from torch.autograd import Variable
 from scipy.spatial.distance import cosine
+from vggutils import (VGG19Split, build_vgg19_feature_extractor,
+                      vgg_convert_to_avg_pool)
 
 
 ALLOWABLE_SAMPLING_PRIORS = ['gaussian', 'angle']
@@ -28,35 +30,6 @@ def gen_interpretable_label(label_index):
         idx2label = [class_idx[str(k)][1]
                      for k in range(len(class_idx))]
     return idx2label[label_index]
-
-
-def build_vgg19_feature_extractor(vgg, chop_index=42):
-    """Take features from the activations of the hidden layer
-    immediately before the VGG's object classifier (4096 size).
-    The last linear layer and last dropout layer are removed,
-    preserving the ReLU. The activations are L2 normalized.
-
-    :param vgg: trained vgg19 model
-    :param chop_index: vgg19 has 44 total layers (37 of them are in the features container)
-                       7 of them are in the classifier container. By default, we use the
-                       last rectified linear layer before projecting into 1000 classes.
-    :return: 2 PyTorch Sequential models
-             - 1 to generate features
-             - 1 to run the rest of the network
-    """
-    vgg_copy = copy.deepcopy(vgg)
-    vgg_residual = copy.deepcopy(vgg)
-    if chop_index > 37:  # we can keep the features container as is
-        vgg_copy.classifier = nn.Sequential(*list(vgg.classifier.children())[:chop_index-37])
-        # the residual vgg doesn't need the features then
-        vgg_residual.features = nn.Sequential()
-        vgg_residual.classifier = nn.Sequential(*list(vgg.classifier.children())[chop_index-37:])
-    else:
-        vgg_copy.features = nn.Sequential(*list(vgg.features.children())[:chop_index])
-        vgg_copy.classifier = nn.Sequential()
-        vgg_residual.features = nn.Sequential(*list(vgg.features.children())[chop_index:])
-
-    return vgg_copy, vgg_residual
 
 
 def gen_action():
@@ -338,6 +311,8 @@ if __name__ == '__main__':
                         help='gaussian|angle')
     parser.add_argument('--angle_std', type=int, default=60,
                         help='std for angles when sampling_prior == angle')
+    parser.add_argument('--avg_pool', action='store_true',
+                        help='if true, replace MaxPool2D with AvgPool2D in VGG19')
     args = parser.parse_args()
 
     assert args.beam_width <= args.n_samples
@@ -347,6 +322,9 @@ if __name__ == '__main__':
     # pretrained on imagenet
     vgg19 = models.vgg19(pretrained=True)
     print('loaded vgg19')
+
+    if args.avg_pool:
+        vgg19 = vgg_convert_to_avg_pool(vgg19)
 
     # needed for imagenet
     preprocessing = transforms.Compose([
@@ -370,6 +348,8 @@ if __name__ == '__main__':
 
     # cut off part of the net to generate features
     vgg_features, vgg_residual = build_vgg19_feature_extractor(vgg19, chop_index=args.featext_layer_index)
+    print(vgg_features)
+    print(vgg_residual)
 
     x_init, y_init = 128, 128  # start in center
     # store the best & average beam loss as we traverse
