@@ -102,3 +102,4 @@ generative/data
 generative/notebooks
 **.DS_Store
 generative/sketch
+ipynb/
