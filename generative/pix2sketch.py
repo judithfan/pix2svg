@@ -219,7 +219,7 @@ def pytorch_batch_exec(fn, objects, batch_size, out_dim=1):
 
 
 def compute_losses(natural_image, sketch_images, distraction_images,
-                   vgg_features, batch_size=100):
+                   vgg_features, batch_size=100, segment_cost=0.0):
     """Compute a loss to describe how semantically far apart
     the natural image and the sketch image are. If label is not
     None, compute an additional penalty for getting the label wrong.
@@ -234,6 +234,7 @@ def compute_losses(natural_image, sketch_images, distraction_images,
     :param distraction_images: PyTorch Variable (M x C x H x W)
     :param vgg_features: VGG19 PyTorch instance that produces features
     :param batch_size: run X images at a time through deep net
+    :param segment_cost: cost of adding a new line segment
     """
 
     def extract_features(data):
@@ -262,13 +263,14 @@ def compute_losses(natural_image, sketch_images, distraction_images,
             distraction_dists.append(1 - cosine(distraction_features_arr[j], sketch_features_arr[i]))
         # normalize natural_dist by distraction_dists
         all_dists = np.array([natural_dist] + distraction_dists)
-        losses[i] = natural_dist / np.linalg.norm(all_dists)
+        # final loss: normalized distance + cost for each segment
+        losses[i] = natural_dist / np.linalg.norm(all_dists) + segment_cost
 
     return losses
 
 
 def compute_losses_using_all_layers(natural_image, sketch_images, distraction_images,
-                                    vgg_split, batch_size=100):
+                                    vgg_split, batch_size=100, segment_cost=0.0):
     """Compute loss using embeddings from all layers. We calculate the informativity
     distance for each layer and sum across.
 
@@ -282,6 +284,7 @@ def compute_losses_using_all_layers(natural_image, sketch_images, distraction_im
     :param distraction_images: PyTorch Variable (M x C x H x W)
     :param vgg_split: VGGSplit() instance.
     :param batch_size: run X images at a time through deep net
+    :param segment_cost: cost of adding a new line segment
     """
     def extract_features_set(data):
         """:param data: 4d array of NxCxHxW"""
@@ -312,7 +315,7 @@ def compute_losses_using_all_layers(natural_image, sketch_images, distraction_im
             distraction_dists.append(distraction_dist)
 
         all_dists = np.array([natural_dist] + distraction_dists)
-        losses[i] = natural_dist / np.linalg.norm(all_dists)
+        losses[i] = natural_dist / np.linalg.norm(all_dists) + segment_cost
 
     return losses
 
@@ -342,19 +345,19 @@ if __name__ == '__main__':
     parser.add_argument('--beam_width', type=int, default=1,
                         help='number of particles to preserve at each timestep')
     parser.add_argument('--featext_layer_index', type=int, default=42,
-                        help='index of layer in vgg19 for feature extraction')
+                        help='index of layer in vgg19 for feature extraction. Pass -1 to use all layers...')
     parser.add_argument('--sampling_prior', type=str, default='gaussian',
                         help='gaussian|angle')
     parser.add_argument('--angle_std', type=int, default=60,
                         help='std for angles when sampling_prior == angle')
     parser.add_argument('--avg_pool', action='store_true',
                         help='if true, replace MaxPool2D with AvgPool2D in VGG19')
-    parser.add_argument('--all_layers', action='store_true',
-                        help='calculate cost as sum of cost on each layer')
+    parser.add_argument('--segment_cost', type=float, default=0.0,
+                        help='cost for drawing a single segment')
     args = parser.parse_args()
 
     assert args.beam_width <= args.n_samples
-    assert args.featext_layer_index > 0 and args.featext_layer_index < 45
+    assert args.featext_layer_index >= -1 and args.featext_layer_index < 45
     assert args.sampling_prior in ALLOWABLE_SAMPLING_PRIORS
 
     # pretrained on imagenet
@@ -384,7 +387,7 @@ if __name__ == '__main__':
     distractions = load_images_to_torch(distraction_paths, preprocessing)
     print('loaded distraction images\n')
 
-    if args.all_layers:  # use all layers
+    if args.featext_layer_index == -1:  # use all layers
         vgg_split = VGG19Split()
     else:  # cut off part of the net to generate features
         vgg_features, vgg_residual = build_vgg19_feature_extractor(
@@ -408,6 +411,7 @@ if __name__ == '__main__':
     x_beam_paths = [[x_init] for b in range(args.beam_width)]
     y_beam_paths = [[y_init] for b in range(args.beam_width)]
     action_beam_paths = [[] for b in range(args.beam_width)]
+    segment_cost = 0.0  # tracks cost for adding a segment
 
     for iter in range(args.n_iters):
         assert len(x_beam_queue) == len(y_beam_queue)
@@ -439,6 +443,9 @@ if __name__ == '__main__':
             action_sample = gen_action()  # TODO: make probabilistic
             print('- sampled \'%s\' action' % action_sample)
 
+            if action_sample == 'draw':
+                segment_cost += args.segment_cost
+
             svg_paths = []  # try out each sample for the current particle
             for i in range(args.n_samples):
                 x_path = x_beam_paths[b] + [x_samples[i]]
@@ -456,12 +463,14 @@ if __name__ == '__main__':
             print('- converted to %i png canvases' % args.n_samples)
 
             sketches = load_images_to_torch(png_paths, preprocessing)
-            if args.all_layers:  # use all layers for loss
+            if args.featext_layer_index == -1:  # use all layers for loss
                 losses = compute_losses_using_all_layers(natural, sketches, distractions,
-                                                         vgg_split, batch_size=args.batch_size)
+                                                         vgg_split, batch_size=args.batch_size,
+                                                         segment_cost=segment_cost)
             else:  # calculate loss from specific layer
                 losses = compute_losses(natural, sketches, distractions,
-                                        vgg_features, batch_size=args.batch_size)
+                                        vgg_features, batch_size=args.batch_size,
+                                        segment_cost=segment_cost)
             print('- computed losses')
 
             beam_losses += losses
