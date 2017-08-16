@@ -171,25 +171,30 @@ def sample_endpoint_angle(x_s, y_s, x_l, y_l, std=10, angle_std=60, size=1,
     return samples
 
 
-def pytorch_batch_exec(fn, objects, batch_size):
+def pytorch_batch_exec(fn, objects, batch_size, out_dim=1):
     """ Batch execution on Pytorch variables using Pytorch function.
     The intended purpose is to save memory.
 
     :param fn: function must take a PyTorch variable of sketches as input
     :param objects: PyTorch Variable containing data
-    :batch_size: number to process at a time
+    :param batch_size: number to process at a time
+    :param out_dim: fn() returns how many outputs?
     """
     num_objects = objects.size()[0]  # number of images total
     num_reads = int(math.floor(num_objects / batch_size))  # number of passes needed
     num_processed = 0  # track the number of batches processed
-    out_arr = []
+    out_arr = [] if out_dim == 1 else [[] for o in range(out_dim)]
 
     for i in range(num_reads):
         objects_batch = objects[
             num_processed:num_processed+batch_size,
         ]
         out_batch = fn(objects_batch)
-        out_arr.append(out_batch)
+        if out_dim == 1:
+            out_arr.append(out_batch)
+        else:
+            for o in range(out_dim):
+                out_arr[o].append(out_batch[o])
         num_processed += batch_size
 
     # process remaining images
@@ -198,16 +203,23 @@ def pytorch_batch_exec(fn, objects, batch_size):
             num_processed:num_objects,
         ]
         out_batch = fn(objects_batch)
-        out_arr.append(out_batch)
+        if out_dim == 1:
+            out_arr.append(out_batch)
+        else:
+            for o in range(out_dim):
+                out_arr[o].append(out_batch[o])
 
     # stack all of them together
-    out_arr = np.vstack(out_arr)
+    if out_dim == 1:
+        out_arr = np.vstack(out_arr)
+    else:
+        out_arr = [np.vstack(arr) for arr in out_arr]
+
     return out_arr
 
 
 def compute_losses(natural_image, sketch_images, distraction_images,
-                   vgg_features, vgg_residual, batch_size=100,
-                   label_weight=0.0):
+                   vgg_features, batch_size=100):
     """Compute a loss to describe how semantically far apart
     the natural image and the sketch image are. If label is not
     None, compute an additional penalty for getting the label wrong.
@@ -221,23 +233,13 @@ def compute_losses(natural_image, sketch_images, distraction_images,
     :param sketch_images: PyTorch Variable (N x C x H x W)
     :param distraction_images: PyTorch Variable (M x C x H x W)
     :param vgg_features: VGG19 PyTorch instance that produces features
-    :param vgg_residual: VGG19 PyTorch instance that is the rest of vgg19 after
-                         vgg_features
     :param batch_size: run X images at a time through deep net
-    :param label_weight: if non-zero, penalize sketches for producing
-                         class probabilities that deviate from natural image
-                         class probabilities...
     """
 
     def extract_features(data):
         """:param data: 4d array of NxCxHxW"""
         vgg_features.eval()
         return vgg_features(data).data.numpy()
-
-    def extract_log_scores(features):
-        """:param features: output of extract_features wrapped in a PyTorch Variable"""
-        vgg_residual.eval()
-        return F.log_softmax(vgg_residual(features)).data.numpy()
 
     num_sketches = sketch_images.size()[0]
     natural_features = extract_features(natural_image)
@@ -248,12 +250,6 @@ def compute_losses(natural_image, sketch_images, distraction_images,
     # compute features for all sketches in batches (if batch is too
     # large then we will have memory issues)
     sketch_features_arr = pytorch_batch_exec(extract_features, sketch_images, batch_size)
-
-    if label_weight > 0.0:
-        natural_log_scores = extract_log_scores(Variable(torch.from_numpy(natural_features)))
-        sketch_log_scores_arr = pytorch_batch_exec(extract_log_scores,
-                                                   torch.from_numpy(sketch_features_arr),
-                                                   batch_size)
 
     # for each sketch, compute loss with natural image
     losses = [0]*num_sketches
@@ -268,13 +264,55 @@ def compute_losses(natural_image, sketch_images, distraction_images,
         all_dists = np.array([natural_dist] + distraction_dists)
         losses[i] = natural_dist / np.linalg.norm(all_dists)
 
-        # add class penalty if provided
-        if label_weight > 0.0:
-            label_loss = label_weight * F.nll_loss(
-                Variable(torch.from_numpy(sketch_log_scores_arr[i][np.newaxis])),
-                Variable(torch.from_numpy(np.argmax(natural_log_scores, axis=1))),
-            ).exp().data.numpy()[0]
-            losses[i] -= label_loss
+    return losses
+
+
+def compute_losses_using_all_layers(natural_image, sketch_images, distraction_images,
+                                    vgg_split, batch_size=100):
+    """Compute loss using embeddings from all layers. We calculate the informativity
+    distance for each layer and sum across.
+
+    loss = sum_layers(distance(natural_image, sketch_image, distraction_images))
+
+    Compute the losses for each (natural_image, sketch_image) pair and
+    normalize each loss by each (distraction_image, sketch_image) pair
+
+    :param natural_image: PyTorch Variable (1 x C x H x W)
+    :param sketch_images: PyTorch Variable (N x C x H x W)
+    :param distraction_images: PyTorch Variable (M x C x H x W)
+    :param vgg_split: VGGSplit() instance.
+    :param batch_size: run X images at a time through deep net
+    """
+    def extract_features_set(data):
+        """:param data: 4d array of NxCxHxW"""
+        vgg_split.eval()
+        return [feat.data.numpy() for feat in vgg_split(data)]
+
+    num_sketches = sketch_images.size()[0]
+    num_distractions = distraction_images.size()[0]
+
+    natural_features = extract_features_set(natural_image)
+    num_features = len(natural_features)
+    distraction_features_arr = extract_features_set(distraction_images)
+    sketch_features_arr = pytorch_batch_exec(extract_features_set, sketch_images,
+                                             batch_size, out_dim=num_features)
+
+    losses = [0]*num_sketches
+    for i in range(num_sketches):
+        natural_dist = 0
+        for f in range(num_features):
+            natural_dist += (1 - cosine(natural_features[f], sketch_features_arr[f][i]))
+
+        distraction_dists = []
+        for j in range(num_distractions):
+            distraction_dist = 0
+            for f in range(num_features):
+                distraction_dist += (1 - cosine(distraction_features_arr[f][j],
+                                                sketch_features_arr[f][i]))
+            distraction_dists.append(distraction_dist)
+
+        all_dists = np.array([natural_dist] + distraction_dists)
+        losses[i] = natural_dist / np.linalg.norm(all_dists)
 
     return losses
 
@@ -305,14 +343,14 @@ if __name__ == '__main__':
                         help='number of particles to preserve at each timestep')
     parser.add_argument('--featext_layer_index', type=int, default=42,
                         help='index of layer in vgg19 for feature extraction')
-    parser.add_argument('--label_weight', type=float, default=0.,
-                        help='if not zero, penalize sketches for producing the incorrect class')
     parser.add_argument('--sampling_prior', type=str, default='gaussian',
                         help='gaussian|angle')
     parser.add_argument('--angle_std', type=int, default=60,
                         help='std for angles when sampling_prior == angle')
     parser.add_argument('--avg_pool', action='store_true',
                         help='if true, replace MaxPool2D with AvgPool2D in VGG19')
+    parser.add_argument('--all_layers', action='store_true',
+                        help='calculate cost as sum of cost on each layer')
     args = parser.parse_args()
 
     assert args.beam_width <= args.n_samples
@@ -346,10 +384,11 @@ if __name__ == '__main__':
     distractions = load_images_to_torch(distraction_paths, preprocessing)
     print('loaded distraction images\n')
 
-    # cut off part of the net to generate features
-    vgg_features, vgg_residual = build_vgg19_feature_extractor(vgg19, chop_index=args.featext_layer_index)
-    print(vgg_features)
-    print(vgg_residual)
+    if args.all_layers:  # use all layers
+        vgg_split = VGG19Split()
+    else:  # cut off part of the net to generate features
+        vgg_features, vgg_residual = build_vgg19_feature_extractor(
+            vgg19, chop_index=args.featext_layer_index)
 
     x_init, y_init = 128, 128  # start in center
     # store the best & average beam loss as we traverse
@@ -417,10 +456,12 @@ if __name__ == '__main__':
             print('- converted to %i png canvases' % args.n_samples)
 
             sketches = load_images_to_torch(png_paths, preprocessing)
-            losses = compute_losses(natural, sketches, distractions,
-                                    vgg_features, vgg_residual,
-                                    batch_size=args.batch_size,
-                                    label_weight=args.label_weight)
+            if args.all_layers:  # use all layers for loss
+                losses = compute_losses_using_all_layers(natural, sketches, distractions,
+                                                         vgg_split, batch_size=args.batch_size)
+            else:  # calculate loss from specific layer
+                losses = compute_losses(natural, sketches, distractions,
+                                        vgg_features, batch_size=args.batch_size)
             print('- computed losses')
 
             beam_losses += losses

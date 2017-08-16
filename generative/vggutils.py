@@ -76,6 +76,6 @@ def vgg_convert_to_avg_pool(vgg):
     vgg_copy = copy.deepcopy(vgg)
     max_pool_indices = [4, 9, 18, 27, 36]
     for ii in max_pool_indices:
-    setattr(vgg_copy.features, str(ii),
-            nn.AvgPool2d((2, 2), stride=(2, 2)))
+        setattr(vgg_copy.features, str(ii),
+                nn.AvgPool2d((2, 2), stride=(2, 2)))
     return vgg_copy
