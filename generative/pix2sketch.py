@@ -304,7 +304,8 @@ def compute_losses_using_all_layers(natural_image, sketch_images, distraction_im
     for i in range(num_sketches):
         natural_dist = 0
         for f in range(num_features):
-            natural_dist += (1 - cosine(natural_features[f], sketch_features_arr[f][i]))
+            natural_dist += (1 - cosine(natural_features[f],
+                                        sketch_features_arr[f][i]))
 
         distraction_dists = []
         for j in range(num_distractions):
@@ -318,6 +319,39 @@ def compute_losses_using_all_layers(natural_image, sketch_images, distraction_im
         losses[i] = natural_dist / np.linalg.norm(all_dists) + segment_cost
 
     return losses
+
+
+class SketchLoss(nn.Module):
+    """Calculate distance between natural image and sketch image
+    where the distance is normalized by distractor images.
+
+    :param n_features: number of layer embeddings
+    :param n_distractors: number of distractor images
+    :param segment_cost: cost of adding this segment
+    """
+
+    def __init__(self, n_features, n_distractors, segment_cost=0.0):
+        self.segment_cost = segment_cost
+        self.n_features = n_features
+        self.n_distractors = n_distractors
+
+    def forward(self, natural_emb, sketch_emb, distractor_embs):
+        natural_dist = Variable(torch.Tensor([0]))
+        for f in range(self.n_features):
+            natural_dist += F.cosine_similarity(natural_emb[f], sketch_emb[f])
+
+        distraction_dists = Variable(torch.zeros(self.n_distractors))
+        for j in range(self.n_distractors):
+            distraction_dist = Variable(torch.Tensor([0]))
+            for f in range(self.n_features):
+                distraction_dist += F.cosine_similarity(torch.unsqueeze(distractor_embs[f][j], dim=0),
+                                                        sketch_emb[f])
+            distraction_dists[j] = distraction_dist
+
+        all_dists = torch.cat([natural_dist, distraction_dists])
+        loss = natural_dist / torch.norm(all_dists, p=2) + segment_cost
+
+        return loss
 
 
 if __name__ == '__main__':
