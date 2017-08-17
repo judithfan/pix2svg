@@ -344,7 +344,7 @@ if __name__ == '__main__':
                         help='once the informativity measure stops improving, wait N epochs before quitting')
     parser.add_argument('--beam_width', type=int, default=1,
                         help='number of particles to preserve at each timestep')
-    parser.add_argument('--featext_layer_index', type=int, default=42,
+    parser.add_argument('--featext_layer_index', type=int, default=-1,
                         help='index of layer in vgg19 for feature extraction. Pass -1 to use all layers...')
     parser.add_argument('--sampling_prior', type=str, default='gaussian',
                         help='gaussian|angle')
