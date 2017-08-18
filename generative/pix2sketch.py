@@ -5,6 +5,7 @@ from __future__ import absolute_import
 import os
 import math
 import numpy as np
+from PIL import Image
 
 import torch
 import torch.nn as nn
@@ -32,26 +33,31 @@ class SketchLoss(nn.Module):
     """
 
     def __init__(self, n_features, n_distractors, segment_cost=0.0):
+        super(SketchLoss, self).__init__()
         self.segment_cost = segment_cost
         self.n_features = n_features
         self.n_distractors = n_distractors
 
-    def forward(self, natural_emb, sketch_emb, distractor_embs):
-        natural_dist = Variable(torch.Tensor([0]))
-        for f in range(self.n_features):
-            natural_dist += F.cosine_similarity(natural_emb[f], sketch_emb[f])
+    def forward(self, natural_emb, sketch_embs, distractor_embs):
+        n_sketches = sketch_embs[0].size()[0]
+        n_features = len(natural_emb)
+        n_distractors = distractor_embs[0].size()[0]
 
-        distraction_dists = Variable(torch.zeros(self.n_distractors))
-        for j in range(self.n_distractors):
-            distraction_dist = Variable(torch.Tensor([0]))
-            for f in range(self.n_features):
-                distraction_dist += F.cosine_similarity(torch.unsqueeze(distractor_embs[f][j], dim=0),
-                                                        sketch_emb[f])
-            distraction_dists[j] = distraction_dist
+        natural_dist = Variable(torch.zeros(n_sketches))
+        for f in range(n_features):
+            costs = F.cosine_similarity(natural_emb[f], sketch_embs[f], dim=1)
+            natural_dist = torch.add(natural_dist, costs)
 
-        all_dists = torch.cat([natural_dist, distraction_dists])
-        loss = natural_dist / torch.norm(all_dists, p=2) + segment_cost
+        distraction_dists = Variable(torch.zeros((n_distractors, n_sketches)))
+        for j in range(n_distractors):
+            for f in range(n_features):
+                distraction_emb = torch.unsqueeze(distractor_embs[f][j], dim=0)
+                costs = F.cosine_similarity(distraction_emb, sketch_emb[f])
+                distraction_dists[j] = torch.add(distraction_dists[j], costs)
 
+        all_dists = torch.cat((torch.unsqueeze(natural_dist, dim=0), distraction_dists))
+        norm = torch.norm(all_dists, p=2, dim=0)
+        loss = natural_dist / norm + segment_cost
         return loss
 
 
@@ -232,6 +238,10 @@ if __name__ == '__main__':
         vgg19, _ = build_vgg19_feature_extractor(
             vgg19, chop_index=args.featext_layer_index)
 
+    # freeze model weights
+    for p in vgg19.parameters():
+        p.requires_grad = False
+
     print('loaded vgg19')
 
     # needed for imagenet
@@ -316,36 +326,30 @@ if __name__ == '__main__':
                 segment_cost += args.segment_cost
 
             # for each sample, render the image as a matrix
-            sketches = []
+            sketches = Variable(torch.zeros((args.n_samples, 3, 224, 224)))
             for i in range(args.n_samples):
                 action_path = action_beam_paths[b] + [action_sample]
                 renderer = RenderNet(x_beam_paths[b][-1], y_beam_paths[b][-1],
                                      x_samples[i], y_samples[i], imsize=224)
-                sketch = renderer.forward()
+                sketch = renderer()
                 # manually apply preprocessing
                 sketch[0] = (sketch[0] - 0.485) / 0.229
                 sketch[1] = (sketch[1] - 0.456) / 0.224
                 sketch[2] = (sketch[2] - 0.406) / 0.225
-                sketches.append(sketch)
+                sketches[i] = sketch
 
             # calculate embeddings for each image
             vgg19.eval()
-            natural_emb = pytorch_batch_exec(vgg19, natural, args.batch_size,
-                                             out_dim=n_features)
-            distractor_embs = pytorch_batch_exec(vgg19, distractors, args.batch_size,
-                                                 out_dim=n_features)
-            sketch_embs = pytorch_batch_exec(vgg19, sketches, args.batch_size,
-                                             out_dim=n_features)
+            natural_emb = vgg19(natural)
+            distractor_embs = vgg19(distractors)
+            sketch_embs = vgg19(sketches)
 
             # compute losses
-            losses = torch.zeros(args.n_samples)
-            loss_fun = SketchLoss(n_features, n_distractors, segment_cost=segment_cost)
-            for i in range(args.n_samples):
-                loss = loss_fun(natural_emb, sketch_emb[i], distractor_embs)
-                losses[i] = loss
+            sketch_loss = SketchLoss(n_features, n_distractors, segment_cost=segment_cost)
+            losses = sketch_loss(natural_emb, sketch_embs, distractor_embs)
             print('- computed losses')
 
-            beam_losses += losses
+            beam_losses += losses.data.numpy().tolist()
             x_beam_samples += x_samples
             y_beam_samples += y_samples
             action_beam_samples.append(action_sample)
