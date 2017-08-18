@@ -44,7 +44,7 @@ class RenderNet(nn.Module):
         for i in range(center + 1):
             width = linewidth - i * 2
             value = (1.0 / (center + 1)) * (i + 1)
-            _kernel = torch.ones((width, width)) * value
+            _kernel = torch.ones((3, 3, width, width)) * value
 
             offset = (linewidth - width) // 2
             kernel[
@@ -68,7 +68,7 @@ class RenderNet(nn.Module):
                                          self.imsize + padding)))
         for i in range(xmin, xmax + 1):
             x = i + padding
-            y = int(round(x * slope + ymin)) + padding
+            y = int(round((x - xmin) * slope + ymin)) + padding
             templates[:, x, y] = 0
 
         kernel = self.gen_kernel()
@@ -79,4 +79,3 @@ class RenderNet(nn.Module):
         templates = (templates - template_min) / (template_max - template_min)
         templates = torch.squeeze(templates, dim=0)
         return templates
-
