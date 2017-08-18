@@ -24,13 +24,16 @@ class RenderNet(nn.Module):
     :param y1: initialization for ending y coordinate
     :param imsize: image size to generate
     """
-    def __init__(self, x0, y0, x1, y1, imsize=256, linewidth=1):
+    def __init__(self, x0, y0, x1, y1, imsize=224, linewidth=7):
         super(RenderNet, self).__init__()
         self.x0 = Variable(torch.Tensor([x0]), requires_grad=False)
         self.y0 = Variable(torch.Tensor([y0]), requires_grad=False)
         self.x1 = Parameter(torch.Tensor([x1]))
         self.y1 = Parameter(torch.Tensor([y1]))
         self.imsize = imsize
+        if linewidth % 2 == 0:
+            linewidth += 1
+        assert linewidth > 1, 'Thin lines are not differentiable.'
         self.linewidth = linewidth
 
     def gen_kernel(self):
@@ -74,5 +77,6 @@ class RenderNet(nn.Module):
         template_min = torch.min(templates)
         template_max = torch.max(templates)
         templates = (templates - template_min) / (template_max - template_min)
-
+        templates = torch.squeeze(templates, dim=0)
         return templates
+

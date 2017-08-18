@@ -12,11 +12,11 @@ import torchvision.models as models
 class VGG19Split(nn.Module):
     """Splits vgg19 into separate sections so that we can get
     feature embeddings from each section.
+
     :param vgg19: traditional vgg19 model
     """
-    def __init__(self):
+    def __init__(self, vgg19):
         super(VGG19Split, self).__init__()
-        vgg19 = models.vgg19(pretrained=True)
         self.conv1 = nn.Sequential(*(list(vgg19.features.children())[slice(0, 5)]))
         self.conv2 = nn.Sequential(*(list(vgg19.features.children())[slice(5, 10)]))
         self.conv3 = nn.Sequential(*(list(vgg19.features.children())[slice(10, 19)]))
