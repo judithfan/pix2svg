@@ -76,6 +76,6 @@ class RenderNet(nn.Module):
 
         template_min = torch.min(templates)
         template_max = torch.max(templates)
-        templates = (templates - template_min) / (template_max - template_min)
+        templates = (templates - template_min.expand_as(templates)) / (template_max - template_min).expand_as(templates)
         templates = torch.squeeze(templates, dim=0)
         return templates
