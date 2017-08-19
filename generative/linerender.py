@@ -56,26 +56,44 @@ class RenderNet(nn.Module):
         return Variable(kernel)
 
     def forward(self):
-        # render the points as a CHW Tensor
-        xmin = int(torch.min(self.x0, self.x1).data[0])
-        xmax = int(torch.max(self.x0, self.x1).data[0])
-        ymin = int(torch.min(self.y0, self.y1).data[0])
-        ymax = int(torch.max(self.y0, self.y1).data[0])
-        slope = (ymax - ymin) / (xmax - xmin)
+        # store image in templates
+        templates = Variable(torch.zeros([3, self.imsize, self.imsize]))
+        x0, y0 = self.x0, self.y0
+        x1, y1 = self.x1, self.y1
 
-        padding = self.linewidth - 1
-        templates = Variable(torch.ones((3, self.imsize + padding,
-                                         self.imsize + padding)))
-        for i in range(xmin, xmax + 1):
-            x = i + padding
-            y = int(round((x - xmin) * slope + ymin)) + padding
-            templates[:, x, y] = 0
+        # start bresenham's line algorithm
+        steep = False
+        dx = torch.abs(x1 - x0)
+        dy = torch.abs(y1 - y0)
+        sx = 1 if torch.gt(x1, x0).data[0] > 0 else -1
+        sy = 1 if torch.gt(y1, y0).data[0] > 0 else -1
 
+        if torch.gt(dy, dx).data[0]:
+            steep = True
+            x0, y0 = y0, x0
+            dx, dy = dy, dx
+            sx, sy = sy, sx
+
+        d = (2 * dy) - dx
+        for i in range(0, int(dx.data[0])):
+            if steep:
+                templates[:, int(y0.data[0]), int(x0.data[0])] = 1
+            else:
+                templates[:, int(x0.data[0]), int(y0.data[0])] = 1
+            while d.data[0] >= 0:
+                y0 += sy
+                d -= (2 * dx)
+            x0 += sx
+            d += (2 * dy)
+        templates[:, int(x1.data[0]), int(y1.data[0])] = 1
+
+        # convolve against kernel to smooth
         kernel = self.gen_kernel()
-        templates = F.conv2d(torch.unsqueeze(templates, dim=0), kernel)
+        templates = F.conv2d(torch.unsqueeze(templates, dim=0), kernel,
+                             padding=self.linewidth // 2)
 
         template_min = torch.min(templates)
         template_max = torch.max(templates)
         templates = (templates - template_min) / (template_max - template_min)
-        templates = torch.squeeze(templates, dim=0)
+        templates = 1 - torch.squeeze(templates, dim=0)
         return templates

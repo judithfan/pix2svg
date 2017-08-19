@@ -17,8 +17,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 from linerender import RenderNet
-from vggutils import (VGG19Split, build_vgg19_feature_extractor,
-                      vgg_convert_to_avg_pool)
+from vggutils import (VGG19Split, vgg_convert_to_avg_pool)
 
 ALLOWABLE_SAMPLING_PRIORS = ['gaussian', 'angle']
 ALLOWABLE_ACTIONS = ['draw', 'move']
@@ -53,12 +52,12 @@ class SketchLoss(nn.Module):
         for j in range(n_distractors):
             for f in range(n_features):
                 distraction_emb = torch.unsqueeze(distractor_embs[f][j], dim=0)
-                costs = F.cosine_similarity(distraction_emb, sketch_emb[f])
+                costs = F.cosine_similarity(distraction_emb, sketch_embs[f])
                 distraction_dists[j] = torch.add(distraction_dists[j], costs)
 
         all_dists = torch.cat((torch.unsqueeze(natural_dist, dim=0), distraction_dists))
         norm = torch.norm(all_dists, p=2, dim=0)
-        loss = natural_dist / norm + segment_cost
+        loss = natural_dist / norm + self.segment_cost
         return loss
 
 
@@ -284,9 +283,9 @@ if __name__ == '__main__':
     y_beam_queue = np.ones(args.beam_width) * y_init
 
     # store full path for top particles
-    x_beam_paths = np.zeros((args.beam_width, args.n_iters))
-    y_beam_paths = np.zeros((args.beam_width, args.n_iters))
-    action_beam_paths = np.zeros((args.beam_width, args.n_iters))
+    x_beam_paths = np.zeros((args.beam_width, args.n_iters + 1))
+    y_beam_paths = np.zeros((args.beam_width, args.n_iters + 1))
+    action_beam_paths = [[] for b in range(args.beam_width)]
     x_beam_paths[:, 0] = x_init
     y_beam_paths[:, 0] = y_init
 
@@ -329,13 +328,16 @@ if __name__ == '__main__':
 
             # for each sample, render the image as a matrix
             sketches = Variable(torch.zeros((args.n_samples, 3, 224, 224)))
+            sketches_raw = Variable(torch.zeros((args.n_samples, 3, 224, 224)))
             for i in range(args.n_samples):
                 action_path = action_beam_paths[b] + [action_sample]
                 renderer = RenderNet(x_beam_paths[b][-1], y_beam_paths[b][-1],
                                      x_samples[i], y_samples[i], imsize=224)
                 sketch = renderer()
-                sketch += beam_sketch[b]
+                sketch += beam_sketches[b]
                 sketch[sketch > 1] = 1 # nothing can be over 1
+                sketches_raw[i] = sketch  #  save raw sketch
+
                 # manually apply preprocessing
                 sketch[0] = (sketch[0] - 0.485) / 0.229
                 sketch[1] = (sketch[1] - 0.456) / 0.224
@@ -375,8 +377,7 @@ if __name__ == '__main__':
                                            x_beam_samples[top_indexes[b]])
             y_beam_paths[b, :] = np.append(y_beam_paths[beam_parent, :],
                                            y_beam_samples[top_indexes[b]])
-            action_beam_paths[b, :] = np.append(action_beam_paths[beam_parent],
-                                                action_beam_samples[b])
+            action_beam_paths[b].append(action_beam_samples[b])
 
         # update beam queue with top beam_width samples across beams
         x_beam_queue = np.array([x_beam_samples[top_indexes[b]]
@@ -386,8 +387,10 @@ if __name__ == '__main__':
 
         # update our sketch per beam
         for b in range(args.beam_width):
-            beam_sketches += sketches[top_indexes[b]]
-            beam_sketches[beam_sketches > 1] = 1
+            beam_sketch = beam_sketches[b]
+            beam_sketch += sketches_raw[top_indexes[b]]
+            beam_sketch[beam_sketch > 1] = 1
+            beam_sketches[b] = beam_sketch
 
         # save loss statistics
         top_beam_loss = beam_losses[top_indexes[0]]
@@ -425,7 +428,7 @@ if __name__ == '__main__':
         {
             'x': x_beam_paths[best_loss_beam, :best_loss_iter+1],
             'y': y_beam_paths[best_loss_beam, :best_loss_iter+1],
-            'action': action_beam_paths[best_loss_beam, :best_loss_iter],
+            'action': action_beam_paths[best_loss_beam][:best_loss_iter],
             'best_loss': best_loss,
             'patience': patience,
         },
