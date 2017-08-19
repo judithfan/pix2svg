@@ -92,8 +92,8 @@ class RenderNet(nn.Module):
         templates = F.conv2d(torch.unsqueeze(templates, dim=0), kernel,
                              padding=self.linewidth // 2)
 
-        template_min = torch.min(templates)
-        template_max = torch.max(templates)
+        template_min = torch.min(templates).expand_as(templates)
+        template_max = torch.max(templates).expand_as(templates)
         templates = (templates - template_min) / (template_max - template_min)
         templates = 1 - torch.squeeze(templates, dim=0)
         return templates
