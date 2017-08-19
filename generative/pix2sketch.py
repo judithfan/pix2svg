@@ -6,6 +6,7 @@ import os
 import math
 import numpy as np
 from PIL import Image
+from copy import deepcopy
 
 import torch
 import torch.nn as nn
@@ -232,11 +233,8 @@ if __name__ == '__main__':
     if args.avg_pool:  # replace max pool with avg pool
         vgg19 = vgg_convert_to_avg_pool(vgg19)
 
-    if args.featext_layer_index == -1:  # use all layers
-        vgg19 = VGG19Split(vgg19)
-    else:  # cut off part of the net to generate features
-        vgg19, _ = build_vgg19_feature_extractor(
-            vgg19, chop_index=args.featext_layer_index)
+    vgg19 = VGG19Split(vgg19, args.featext_layer_index)
+    vgg19.eval()  # turn off any dropout
 
     # freeze model weights
     for p in vgg19.parameters():
@@ -250,8 +248,7 @@ if __name__ == '__main__':
         transforms.CenterCrop(224),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406],
-                             [0.229, 0.224, 0.225])
-    ])
+                             [0.229, 0.224, 0.225])])
 
     # load the natural image we want to sketch
     img = Image.open(args.image_path)
@@ -267,54 +264,59 @@ if __name__ == '__main__':
     # use 1 layer if user specified else use all (8)
     n_features = 8 if featext_layer_index == -1 else 1
     n_distractors = len(distractor_paths)
-
     x_init, y_init = 112, 112  # start in center
-    # store the best & average beam loss as we traverse
-    best_loss_per_iter, average_loss_per_iter = [], []
 
     # variables for early-stopping by loss
     best_loss = -np.inf
     best_loss_iter = 0
     best_loss_beam = 0
     patience = args.patience
+    segment_cost = 0.0  # tracks cost for adding a segment
+
+    # store the best & average beam loss as we traverse
+    best_loss_per_iter = np.zeros(args.n_iter)
+    average_loss_per_iter = np.zeros(args.n_iter)
 
     # each queue holds future paths to try
     # for the first iteration, use beam_width repetitions of the init point
     # - a little inefficient but simple!
-    x_beam_queue, y_beam_queue = [x_init]*args.beam_width, [y_init]*args.beam_width
+    x_beam_queue = np.ones(args.beam_width) * x_init
+    y_beam_queue = np.ones(args.beam_width) * y_init
+
     # store full path for top particles
-    x_beam_paths = [[x_init] for b in range(args.beam_width)]
-    y_beam_paths = [[y_init] for b in range(args.beam_width)]
-    action_beam_paths = [[] for b in range(args.beam_width)]
-    segment_cost = 0.0  # tracks cost for adding a segment
+    x_beam_paths = np.zeros((args.beam_width, args.n_iters))
+    y_beam_paths = np.zeros((args.beam_width, args.n_iters))
+    action_beam_paths = np.zeros((args.beam_width, args.n_iters))
+    x_beam_paths[:, 0] = x_init
+    y_beam_paths[:, 0] = y_init
+
+    # store the current sketch per beam
+    beam_sketches = Variable(torch.zeros((args.beam_width, 3, 224, 224)))
 
     for iter in range(args.n_iters):
-        assert len(x_beam_queue) == len(y_beam_queue)
         print('ITER (%d/%d) - BEAM QUEUE LENGTH: %d' %
               (iter + 1, args.n_iters, args.beam_width))
 
-        beam_losses = []  # stores losses across all beams
-        x_beam_samples, y_beam_samples, action_beam_samples = [], [], []
-
         # beam search across a fixed width
         for b in range(args.beam_width):
+
             # sample new coordinates in 2 ways
             # 1. gaussian around the previous coordinate
             # 2. gaussian away from the previous coordinate with a given angle
             if args.sampling_prior == 'gaussian' or iter == 0:  # 1st iter has to be gaussian
                 coord_samples = sample_endpoint_gaussian2d(x_beam_queue[b], y_beam_queue[b],
                                                            std=args.std, size=args.n_samples,
-                                                           min_x=0, max_x=224, min_y=0, max_y=256)
+                                                           min_x=0, max_x=224, min_y=0, max_y=224)
             elif args.sampling_prior == 'angle':
                 coord_samples = sample_endpoint_angle(x_beam_queue[b], y_beam_queue[b],
                                                       # estimate local context by the last 3 drawn points!
-                                                      np.mean(x_beam_paths[b][-3:]),
-                                                      np.mean(y_beam_paths[b][-3:]),
+                                                      np.mean(x_beam_paths[b, -3:]),
+                                                      np.mean(y_beam_paths[b, -3:]),
                                                       std=args.std, angle_std=args.angle_std,
-                                                      size=args.n_samples, min_x=0, max_x=256,
+                                                      size=args.n_samples, min_x=0, max_x=224,
                                                       min_y=0, max_y=224)
 
-            x_samples, y_samples = coord_samples[:, 0].tolist(), coord_samples[:, 1].tolist()
+            x_samples, y_samples = coord_samples[:, 0], coord_samples[:, 1]
             print('- generated %d samples' % args.n_samples)
 
             # sample an action e.g. draw vs move pen
@@ -332,6 +334,8 @@ if __name__ == '__main__':
                 renderer = RenderNet(x_beam_paths[b][-1], y_beam_paths[b][-1],
                                      x_samples[i], y_samples[i], imsize=224)
                 sketch = renderer()
+                sketch += beam_sketch[b]
+                sketch[sketch > 1] = 1 # nothing can be over 1
                 # manually apply preprocessing
                 sketch[0] = (sketch[0] - 0.485) / 0.229
                 sketch[1] = (sketch[1] - 0.456) / 0.224
@@ -339,7 +343,6 @@ if __name__ == '__main__':
                 sketches[i] = sketch
 
             # calculate embeddings for each image
-            vgg19.eval()
             natural_emb = vgg19(natural)
             distractor_embs = vgg19(distractors)
             sketch_embs = vgg19(sketches)
@@ -349,43 +352,48 @@ if __name__ == '__main__':
             losses = sketch_loss(natural_emb, sketch_embs, distractor_embs)
             print('- computed losses')
 
-            beam_losses += losses.data.numpy().tolist()
-            x_beam_samples += x_samples
-            y_beam_samples += y_samples
-            action_beam_samples.append(action_sample)
-            print('Finished beam particle %d\n' % (b + 1))
+            if b == 0:
+                beam_losses = losses.data.numpy()
+                x_beam_samples = x_samples
+                y_beam_samples = y_samples
+                action_beam_samples = np.array([action_sample])
+            else:
+                beam_losses = np.concatenate((beam_losses, losses.data.numpy()))
+                x_beam_samples = np.concatenate((x_beam_samples, x_samples))
+                y_beam_samples = np.concatenate((y_beam_samples, y_samples))
+                action_beam_samples = np.append(action_beam_samples, action_sample)
 
-        # make them all numpy arrays for easy indexing
-        beam_losses = np.array(beam_losses)
-        x_beam_samples = np.array(x_beam_samples)
-        y_beam_samples = np.array(y_beam_samples)
-        action_beam_samples = np.array(action_beam_samples)
+            print('Finished beam particle %d\n' % (b + 1))
 
         # keep the top N particles
         top_indexes = np.argsort(beam_losses)[::-1][:args.beam_width]
 
         # these will hold updated beam paths
-        _x_beam_paths, _y_beam_paths, _action_beam_paths = [], [], []
         for b in range(args.beam_width):  # update our beam paths
             beam_parent = int(np.floor(top_indexes[b] / args.n_samples))  # which beam it originated from
-            _x_beam_paths.append(x_beam_paths[beam_parent] + [x_beam_samples[top_indexes[b]]])
-            _y_beam_paths.append(y_beam_paths[beam_parent] + [y_beam_samples[top_indexes[b]]])
-            _action_beam_paths.append(action_beam_paths[beam_parent] + [action_beam_samples[b]])
-
-        # overwrite old paths with new ones
-        x_beam_paths = _x_beam_paths
-        y_beam_paths = _y_beam_paths
-        action_beam_paths = _action_beam_paths
+            x_beam_paths[b, :] = np.append(x_beam_paths[beam_parent, :],
+                                           x_beam_samples[top_indexes[b]])
+            y_beam_paths[b, :] = np.append(y_beam_paths[beam_parent, :],
+                                           y_beam_samples[top_indexes[b]])
+            action_beam_paths[b, :] = np.append(action_beam_paths[beam_parent],
+                                                action_beam_samples[b])
 
         # update beam queue with top beam_width samples across beams
-        x_beam_queue = [x_beam_samples[top_indexes[b]] for b in range(args.beam_width)]
-        y_beam_queue = [y_beam_samples[top_indexes[b]] for b in range(args.beam_width)]
+        x_beam_queue = np.array([x_beam_samples[top_indexes[b]]
+                                 for b in range(args.beam_width)])
+        y_beam_queue = np.array([y_beam_samples[top_indexes[b]]
+                                 for b in range(args.beam_width)])
+
+        # update our sketch per beam
+        for b in range(args.beam_width):
+            beam_sketches += sketches[top_indexes[b]]
+            beam_sketches[beam_sketches > 1] = 1
 
         # save loss statistics
         top_beam_loss = beam_losses[top_indexes[0]]
         average_beam_loss = np.mean(beam_losses[top_indexes])
-        best_loss_per_iter.append(top_beam_loss)
-        average_loss_per_iter.append(average_beam_loss)
+        best_loss_per_iter[b] = top_beam_loss
+        average_loss_per_iter[b] = average_beam_loss
 
         # update patience constants (and possibly break)
         if top_beam_loss >= best_loss:
@@ -405,21 +413,9 @@ if __name__ == '__main__':
         print('')  # new line
 
     print('------------------------------')
-    # delete generated files
-    generated_paths = svg_paths + png_paths
-    for path in generated_paths:
-        os.remove(path)
-    print('deleted %i generated files' % len(generated_paths))
-
     # save output to savedir
     save_path = os.path.join(args.sketch_dir, 'sketch.svg')
-    # regenerate the canvas with strokes up to the best iter (before losing patience)
-    svg_path = gen_canvas(x_beam_paths[best_loss_beam][:best_loss_iter+1],
-                          y_beam_paths[best_loss_beam][:best_loss_iter+1],
-                          action_beam_paths[best_loss_beam][:best_loss_iter],
-                          outpath=save_path)
-    png_path = svg2png(svg_path)
-    os.remove(svg_path)
+
     print('saved sketch to \'%s\'' % png_path)
 
     # save the internal components:
@@ -427,9 +423,9 @@ if __name__ == '__main__':
     np.save(
         output_path,
         {
-            'x': x_beam_paths[best_loss_beam][:best_loss_iter+1],
-            'y': y_beam_paths[best_loss_beam][:best_loss_iter+1],
-            'action': action_beam_paths[best_loss_beam][:best_loss_iter],
+            'x': x_beam_paths[best_loss_beam, :best_loss_iter+1],
+            'y': y_beam_paths[best_loss_beam, :best_loss_iter+1],
+            'action': action_beam_paths[best_loss_beam, :best_loss_iter],
             'best_loss': best_loss,
             'patience': patience,
         },
