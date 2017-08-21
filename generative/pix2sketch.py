@@ -260,6 +260,10 @@ if __name__ == '__main__':
     distractors = load_images_to_torch(distractor_paths, preprocessing)
     print('loaded distraction images\n')
 
+    # get embeddings for natural & distractor images
+    natural_emb = vgg19(natural)
+    distractor_embs = vgg19(distractors)
+
     # use 1 layer if user specified else use all (8)
     n_features = 8 if featext_layer_index == -1 else 1
     n_distractors = len(distractor_paths)
@@ -334,8 +338,9 @@ if __name__ == '__main__':
                 renderer = RenderNet(x_beam_paths[b][-1], y_beam_paths[b][-1],
                                      x_samples[i], y_samples[i], imsize=224)
                 sketch = renderer()
-                sketch += beam_sketches[b]
-                sketch[sketch > 1] = 1 # nothing can be over 1
+                if iter > 0:  # first iter is just all 0's
+                    sketch += beam_sketches[b]
+                    sketch /= 2 # nothing can be over 1
                 sketches_raw[i] = sketch  #  save raw sketch
 
                 # manually apply preprocessing
@@ -344,9 +349,7 @@ if __name__ == '__main__':
                 sketch[2] = (sketch[2] - 0.406) / 0.225
                 sketches[i] = sketch
 
-            # calculate embeddings for each image
-            natural_emb = vgg19(natural)
-            distractor_embs = vgg19(distractors)
+            # calculate embeddings for each sketch
             sketch_embs = vgg19(sketches)
 
             # compute losses
@@ -389,7 +392,7 @@ if __name__ == '__main__':
         for b in range(args.beam_width):
             beam_sketch = beam_sketches[b]
             beam_sketch += sketches_raw[top_indexes[b]]
-            beam_sketch[beam_sketch > 1] = 1
+            beam_sketch /= 2
             beam_sketches[b] = beam_sketch
 
         # save loss statistics

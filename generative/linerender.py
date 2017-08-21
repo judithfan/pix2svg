@@ -26,10 +26,10 @@ class RenderNet(nn.Module):
     """
     def __init__(self, x0, y0, x1, y1, imsize=224, linewidth=7):
         super(RenderNet, self).__init__()
-        self.x0 = Variable(torch.Tensor([x0]), requires_grad=False)
-        self.y0 = Variable(torch.Tensor([y0]), requires_grad=False)
-        self.x1 = Parameter(torch.Tensor([x1]))
-        self.y1 = Parameter(torch.Tensor([y1]))
+        self.x0 = Variable(torch.LongTensor([x0]), requires_grad=False)
+        self.y0 = Variable(torch.LongTensor([y0]), requires_grad=False)
+        self.x1 = Parameter(torch.LongTensor([x1]))
+        self.y1 = Parameter(torch.LongTensor([y1]))
         self.imsize = imsize
         if linewidth % 2 == 0:
             linewidth += 1
@@ -56,10 +56,22 @@ class RenderNet(nn.Module):
         return Variable(kernel)
 
     def forward(self):
-        # store image in templates
-        templates = Variable(torch.zeros([3, self.imsize, self.imsize]))
+        imsize = self.imsize
+        linewidth = self.linewidth
         x0, y0 = self.x0, self.y0
         x1, y1 = self.x1, self.y1
+        kernel = self.gen_kernel()
+
+        def mat2vecidx(x, y, n=224):
+            return n * y + x
+
+        def vec2matidx(v, n=224):
+            y = v // n
+            x = v % n
+            return x, y
+
+        # to be differentiable, make 1d first
+        templates = Variable(torch.zeros(imsize * imsize))
 
         # start bresenham's line algorithm
         steep = False
@@ -76,24 +88,26 @@ class RenderNet(nn.Module):
 
         d = (2 * dy) - dx
         for i in range(0, int(dx.data[0])):
-            if steep:
-                templates[:, int(y0.data[0]), int(x0.data[0])] = 1
-            else:
-                templates[:, int(x0.data[0]), int(y0.data[0])] = 1
+            idx = mat2vecidx(y0, x0) if steep else mat2vecidx(x0, y0)
+            templates[idx] = 1
             while d.data[0] >= 0:
                 y0 += sy
                 d -= (2 * dx)
             x0 += sx
             d += (2 * dy)
-        templates[:, int(x1.data[0]), int(y1.data[0])] = 1
+        templates[mat2vecidx(x1, y1)] = 1
 
+        # reshape into matrix
+        templates = templates.view(imsize, imsize)
+        templates = torch.unsqueeze(templates, dim=0)  # add first dim
+        templates = torch.cat([templates, templates, templates], dim=0)  # concat
         # convolve against kernel to smooth
-        kernel = self.gen_kernel()
         templates = F.conv2d(torch.unsqueeze(templates, dim=0), kernel,
-                             padding=self.linewidth // 2)
+                             padding=linewidth // 2)
 
+        # normalize the matrix to be from 0 and 1
         template_min = torch.min(templates).expand_as(templates)
         template_max = torch.max(templates).expand_as(templates)
         templates = (templates - template_min) / (template_max - template_min)
-        templates = 1 - torch.squeeze(templates, dim=0)
+
         return templates
