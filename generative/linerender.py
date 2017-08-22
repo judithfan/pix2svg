@@ -26,10 +26,10 @@ class RenderNet(nn.Module):
     """
     def __init__(self, x0, y0, x1, y1, imsize=224, linewidth=7):
         super(RenderNet, self).__init__()
-        self.x0 = Variable(torch.LongTensor([x0]), requires_grad=False)
-        self.y0 = Variable(torch.LongTensor([y0]), requires_grad=False)
-        self.x1 = Parameter(torch.LongTensor([x1]))
-        self.y1 = Parameter(torch.LongTensor([y1]))
+        self.x0 = Variable(torch.Tensor([x0]), requires_grad=False)
+        self.y0 = Variable(torch.Tensor([y0]), requires_grad=False)
+        self.x1 = Parameter(torch.Tensor([x1]))
+        self.y1 = Parameter(torch.Tensor([y1]))
         self.imsize = imsize
         if linewidth % 2 == 0:
             linewidth += 1
@@ -89,13 +89,15 @@ class RenderNet(nn.Module):
         d = (2 * dy) - dx
         for i in range(0, int(dx.data[0])):
             idx = mat2vecidx(y0, x0) if steep else mat2vecidx(x0, y0)
+            idx = idx.long()
             templates[idx] = 1
             while d.data[0] >= 0:
                 y0 += sy
                 d -= (2 * dx)
             x0 += sx
             d += (2 * dy)
-        templates[mat2vecidx(x1, y1)] = 1
+        idx = mat2vecidx(x1, y1).long()
+        templates[idx] = 1
 
         # reshape into matrix
         templates = templates.view(imsize, imsize)
