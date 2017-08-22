@@ -15,7 +15,7 @@ import torchvision.models as models
 from torch.autograd import Variable
 import torchvision.transforms as transforms
 
-from pix2sketch import (SketchLoss, sample_endpoint_gaussian2d)
+from pix2sketch import (sketch_loss, sample_endpoint_gaussian2d)
 from linerender import RenderNet
 from vggutils import (VGG19Split, vgg_convert_to_avg_pool)
 
@@ -62,12 +62,11 @@ if __name__ == "__main__":
         optimizer.zero_grad()
         sketch = renderer()
         sketch_embs = vgg19(sketch)
-        sketch_loss = SketchLoss(8, 3)
-        losses = sketch_loss(natural_emb, sketch_embs, distractor_embs)
-        losses.backward()
+        loss = sketch_loss(natural_emb, sketch_embs, distractor_embs)
+        loss.backward()
         optimizer.step()
         print('Train Epoch: {} \tLoss: {:.6f} \tParams: ({}, {})'.format(
-            epoch, losses.data[0], params[0].data[0], params[1].data[0]))
+            epoch, loss.data[0], params[0].data[0], params[1].data[0]))
 
     for i in range(5):
         train(i)

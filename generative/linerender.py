@@ -26,8 +26,8 @@ class RenderNet(nn.Module):
     """
     def __init__(self, x0, y0, x1, y1, imsize=224, linewidth=7):
         super(RenderNet, self).__init__()
-        self.x0 = Variable(torch.Tensor([x0]), requires_grad=False)
-        self.y0 = Variable(torch.Tensor([y0]), requires_grad=False)
+        self.x0 = Variable(torch.Tensor([x0]))
+        self.y0 = Variable(torch.Tensor([y0]))
         self.x1 = Parameter(torch.Tensor([x1]))
         self.y1 = Parameter(torch.Tensor([y1]))
         self.imsize = imsize
@@ -65,13 +65,8 @@ class RenderNet(nn.Module):
         def mat2vecidx(x, y, n=224):
             return n * y + x
 
-        def vec2matidx(v, n=224):
-            y = v // n
-            x = v % n
-            return x, y
-
         # to be differentiable, make 1d first
-        templates = Variable(torch.zeros(imsize * imsize))
+        template = Variable(torch.zeros(imsize * imsize))
 
         # start bresenham's line algorithm
         steep = False
@@ -90,26 +85,26 @@ class RenderNet(nn.Module):
         for i in range(0, int(dx.data[0])):
             idx = mat2vecidx(y0, x0) if steep else mat2vecidx(x0, y0)
             idx = idx.long()
-            templates[idx] = 1
+            template[idx] = 1
             while d.data[0] >= 0:
                 y0 += sy
                 d -= (2 * dx)
             x0 += sx
             d += (2 * dy)
         idx = mat2vecidx(x1, y1).long()
-        templates[idx] = 1
+        template[idx] = 1
 
         # reshape into matrix
-        templates = templates.view(imsize, imsize)
-        templates = torch.unsqueeze(templates, dim=0)  # add first dim
-        templates = torch.cat([templates, templates, templates], dim=0)  # concat
+        template = template.view(imsize, imsize)  # reshape to 2 dims
+        template = torch.unsqueeze(template, dim=0)  # add 3rd dim
+        template = torch.cat([template, template, template], dim=0)  # concat
+        template = torch.unsqueeze(template, dim=0)  # add 4th dim
         # convolve against kernel to smooth
-        templates = F.conv2d(torch.unsqueeze(templates, dim=0), kernel,
-                             padding=linewidth // 2)
+        template = F.conv2d(template, kernel, padding=linewidth // 2)
 
         # normalize the matrix to be from 0 and 1
-        template_min = torch.min(templates).expand_as(templates)
-        template_max = torch.max(templates).expand_as(templates)
-        templates = (templates - template_min) / (template_max - template_min)
+        template_min = torch.min(template).expand_as(template)
+        template_max = torch.max(template).expand_as(template)
+        template = (template - template_min) / (template_max - template_min)
 
-        return templates
+        return template
