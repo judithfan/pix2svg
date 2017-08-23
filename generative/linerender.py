@@ -30,9 +30,6 @@ class RenderNet(nn.Module):
         self.y0 = Variable(torch.Tensor([y0]))
         self.x1 = Parameter(torch.Tensor([x1]))
         self.y1 = Parameter(torch.Tensor([y1]))
-        # save raw values for indexing
-        self._x1 = x1
-        self._y1 = y1
         self.imsize = imsize
         if linewidth % 2 == 0:
             linewidth += 1
@@ -42,12 +39,12 @@ class RenderNet(nn.Module):
     def gen_kernel(self):
         linewidth = self.linewidth
         center = linewidth // 2
-        kernel = torch.zeros((3, 3, linewidth, linewidth))
+        kernel = torch.zeros((1, 1, linewidth, linewidth))
         # compose our kernel out of smaller kernels
         for i in range(center + 1):
             width = linewidth - i * 2
             value = (1.0 / (center + 1)) * (i + 1)
-            _kernel = torch.ones((3, 3, width, width)) * value
+            _kernel = torch.ones((1, 1, width, width)) * value
             offset = (linewidth - width) // 2
             kernel[
                 :,
@@ -57,24 +54,30 @@ class RenderNet(nn.Module):
             ] = _kernel
         return Variable(kernel)
 
-    def smooth_index(self, template, x, y, _x, _y):
+    def smooth_index(self, template, kernel, x, y, _x, _y, value):
         """Indexing using Variable, even with scatter_ is not
         differentiable. This is our hacky (& slower) workaround.
 
         :param template: torch matrix (imsize x imsize)
+        :param kernel: torch matrix (dim x dim x kH x kW)
         :param x: torch Parameter for x coordinate
         :param y: torch Parameter for y coordinate
         :param _x: integer for x coordinate
         :param _y: integer for y coordinate
+        :param value: float value to set it to
         :return: None, in-place operation on template
         """
         z = x + y
-        mask = z.expand(self.imsize, self.imsize)
-        difference = Variable(torch.zeros(self.imsize, self.imsize))
-        difference[_x, _y] = -z
+        mask = z.expand(1, 1, self.imsize, self.imsize)
+        difference = Variable(torch.zeros(1, 1, self.imsize, self.imsize))
+        difference[:, :, _x, _y] = -z
         mask = z - torch.add(mask, difference)
-        mask = torch.mul(mask, 1 / z)
+        mask = torch.mul(mask, value / z)
+        mask = F.conv2d(mask, kernel, padding=self.linewidth // 2)
+        # convolve before adding
         template = torch.add(template, mask)
+        # clip at value
+        template = template.clamp(0, value)
         return template
 
     def forward(self):
@@ -83,51 +86,41 @@ class RenderNet(nn.Module):
 
         x0, y0 = self.x0, self.y0
         x1, y1 = self.x1, self.y1
-        _x1, _y1 = self._x1, self._y1
-        x1.register_hook(print)
-        y1.register_hook(print)
+        _x0, _y0 = int(x0.data[0]), int(y0.data[0])
+        _x1, _y1 = int(x1.data[0]), int(y1.data[0])
 
-        # to be differentiable, make 1d first
-        template = Variable(torch.zeros(imsize, imsize))
-        template = self.smooth_index(template, x1, y1, _x1, _y1)
+        kernel = self.gen_kernel()  # to make smooth
+        template = Variable(torch.zeros(1, 1, imsize, imsize))
 
         # start bresenham's line algorithm
-        # steep = False
-        # sx = 1 if torch.gt(x1, x0).data[0] > 0 else -1
-        # sy = 1 if torch.gt(y1, y0).data[0] > 0 else -1
-        # dx = torch.abs(x1 - x0)
-        # dy = torch.abs(y1 - y0)
+        steep = False
+        sx = 1 if torch.gt(x1, x0).data[0] > 0 else -1
+        sy = 1 if torch.gt(y1, y0).data[0] > 0 else -1
+        dx = torch.abs(x1 - x0)
+        dy = torch.abs(y1 - y0)
 
-        # if torch.gt(dy, dx).data[0]:
-        #     steep = True
-        #     x0, y0 = y0, x0
-        #     dx, dy = dy, dx
-        #     sx, sy = sy, sx
+        if torch.gt(dy, dx).data[0]:
+            steep = True
+            x0, y0 = y0, x0
+            dx, dy = dy, dx
+            sx, sy = sy, sx
 
-        # d = (2 * dy) - dx
-        # for i in range(0, int(dx.data[0])):
-        #     idx = mat2vecidx(y0, x0) if steep else mat2vecidx(x0, y0)
-        #     idx = idx.long()
-        #     template[idx] = 1
-        #     while d.data[0] >= 0:
-        #         y0 += sy
-        #         d -= (2 * dx)
-        #     x0 += sx
-        #     d += (2 * dy)
-        # idx = mat2vecidx(x1, y1).long()
-        # template[idx] = 1
-        # template.register_hook(print)
+        d = (2 * dy) - dx
+        for i in range(0, int(dx.data[0])):
+            if steep:
+                template = self.smooth_index(template, kernel,
+                                             y0, x0, _y0, _x0, 1)
+            else:
+                template = self.smooth_index(template, kernel,
+                                             x0, y0, _x0, _y0, 1)
+            while d.data[0] >= 0:
+                y0 += sy
+                d -= (2 * dx)
+            x0 += sx
+            d += (2 * dy)
 
-        # # reshape into matrix
-        template = torch.unsqueeze(template, dim=0)  # add 3rd dim
-        template = torch.cat([template, template, template], dim=0)  # concat
-        template = torch.unsqueeze(template, dim=0)  # add 4th dim
-        # # convolve against kernel to smooth
-        # template = F.conv2d(template, kernel, padding=linewidth // 2)
-
-        # # normalize the matrix to be from 0 and 1
-        template_min = torch.min(template).expand_as(template)
-        template_max = torch.max(template).expand_as(template)
-        template = (template - template_min) / (template_max - template_min)
+        template = self.smooth_index(template, kernel,
+                                     x1, y1, _x1, _y1, 1)
+        template = torch.cat([template, template, template], dim=1)
 
         return template
