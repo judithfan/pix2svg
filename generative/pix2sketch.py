@@ -23,14 +23,16 @@ ALLOWABLE_SAMPLING_PRIORS = ['gaussian', 'angle']
 ALLOWABLE_ACTIONS = ['draw', 'move']
 
 
-def sketch_loss(natural_emb, sketch_embs, distractor_embs, segment_cost=0.0):
+def sketch_loss(natural_emb, sketch_embs, distractor_embs, distance_fn='cosine', segment_cost=0.0):
     """Calculate distance between natural image and sketch image
     where the distance is normalized by distractor images.
 
     :param natural_emb: tuple of PyTorch Variable
-    :sketch_embs: tuple of PyTorch Variables
-    :distractor_embs: tuple of PyTorch Variables
-    :param segment_cost: cost of adding this segment
+    :param sketch_embs: tuple of PyTorch Variables
+    :param distractor_embs: tuple of PyTorch Variables
+    :param distance_fn: string corresponding to type of distance function
+                : ['cosine','L_1','L_2']
+    :param segment_cost: cost of adding this segment 
     """
 
     n_sketches = sketch_embs[0].size()[0]
@@ -39,21 +41,31 @@ def sketch_loss(natural_emb, sketch_embs, distractor_embs, segment_cost=0.0):
 
     natural_dist = Variable(torch.zeros(n_sketches))
     for f in range(n_features):
-        costs = F.cosine_similarity(natural_emb[f], sketch_embs[f], dim=1)
+        # define distance function
+        if distance_fn in ['cosine','correlation']:
+            costs = F.cosine_similarity(natural_emb[f], sketch_embs[f], dim=1)    
+        elif distance_fn in ['L_1','l1','manhattan']:
+            costs = F.pairwise_distance(natural_emb[f], sketch_embs[f], p=1)            
+        elif distance_fn in ['L_2','l2','euclidean']:
+            costs = F.pairwise_distance(natural_emb[f], sketch_embs[f], p=2)            
         natural_dist = torch.add(natural_dist, costs)
 
-    distraction_dists = Variable(torch.zeros((n_distractors, n_sketches)))
+    distractor_dists = Variable(torch.zeros((n_distractors, n_sketches)))
     for j in range(n_distractors):
         for f in range(n_features):
-            distraction_emb = torch.unsqueeze(distractor_embs[f][j], dim=0)
-            costs = F.cosine_similarity(distraction_emb, sketch_embs[f])
-            distraction_dists[j] = torch.add(distraction_dists[j], costs)
+            distractor_emb = torch.unsqueeze(distractor_embs[f][j], dim=0)
+            if distance_fn in ['cosine','correlation']:
+                costs = F.cosine_similarity(distractor_emb, sketch_embs[f], dim=1)    
+            elif distance_fn in ['L_1','l1','manhattan']:
+                costs = F.pairwise_distance(distractor_emb, sketch_embs[f], p=1)            
+            elif distance_fn in ['L_2','l2','euclidean']:
+                costs = F.pairwise_distance(distractor_emb, sketch_embs[f], p=2)             
+            distractor_dists[j] = torch.add(distractor_dists[j], costs)
 
-    all_dists = torch.cat((torch.unsqueeze(natural_dist, dim=0), distraction_dists))
+    all_dists = torch.cat((torch.unsqueeze(natural_dist, dim=0), distractor_dists))
     norm = torch.norm(all_dists, p=2, dim=0)
     loss = natural_dist / norm + segment_cost
     return loss
-
 
 def gen_action():
     """Sample an action from an action space of 'draw' or 'move'
@@ -291,7 +303,7 @@ def train(natural_image, distractor_images, **kwargs):
 
             # compute loss functions
             sketch_embs = vgg19(sketches)
-            sketch_loss = SketchLoss(n_features, n_distractors, segment_cost=segment_cost)
+            sketch_loss = SketchLoss(n_features, n_distractors, distance_fn = 'cosine', segment_cost=segment_cost)
             losses = sketch_loss(natural_emb, sketch_embs, distractor_embs)
             print('- computed losses')
 
