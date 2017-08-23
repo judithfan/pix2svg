@@ -54,7 +54,7 @@ class RenderNet(nn.Module):
             ] = _kernel
         return Variable(kernel)
 
-    def smooth_index(self, template, kernel, x, y, _x, _y, value):
+    def index(self, template, kernel, x, y, _x, _y, value):
         """Indexing using Variable, even with scatter_ is not
         differentiable. This is our hacky (& slower) workaround.
 
@@ -68,12 +68,13 @@ class RenderNet(nn.Module):
         :return: None, in-place operation on template
         """
         z = x + y
+        if z.data[0] == 0:
+            z = torch.add(z, 1)
         mask = z.expand(1, 1, self.imsize, self.imsize)
         difference = Variable(torch.zeros(1, 1, self.imsize, self.imsize))
         difference[:, :, _x, _y] = -z
         mask = z - torch.add(mask, difference)
         mask = torch.mul(mask, value / z)
-        mask = F.conv2d(mask, kernel, padding=self.linewidth // 2)
         # convolve before adding
         template = torch.add(template, mask)
         # clip at value
@@ -106,21 +107,27 @@ class RenderNet(nn.Module):
             sx, sy = sy, sx
 
         d = (2 * dy) - dx
-        for i in range(0, int(dx.data[0])):
+        for i in range(0, int(dx.data[0]) + 1):
             if steep:
-                template = self.smooth_index(template, kernel,
-                                             y0, x0, _y0, _x0, 1)
+                template = self.index(template, kernel, y0, x0, _y0, _x0, 1)
             else:
-                template = self.smooth_index(template, kernel,
-                                             x0, y0, _x0, _y0, 1)
+                template = self.index(template, kernel, x0, y0, _x0, _y0, 1)
             while d.data[0] >= 0:
                 y0 += sy
+                _y0 += sy
                 d -= (2 * dx)
             x0 += sx
+            _x0 += sx
             d += (2 * dy)
 
-        template = self.smooth_index(template, kernel,
-                                     x1, y1, _x1, _y1, 1)
+        template = self.index(template, kernel, x1, y1, _x1, _y1, 1)
+        template = F.conv2d(template, kernel, padding=self.linewidth // 2)
+
+        # conv increases magnitudes, need to bring this back to 0 and 1
+        template_min = torch.min(template)
+        template_max = torch.max(template)
+        template = (template - template_min) / (template_max - template_min)
+
         template = torch.cat([template, template, template], dim=1)
 
         return template

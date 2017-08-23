@@ -23,65 +23,69 @@ ALLOWABLE_SAMPLING_PRIORS = ['gaussian', 'angle']
 ALLOWABLE_ACTIONS = ['draw', 'move']
 
 
-def mean_pixel_sketch_loss(natural_image, sketch_images, distractor_images,
+def mean_pixel_sketch_loss(natural_image, sketch_images, distractor_images=None,
                            segment_cost=0.0):
-    losses = pixel_sketch_loss(natural_image, sketch_images, distractor_images,
+    losses = pixel_sketch_loss(natural_image, sketch_images,
+                               distractor_images=distractor_images,
                                segment_cost=segment_cost)
     return torch.mean(losses)
 
 
-def pixel_sketch_loss(natural_image, sketch_images, distractor_images,
+def pixel_sketch_loss(natural_image, sketch_images, distractor_images=None,
                       segment_cost=0.0):
     """Calculate L2 distance between natural image and sketch
     image + normalization using distractor images.
 
     :param natural_image: PyTorch Tensor 1xCxHxW
     :param sketch_images: PyTorch Tensor SxCxHxW
-    :param distractor_images: PyTorch Tensor DxCxHxW
-    :param segment_cost: cost of adding this segment
+    :param distractor_images: PyTorch Tensor DxCxHxW (default None)
+    :param segment_cost: cost of adding this segment (default 0.0)
     """
     n_sketches = sketch_images.size()[0]
-    n_distractors = distractor_images.size()[0]
-
     # flatten images into a vector
     natural_image = natural_image.view(1, -1)
     sketch_images = sketch_images.view(n_sketches, -1)
-    distractor_images = distractor_images.view(n_distractors, -1)
 
     # distance between natural image and each sketch
     loss = torch.sum(torch.pow(natural_image - sketch_images, 2), dim=1)
     loss = torch.unsqueeze(loss, dim=0)
 
-    # distance between distractor image and each sketch
-    distraction_dists = Variable(torch.zeros((n_distractors, n_sketches)))
-    for i in range(n_distractors):
-        distraction_dists[i] = torch.sum(torch.pow(distractor_images[i]
-                                                   - sketch_images, 2), dim=1)
-    all_dists = torch.cat((loss, distraction_dists))
-    norm = torch.norm(all_dists, p=2, dim=0)
-    loss = loss / norm + segment_cost
-    return loss
+    if distractor_images is not None:
+        n_distractors = distractor_images.size()[0]
+        distractor_images = distractor_images.view(n_distractors, -1)
+
+        # distance between distractor image and each sketch
+        distraction_dists = Variable(torch.zeros((n_distractors, n_sketches)))
+        for i in range(n_distractors):
+            distraction_dists[i] = torch.sum(torch.pow(distractor_images[i]
+                                                       - sketch_images, 2), dim=1)
+        all_dists = torch.cat((loss, distraction_dists))
+        norm = torch.norm(all_dists, p=2, dim=0)
+        loss = loss / norm
+
+    return loss + segment_cost
 
 
-def mean_semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs,
+def mean_semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None,
                               segment_cost=0.0):
-    losses = semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs,
+    losses = semantic_sketch_loss(natural_emb, sketch_embs,
+                                  distractor_embs=distractor_embs,
                                   segment_cost=segment_cost)
     return torch.mean(losses)
 
 
-def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs, segment_cost=0.0):
+def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None,
+                         segment_cost=0.0):
     """Calculate distance between natural image and sketch image
     where the distance is normalized by distractor images.
 
     :param natural_emb: tuple of PyTorch Variable
     :sketch_embs: tuple of PyTorch Variables
-    :distractor_embs: tuple of PyTorch Variables
-    :param segment_cost: cost of adding this segment
+    :distractor_embs: tuple of PyTorch Variables (default None)
+    :param segment_cost: cost of adding this segment (default 0)
     """
     n_sketches = sketch_embs[0].size()[0]
     n_features = len(natural_emb)
-    n_distractors = distractor_embs[0].size()[0]
 
     loss = Variable(torch.FloatTensor(n_sketches).zero_(), requires_grad=True)
 
@@ -89,17 +93,20 @@ def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs, segment_cost
         costs = F.cosine_similarity(natural_emb[f], sketch_embs[f], dim=1)
         loss = torch.add(loss, costs)
 
-    distraction_dists = Variable(torch.zeros((n_distractors, n_sketches)))
-    for j in range(n_distractors):
-        for f in range(n_features):
-            distraction_emb = torch.unsqueeze(distractor_embs[f][j], dim=0)
-            costs = F.cosine_similarity(distraction_emb, sketch_embs[f])
-            distraction_dists[j] = torch.add(distraction_dists[j], costs)
+    if distractor_embs is not None:
+        n_distractors = distractor_embs[0].size()[0]
+        distraction_dists = Variable(torch.zeros((n_distractors, n_sketches)))
+        for j in range(n_distractors):
+            for f in range(n_features):
+                distraction_emb = torch.unsqueeze(distractor_embs[f][j], dim=0)
+                costs = F.cosine_similarity(distraction_emb, sketch_embs[f])
+                distraction_dists[j] = torch.add(distraction_dists[j], costs)
 
-    all_dists = torch.cat((torch.unsqueeze(loss, dim=0), distraction_dists))
-    norm = torch.norm(all_dists, p=2, dim=0)
-    loss = loss / norm + segment_cost
-    return loss
+        all_dists = torch.cat((torch.unsqueeze(loss, dim=0), distraction_dists))
+        norm = torch.norm(all_dists, p=2, dim=0)
+        loss = loss / norm
+
+    return loss + segment_cost
 
 
 def gen_action():
@@ -327,7 +334,7 @@ def train(natural_image, distractor_images, **kwargs):
                 sketch = renderer()
                 if iter > 0:  # first iter is just all 0's
                     sketch += beam_sketches[b]
-                    sketch /= 2 # nothing can be over 1
+                    sketch = sketch.clamp(0, 1)
                 sketches_raw[i] = sketch  #  save raw sketch
 
                 # manually apply preprocessing
@@ -378,7 +385,7 @@ def train(natural_image, distractor_images, **kwargs):
         for b in range(beam_width):
             beam_sketch = beam_sketches[b]
             beam_sketch += sketches_raw[top_indexes[b]]
-            beam_sketch /= 2
+            beam_sketch = beam_sketch.clamp(0, 1)
             beam_sketches[b] = beam_sketch
 
         top_beam_loss = beam_losses[top_indexes[0]]
