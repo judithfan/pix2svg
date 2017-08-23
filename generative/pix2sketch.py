@@ -33,14 +33,14 @@ def sketch_loss(natural_emb, sketch_embs, distractor_embs, segment_cost=0.0):
     :param segment_cost: cost of adding this segment
     """
 
+    loss = Variable(torch.FloatTensor(1).zero_(), requires_grad=True)
     n_sketches = sketch_embs[0].size()[0]
     n_features = len(natural_emb)
     n_distractors = distractor_embs[0].size()[0]
 
-    natural_dist = Variable(torch.zeros(n_sketches))
     for f in range(n_features):
         costs = F.cosine_similarity(natural_emb[f], sketch_embs[f], dim=1)
-        natural_dist = torch.add(natural_dist, costs)
+        loss = torch.add(loss, costs)
 
     distraction_dists = Variable(torch.zeros((n_distractors, n_sketches)))
     for j in range(n_distractors):
@@ -49,9 +49,9 @@ def sketch_loss(natural_emb, sketch_embs, distractor_embs, segment_cost=0.0):
             costs = F.cosine_similarity(distraction_emb, sketch_embs[f])
             distraction_dists[j] = torch.add(distraction_dists[j], costs)
 
-    all_dists = torch.cat((torch.unsqueeze(natural_dist, dim=0), distraction_dists))
+    all_dists = torch.cat((torch.unsqueeze(loss, dim=0), distraction_dists))
     norm = torch.norm(all_dists, p=2, dim=0)
-    loss = natural_dist / norm + segment_cost
+    loss = loss / norm + segment_cost
     return loss
 
 
