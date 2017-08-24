@@ -66,11 +66,11 @@ def pixel_sketch_loss(natural_image, sketch_images, distractor_images=None,
     return loss + segment_cost
 
 
-def mean_semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None, distance_fn = DIST_TYPE, 
+def mean_semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None, distance_fn = 'cosine', 
                               segment_cost=0.0):
     losses = semantic_sketch_loss(natural_emb, sketch_embs,
                                   distractor_embs=distractor_embs,
-                                  distance_fn = DIST_TYPE,
+                                  distance_fn = distance_fn,
                                   segment_cost=segment_cost)
     return torch.mean(losses)
 
