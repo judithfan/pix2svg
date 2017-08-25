@@ -21,47 +21,45 @@ from pix2sketch import mean_pixel_sketch_loss
 from linerender import RenderNet
 
 
-def preprocess_tensor(t):
-    """Imagenet normalization on tensor"""
-    t[0] = (t[0] - 0.485) / 0.229
-    t[1] = (t[1] - 0.456) / 0.224
-    t[2] = (t[2] - 0.406) / 0.225
-    return t
-
-
 def gen_ground_truth():
-    image = torch.zeros(3, 224, 224)
-    image[:, 112:, 112] = 1
-    image = preprocess_tensor(image)
+    image = torch.zeros(1, 11, 11)
+    image[:, 5:, 5] = 1
     return Variable(torch.unsqueeze(image, dim=0))
 
 
 if __name__ == "__main__":
     gt_sketch = gen_ground_truth()
-    x0, y0 = 112, 112  # use gt for seed anchor
-    x1, y1 = 152, 180
 
-    renderer = RenderNet(x0, y0, x1, y1, imsize=224)
-    optimizer = optim.SGD(renderer.parameters(), lr=1e10, momentum=0.9)
-
-    def train(epoch):
+    def train(renderer, optimizer, epoch):
         renderer.train()
         optimizer.zero_grad()
         sketch = renderer()
-
-        sketch[:, 0] = (sketch[:, 0] - 0.485) / 0.229
-        sketch[:, 1] = (sketch[:, 1] - 0.456) / 0.224
-        sketch[:, 2] = (sketch[:, 2] - 0.406) / 0.225
-
-        loss = mean_pixel_sketch_loss(gt_sketch, sketch)
+        loss = torch.sum(torch.pow(gt_sketch - sketch, 2))  # l2 loss
         loss.backward()
         optimizer.step()
-
         params = list(renderer.parameters())
-        print('Train Epoch: {} \tLoss: {:.6f}: \tGrad: ({}, {}) \tParams: ({}, {})'.format(
-            epoch, loss.data[0], params[0].grad.data.numpy()[0],
-            params[1].grad.data.numpy()[0],
-            params[0].data.numpy()[0], params[1].data.numpy()[0]))
+        if epoch % 10 == 0:
+            print('Train Epoch: {} \tLoss: {:.6f} \tParams: ({}, {})'.format(
+                  epoch, loss.data[0], params[0].data.numpy()[0], params[1].data.numpy()[0]))
 
-    for i in range(20):
-        train(i)
+    # TEST 1: provide a nearby guess (i found we already need a big fuzz...)
+    renderer = RenderNet(5, 5, 7, 9, imsize=11, fuzz=3.0)
+    optimizer = optim.SGD(renderer.parameters(), lr=1e-2, momentum=0.5)
+
+    for i in range(500):
+        train(renderer, optimizer, i)
+
+    params = list(renderer.named_parameters())
+    print('\nTEST 1:')
+    print(params)
+
+    # TEST 2: provide the ground truth and make sure it doesn't deviate
+    renderer = RenderNet(5, 5, 5, 10, imsize=11, fuzz=3.0)
+    optimizer = optim.SGD(renderer.parameters(), lr=1e-2, momentum=0.5)
+
+    for i in range(100):
+        train(renderer, optimizer, i)
+
+    params = list(renderer.named_parameters())
+    print('\nTEST 2:')
+    print(params)

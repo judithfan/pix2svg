@@ -41,8 +41,8 @@ class RenderNet(nn.Module):
         y0 = self.y0.repeat(self.imsize * self.imsize)
         x1 = self.x1.repeat(self.imsize * self.imsize)
         y1 = self.y1.repeat(self.imsize * self.imsize)
-        yp0 = Variable(torch.arange(0, self.imsize).repeat(self.imsize))
-        xp0 = torch.t(yp0.view(self.imsize, self.imsize)).contiguous().view(-1)
+        xp0 = Variable(torch.arange(0, self.imsize).repeat(self.imsize))
+        yp0 = torch.t(xp0.view(self.imsize, self.imsize)).contiguous().view(-1)
 
         # if x1 is equal to x0, we can't calculate slope so we need to handle
         # this case separately
@@ -50,31 +50,20 @@ class RenderNet(nn.Module):
         ii_zero = torch.eq(x1, x0)
         n_zero = torch.sum(ii_zero).data[0]
 
-        # grab nonzero index first
-        xp1, yp1 = gen_closest_point_on_line(x0[ii_nonzero], y0[ii_nonzero],
-                                             x1[ii_nonzero], y1[ii_nonzero],
-                                             xp0[ii_nonzero], yp0[ii_nonzero])
-        # in nonzero indexing, certain ones may be out of the line segments range
-        n_less = torch.sum(xp1 < x0).data[0]
-        n_more = torch.sum(xp1 > x1).data[0]
-        xp1[xp1 < x0] = self.x0.repeat(n_less)
-        yp1[xp1 < x0] = self.y0.repeat(n_less)
-        xp1[xp1 > x1] = self.x1.repeat(n_more)
-        yp1[xp1 > x1] = self.y1.repeat(n_more)
+        if n_zero == 0:
+            xp1, yp1 = gen_closest_point_on_line(x0[ii_nonzero], y0[ii_nonzero],
+                                                 x1[ii_nonzero], y1[ii_nonzero],
+                                                 xp0[ii_nonzero], yp0[ii_nonzero])
+        else:  # this is a vertical line
+            xp1, yp1 = gen_closest_point_on_vertical_line(x0[ii_zero], y0[ii_zero],
+                                                          x1[ii_zero], y1[ii_zero],
+                                                          xp0[ii_zero], yp0[ii_zero])
 
-        if n_zero > 0:
-            # this sort index will be used to avoid indexing
-            ii_range = torch.arange(0, self.imsize * self.imsize)
-            _, ii_sort = torch.sort(torch.cat((ii_range[ii_nonzero.data], ii_range[ii_zero.data])))
-
-            # grab zero index first
-            xp1_zero, yp1_zero = gen_closest_point_on_vertical_line(x0[ii_zero], y0[ii_zero],
-                                                                    x1[ii_zero], y1[ii_zero],
-                                                                    xp0[ii_zero], yp0[ii_zero])
-            xp1 = torch.cat((xp1, xp1_zero))
-            yp1 = torch.cat((yp1, yp1_zero))
-            xp1 = xp1[ii_sort]
-            yp1 = yp1[ii_sort]
+        # points may be out of the line segments range
+        xp1 = torch.clamp(xp1, min=min((x0.data[0], x1.data[0])),
+                          max=max((x0.data[0], x1.data[0])))
+        yp1 = torch.clamp(yp1, min=min((y0.data[0], y1.data[0])),
+                          max=max((y0.data[0], y1.data[0])))
 
         d = gen_euclidean_distance(xp0, yp0, xp1, yp1)
         d = torch.pow(d, self.fuzz)  # scale the differences
@@ -83,24 +72,26 @@ class RenderNet(nn.Module):
         # renorm to 0 and 1
         tmin = torch.min(template)
         tmax = torch.max(template)
-        template = (template - tmin) / (tmax - tmin)
+        template = (template - tmin) / (tmax - tmin )
+        template = torch.unsqueeze(template, dim=0)
+        template = torch.unsqueeze(template, dim=0)
 
         return template
 
 
-def _gen_closest_point_on_line(x0, y0, x1, y1, xp, yp):
+def _gen_closest_point_on_line(x0, y0, x1, y1, xp, yp, eps=1e-10):
     """Same as gen_closest_point_on_line but here we make the
     assumption that x0 != x1 for all indexes.
     """
-    n = (x1-x0)*yp*(y1-y0)+(y0-y1)*(y0*x1-x0*y1)+xp*(x0-x1)**2
-    d = (x0-x1)**2 + (y0-y1)**2
-    x = n / d
-    y = (y1-y0)/(x1-x0)*x+(y0*x1-x0*y1)/(x1-x0)
+    n = (x1-x0)*yp*(y1-y0)+(y0-y1)*(y0*x1-x0*y1)+xp*torch.pow(x0-x1,2)
+    d = torch.pow(x0-x1,2) + torch.pow(y0-y1,2)
+    x = n/(d+eps)
+    y = (y1-y0)/(x1-x0+eps)*x+(y0*x1-x0*y1)/(x1-x0+eps)
     return x, y
 
 
 def gen_closest_point_on_vertical_line(x0, y0, x1, y1, xp, yp):
-    return x0, yp
+    return x1, yp
 
 
 def gen_closest_point_on_line(x0, y0, x1, y1, xp, yp):
@@ -121,7 +112,7 @@ def gen_closest_point_on_line(x0, y0, x1, y1, xp, yp):
     return x, y
 
 
-def gen_euclidean_distance(x0, y0, x1, y1):
+def gen_euclidean_distance(x0, y0, x1, y1, eps=1e-10):
     """Calculate Euclidean distance between (x0, y0) and (x1, y1).
     This only supports vectorized computation.
 
@@ -130,4 +121,4 @@ def gen_euclidean_distance(x0, y0, x1, y1):
     :param x1: Torch tensor 1D of x coordinate of another point
     :param y1: Torch tensor 1D of y coordinate of another point
     """
-    return torch.pow(torch.pow(x1 - x0, 2) + torch.pow(y1 - y0, 2), 0.5)
+    return torch.pow(torch.pow(x1 - x0, 2) + torch.pow(y1 - y0, 2) + eps, 0.5)
