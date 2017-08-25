@@ -1,8 +1,8 @@
 """Pixel-wise loss against a sketch of a vertical line and a
-generated sketch. The generated sketch is given the ground
-truth anchor point (x0, y0) and prior point (x1, y1) close to
-the true 2nd point. The test confirms that via gradient descent,
-we can converge to the correct point.
+generated sketch using a differential renderer. The generator
+is given the ground truth anchor point (x0, y0) and
+prior point (x1, y1) close to the true 2nd point. The test
+confirms that via gradient descent, we can converge to the correct point.
 """
 
 from __future__ import division
@@ -17,7 +17,6 @@ from torch.autograd import Variable
 import torchvision.transforms as transforms
 
 import sys; sys.path.append('..')
-from pix2sketch import mean_pixel_sketch_loss
 from linerender import RenderNet
 
 

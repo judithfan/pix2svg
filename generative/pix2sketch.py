@@ -21,6 +21,8 @@ from vggutils import (VGG19Split, vgg_convert_to_avg_pool)
 
 ALLOWABLE_SAMPLING_PRIORS = ['gaussian', 'angle']
 ALLOWABLE_ACTIONS = ['draw', 'move']
+ALLOWABLE_DISTANCE_FNS = ['cosine', 'correlation', 'L_1','l1','manhattan',
+                          'L_2','l2','euclidean']
 
 
 def mean_pixel_sketch_loss(natural_image, sketch_images, distractor_images=None,
@@ -66,8 +68,8 @@ def pixel_sketch_loss(natural_image, sketch_images, distractor_images=None,
     return loss + segment_cost
 
 
-def mean_semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None, distance_fn = 'cosine', 
-                              segment_cost=0.0):
+def mean_semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None,
+                              distance_fn='cosine', segment_cost=0.0):
     losses = semantic_sketch_loss(natural_emb, sketch_embs,
                                   distractor_embs=distractor_embs,
                                   distance_fn = distance_fn,
@@ -75,8 +77,8 @@ def mean_semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None, di
     return torch.mean(losses)
 
 
-def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None, distance_fn = 'cosine', 
-                         segment_cost=0.0):
+def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None,
+                         distance_fn='cosine', segment_cost=0.0):
     """Calculate distance between natural image and sketch image
     where the distance is normalized by distractor images.
 
@@ -86,18 +88,19 @@ def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None, distanc
     :param distance_fn: string defining the type of distance function to use (default cosine)
     :param segment_cost: cost of adding this segment (default 0)
     """
+    assert distance_fn in ALLOWABLE_DISTANCE_FNS
     n_sketches = sketch_embs[0].size()[0]
     n_features = len(natural_emb)
 
-    loss = Variable(torch.FloatTensor(n_sketches).zero_(), requires_grad=True)
+    loss = Variable(torch.zeros(n_sketches), requires_grad=True)
 
     for f in range(n_features):
         if distance_fn in ['cosine','correlation']:
-            costs = F.cosine_similarity(natural_emb[f], sketch_embs[f], dim=1)    
+            costs = F.cosine_similarity(natural_emb[f], sketch_embs[f], dim=1)
         elif distance_fn in ['L_1','l1','manhattan']:
-            costs = F.pairwise_distance(natural_emb[f], sketch_embs[f], p=1)            
+            costs = F.pairwise_distance(natural_emb[f], sketch_embs[f], p=1)
         elif distance_fn in ['L_2','l2','euclidean']:
-            costs = F.pairwise_distance(natural_emb[f], sketch_embs[f], p=2)            
+            costs = F.pairwise_distance(natural_emb[f], sketch_embs[f], p=2)
         loss = torch.add(loss, costs)
 
     if distractor_embs is not None:
@@ -107,11 +110,11 @@ def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None, distanc
             for f in range(n_features):
                 distraction_emb = torch.unsqueeze(distractor_embs[f][j], dim=0)
                 if distance_fn in ['cosine','correlation']:
-                    costs = F.cosine_similarity(distraction_emb, sketch_embs[f], dim=1)    
+                    costs = F.cosine_similarity(distraction_emb, sketch_embs[f], dim=1)
                 elif distance_fn in ['L_1','l1','manhattan']:
-                    costs = F.pairwise_distance(distraction_emb, sketch_embs[f], p=1)            
+                    costs = F.pairwise_distance(distraction_emb, sketch_embs[f], p=1)
                 elif distance_fn in ['L_2','l2','euclidean']:
-                    costs = F.pairwise_distance(distraction_emb, sketch_embs[f], p=2)             
+                    costs = F.pairwise_distance(distraction_emb, sketch_embs[f], p=2)
                 distraction_dists[j] = torch.add(distraction_dists[j], costs)
 
         all_dists = torch.cat((torch.unsqueeze(loss, dim=0), distraction_dists))
@@ -121,7 +124,7 @@ def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None, distanc
     return loss + segment_cost
 
 
-def gen_action():
+def sample_action():
     """Sample an action from an action space of 'draw' or 'move'
     For now, we simply always return 'draw'.
     """
@@ -175,7 +178,7 @@ def sample_endpoint_angle(x_s, y_s, x_l, y_l, std=10, angle_std=60, size=1,
     init_angle = np.rad2deg(np.arccos((x_s - x_l) / d))
 
     angles = np.clip(np.random.normal(loc=init_angle, scale=angle_std, size=size),
-                    -180 + init_angle, 180 + init_angle)
+                     -180 + init_angle, 180 + init_angle)
     lengths = np.random.normal(loc=d, scale=std, size=size)
 
     x_samples = lengths * np.cos(np.deg2rad(angles)) + x_s
@@ -188,43 +191,6 @@ def sample_endpoint_angle(x_s, y_s, x_l, y_l, std=10, angle_std=60, size=1,
     samples[:, 1][samples[:, 1] < min_y] = min_y
     samples[:, 1][samples[:, 1] > max_y] = max_y
     return np.round(samples, 0).astype(int)
-
-
-def pytorch_batch_exec(fn, objects, batch_size, out_dim=1):
-    """ Batch execution on Pytorch variables using Pytorch function.
-    The intended purpose is to save memory.
-
-    :param fn: function must take a PyTorch variable of sketches as input
-    :param objects: PyTorch Variable containing data
-    :param batch_size: number to process at a time
-    :param out_dim: fn() returns how many outputs?
-    :return: [Variable, ...] list of size out_dim
-    """
-    num_objects = objects.size()[0]  # number of images total
-    num_reads = int(math.floor(num_objects / batch_size))  # number of passes needed
-    num_processed = 0  # track the number of batches processed
-    out_arr = [[] for o in range(out_dim)]
-
-    for i in range(num_reads):
-        objects_batch = objects[
-            num_processed:num_processed+batch_size,
-        ]
-        out_batch = fn(objects_batch)
-        for o in range(out_dim):
-            out_arr[o].append(out_batch[o])
-        num_processed += batch_size
-
-    # process remaining images
-    if num_objects - num_processed > 0:
-        objects_batch = objects[
-            num_processed:num_objects,
-        ]
-        out_batch = fn(objects_batch)
-        for o in range(out_dim):
-            out_arr[o].append(out_batch[o])
-
-    # stack all of them together
-    return [np.vstack(arr) for arr in out_arr]
 
 
 def load_vgg19(max_to_avg_pool=False, vgg_layer_index=-1):
@@ -244,16 +210,27 @@ def load_vgg19(max_to_avg_pool=False, vgg_layer_index=-1):
 def train(natural_image, distractor_images, **kwargs):
     """ Performs beam search training to generate a sketch that is
     semantically similar to a natural image provided some context.
+    This is only for semantic images.
 
     :param natural_image: PIL array WxHxC
     :param distractor_images: list of PIL array [WxHxC]
+    :param n_samples (optional): number of samples for each iteration
+    :param n_iters (optional): number of iterations of beam search
+    :param std (optional): standard deviation for the Gaussian
+    :param angle_std (optional): if sampling_prior is angle, use this std
+    :param patience (optional): early stopping parameter
+    :param beam_width (optional): number of particles to keep each iteration
+    :param vgg_layer_index (optional): which layer to use for features (-1 to use all)
+    :param sampling_prior (optional): gaussian|prior
+    :param max_to_avg_pool (optional): add flag if you want to replace MaxPool to AveragePool
+    :param segment_cost (optional): additional cost per segment
+    :param distance_fn (optional): pixel|cosine|correlation|L_1|l1|manhattan|L_2|l2|euclidean
     :return: [x_coords, y_coords, actions] that led to a good sketch.
     """
     # load the deep net
     vgg_layer_index = kwargs.get('vgg_layer_index', -1)
     vgg19 = load_vgg(max_to_avg_pool=kwargs.get('max_to_avg_pool', False),
                      vgg_layer_index=vgg_layer_index)
-
 
     preprocessing = transforms.Compose([
         transforms.Scale(256),
@@ -269,10 +246,10 @@ def train(natural_image, distractor_images, **kwargs):
     natural_emb = vgg19(natural)
     distractor_embs = vgg19(distractors)
 
-    # constants for training
+    # using -1 means using each pool layer
     n_features = 8 if vgg_layer_index == -1 else 1
     n_distractors = distractor_images.shape[0]
-    x_init, y_init = 112, 112
+    x_init, y_init = 112, 112  # start at the center point
 
     # variables for early-stopping
     best_loss = -np.inf
@@ -284,7 +261,7 @@ def train(natural_image, distractor_images, **kwargs):
     beam_width = kwargs.get('beam_width', 2)
     n_iters = kwargs.get('n_iters', 100)
     sampling_prior = kwargs.get('sampling_prior', 'gaussian')
-    n_samples = kwargs.get('n_samples', 5)
+    n_samples = kwargs.get('n_samples', 10)
 
     # each queue holds future paths to try
     # for the first iteration, use beam_width repetitions of the init point
@@ -328,7 +305,7 @@ def train(natural_image, distractor_images, **kwargs):
             print('- generated %d samples' % args.n_samples)
 
             # sample an action e.g. draw vs move pen
-            action_sample = gen_action()  # TODO: make probabilistic
+            action_sample = sample_action()  # TODO: make probabilistic
             print('- sampled \'%s\' action' % action_sample)
 
             # the cost of drawing a new line increases over time
@@ -357,8 +334,8 @@ def train(natural_image, distractor_images, **kwargs):
 
             # compute loss functions
             sketch_embs = vgg19(sketches)
-            losses = semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs, distance_fn='cosine',
-                                          segment_cost=segment_cost)
+            losses = semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs,
+                                          distance_fn=args.distance_fn, segment_cost=segment_cost)
             print('- computed losses')
 
             if b == 0:
@@ -421,13 +398,8 @@ def train(natural_image, distractor_images, **kwargs):
 
 
 if __name__ == '__main__':
-    import json
     import argparse
     from PIL import Image
-
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    sns.set_style('whitegrid')
 
     parser = argparse.ArgumentParser(description="generate sketches")
     parser.add_argument('--image_path', type=str, help='path to image file')
@@ -453,11 +425,14 @@ if __name__ == '__main__':
                         help='if true, replace MaxPool2D with AvgPool2D in VGG19')
     parser.add_argument('--segment_cost', type=float, default=0.0,
                         help='cost for drawing a single segment')
+    parser.add_argument('--distance_fn', type=str, default='cosine',
+                        help='type of distance between sketch and natural image')
     args = parser.parse_args()
 
     assert args.beam_width <= args.n_samples
     assert args.vgg_layer_index >= -1 and args.vgg_layer_index < 45
     assert args.sampling_prior in ALLOWABLE_SAMPLING_PRIORS
+    assert args.distance_fn in ALLOWABLE_DISTANCE_FNS
 
     # prep images
     natural = Image.open(args.image_path)
@@ -476,7 +451,8 @@ if __name__ == '__main__':
                     'vgg_layer_index': args.vgg_layer_index,
                     'sampling_prior': args.sampling_prior,
                     'max_to_avg_pool': args.max_to_avg_pool,
-                    'segment_cost': args.max_to_avg_pool}
+                    'segment_cost': args.max_to_avg_pool,
+                    'distance_fn': args.distance_fn}
     best_sketch = train(natural, distractors)
     sketch_path = os.path.join(args.sketch_dir, 'sketch.png', **train_params)
     im = Image.fromarray(sketch_path)
