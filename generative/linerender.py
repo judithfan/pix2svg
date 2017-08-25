@@ -14,120 +14,120 @@ from torch.autograd import Variable
 
 class RenderNet(nn.Module):
     """Renders an image as a CxHxW matrix given 2 points
-    such that it is differentiable. This is based on a
-    simplified Bresenham's line algorithm: calculate slope and
-    round to stay close to the slope.
+    such that it is differentiable. The intensity of each
+    pixel is the shortest distance from each pixel to the line.
 
     :param x0: fixed starting x coordinate
     :param y0: fixed starting y coordinate
     :param x1: initialization for ending x coordinate
     :param y1: initialization for ending y coordinate
     :param imsize: image size to generate
+    :param fuzz: hyperparameter to scale differences; fuzz > 1 would
+                 localize around the line; fuzz < 1 would make things
+                 more uniform.
+    :return template: imsize by imsize rendered sketch
     """
-    def __init__(self, x0, y0, x1, y1, imsize=224, linewidth=7):
+    def __init__(self, x0, y0, x1, y1, imsize=224, fuzz=1):
         super(RenderNet, self).__init__()
         self.x0 = Variable(torch.Tensor([x0]))
         self.y0 = Variable(torch.Tensor([y0]))
         self.x1 = Parameter(torch.Tensor([x1]))
         self.y1 = Parameter(torch.Tensor([y1]))
         self.imsize = imsize
-        if linewidth % 2 == 0:
-            linewidth += 1
-        assert linewidth > 1, 'Thin lines are not differentiable.'
-        self.linewidth = linewidth
-
-    def gen_kernel(self):
-        linewidth = self.linewidth
-        center = linewidth // 2
-        kernel = torch.zeros((1, 1, linewidth, linewidth))
-        # compose our kernel out of smaller kernels
-        for i in range(center + 1):
-            width = linewidth - i * 2
-            value = (1.0 / (center + 1)) * (i + 1)
-            _kernel = torch.ones((1, 1, width, width)) * value
-            offset = (linewidth - width) // 2
-            kernel[
-                :,
-                :,
-                offset:linewidth - offset,
-                offset:linewidth - offset,
-            ] = _kernel
-        return Variable(kernel)
-
-    def index(self, template, kernel, x, y, _x, _y, value):
-        """Indexing using Variable, even with scatter_ is not
-        differentiable. This is our hacky (& slower) workaround.
-
-        :param template: torch matrix (imsize x imsize)
-        :param kernel: torch matrix (dim x dim x kH x kW)
-        :param x: torch Parameter for x coordinate
-        :param y: torch Parameter for y coordinate
-        :param _x: integer for x coordinate
-        :param _y: integer for y coordinate
-        :param value: float value to set it to
-        :return: None, in-place operation on template
-        """
-        z = x + y
-        if z.data[0] == 0:
-            z = torch.add(z, 1)
-        mask = z.expand(1, 1, self.imsize, self.imsize)
-        difference = Variable(torch.zeros(1, 1, self.imsize, self.imsize))
-        difference[:, :, _x, _y] = -z
-        mask = z - torch.add(mask, difference)
-        mask = torch.mul(mask, value / z)
-        # convolve before adding
-        template = torch.add(template, mask)
-        # clip at value
-        template = template.clamp(0, value)
-        return template
+        self.fuzz = fuzz
 
     def forward(self):
-        imsize = self.imsize
-        linewidth = self.linewidth
+        x0 = self.x0.repeat(self.imsize * self.imsize)
+        y0 = self.y0.repeat(self.imsize * self.imsize)
+        x1 = self.x1.repeat(self.imsize * self.imsize)
+        y1 = self.y1.repeat(self.imsize * self.imsize)
+        yp0 = Variable(torch.arange(0, self.imsize).repeat(self.imsize))
+        xp0 = torch.t(yp0.view(self.imsize, self.imsize)).contiguous().view(-1)
 
-        x0, y0 = self.x0, self.y0
-        x1, y1 = self.x1, self.y1
-        _x0, _y0 = int(x0.data[0]), int(y0.data[0])
-        _x1, _y1 = int(x1.data[0]), int(y1.data[0])
+        # if x1 is equal to x0, we can't calculate slope so we need to handle
+        # this case separately
+        ii_nonzero = x1 != x0
+        ii_zero = torch.eq(x1, x0)
+        n_zero = torch.sum(ii_zero).data[0]
 
-        kernel = self.gen_kernel()  # to make smooth
-        template = Variable(torch.zeros(1, 1, imsize, imsize))
+        # grab nonzero index first
+        xp1, yp1 = gen_closest_point_on_line(x0[ii_nonzero], y0[ii_nonzero],
+                                             x1[ii_nonzero], y1[ii_nonzero],
+                                             xp0[ii_nonzero], yp0[ii_nonzero])
+        # in nonzero indexing, certain ones may be out of the line segments range
+        n_less = torch.sum(xp1 < x0).data[0]
+        n_more = torch.sum(xp1 > x1).data[0]
+        xp1[xp1 < x0] = self.x0.repeat(n_less)
+        yp1[xp1 < x0] = self.y0.repeat(n_less)
+        xp1[xp1 > x1] = self.x1.repeat(n_more)
+        yp1[xp1 > x1] = self.y1.repeat(n_more)
 
-        # start bresenham's line algorithm
-        steep = False
-        sx = 1 if torch.gt(x1, x0).data[0] > 0 else -1
-        sy = 1 if torch.gt(y1, y0).data[0] > 0 else -1
-        dx = torch.abs(x1 - x0)
-        dy = torch.abs(y1 - y0)
+        if n_zero > 0:
+            # this sort index will be used to avoid indexing
+            ii_range = torch.arange(0, self.imsize * self.imsize)
+            _, ii_sort = torch.sort(torch.cat((ii_range[ii_nonzero.data], ii_range[ii_zero.data])))
 
-        if torch.gt(dy, dx).data[0]:
-            steep = True
-            x0, y0 = y0, x0
-            dx, dy = dy, dx
-            sx, sy = sy, sx
+            # grab zero index first
+            xp1_zero, yp1_zero = gen_closest_point_on_vertical_line(x0[ii_zero], y0[ii_zero],
+                                                                    x1[ii_zero], y1[ii_zero],
+                                                                    xp0[ii_zero], yp0[ii_zero])
+            xp1 = torch.cat((xp1, xp1_zero))
+            yp1 = torch.cat((yp1, yp1_zero))
+            xp1 = xp1[ii_sort]
+            yp1 = yp1[ii_sort]
 
-        d = (2 * dy) - dx
-        for i in range(0, int(dx.data[0]) + 1):
-            if steep:
-                template = self.index(template, kernel, y0, x0, _y0, _x0, 1)
-            else:
-                template = self.index(template, kernel, x0, y0, _x0, _y0, 1)
-            while d.data[0] >= 0:
-                y0 += sy
-                _y0 += sy
-                d -= (2 * dx)
-            x0 += sx
-            _x0 += sx
-            d += (2 * dy)
+        d = gen_euclidean_distance(xp0, yp0, xp1, yp1)
+        d = torch.pow(d, self.fuzz)  # scale the differences
+        template = d.view(self.imsize, self.imsize)
 
-        template = self.index(template, kernel, x1, y1, _x1, _y1, 1)
-        template = F.conv2d(template, kernel, padding=self.linewidth // 2)
-
-        # conv increases magnitudes, need to bring this back to 0 and 1
-        template_min = torch.min(template)
-        template_max = torch.max(template)
-        template = (template - template_min) / (template_max - template_min)
-
-        template = torch.cat([template, template, template], dim=1)
+        # renorm to 0 and 1
+        tmin = torch.min(template)
+        tmax = torch.max(template)
+        template = (template - tmin) / (tmax - tmin)
 
         return template
+
+
+def _gen_closest_point_on_line(x0, y0, x1, y1, xp, yp):
+    """Same as gen_closest_point_on_line but here we make the
+    assumption that x0 != x1 for all indexes.
+    """
+    n = (x1-x0)*yp*(y1-y0)+(y0-y1)*(y0*x1-x0*y1)+xp*(x0-x1)**2
+    d = (x0-x1)**2 + (y0-y1)**2
+    x = n / d
+    y = (y1-y0)/(x1-x0)*x+(y0*x1-x0*y1)/(x1-x0)
+    return x, y
+
+
+def gen_closest_point_on_vertical_line(x0, y0, x1, y1, xp, yp):
+    return x0, yp
+
+
+def gen_closest_point_on_line(x0, y0, x1, y1, xp, yp):
+    """(x0, y0), (x1, y1) define a line. We want find the closest point
+    on the line from (xp, yp). This only supports vectorized computation,
+    meaning you have to pass Torch Tensors as points.
+
+    :param x0: Torch tensor 1D of x coordinates of a point on the line
+    :param y0: Torch tensor 1D of y coordinate of a point on the line
+    :param x1: Torch tensor 1D of x coordinate of another point on the line
+    :param y1: Torch tensor 1D of y coordinate of another point on the line
+    :param xp: Torch tensor 1D of x coordinate of a point OFF the line
+    :param yp: Torch tensor 1D of y coordinate of a point OFF the line
+    :return x: Torch tensor 1D of x coordinate of the closest point on the line to (xp, yp)
+    :return y: Torch tensor 1D of y coordinate of the closest point on the line to (xp, yp)
+    """
+    x, y = _gen_closest_point_on_line(x0, y0, x1, y1, xp, yp)
+    return x, y
+
+
+def gen_euclidean_distance(x0, y0, x1, y1):
+    """Calculate Euclidean distance between (x0, y0) and (x1, y1).
+    This only supports vectorized computation.
+
+    :param x0: Torch tensor 1D of x coordinates of a point
+    :param y0: Torch tensor 1D of y coordinate of a point
+    :param x1: Torch tensor 1D of x coordinate of another point
+    :param y1: Torch tensor 1D of y coordinate of another point
+    """
+    return torch.pow(torch.pow(x1 - x0, 2) + torch.pow(y1 - y0, 2), 0.5)
