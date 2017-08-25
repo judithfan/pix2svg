@@ -72,7 +72,7 @@ class RenderNet(nn.Module):
         # renorm to 0 and 1
         tmin = torch.min(template)
         tmax = torch.max(template)
-        template = (template - tmin) / (tmax - tmin )
+        template = (template - tmin) / (tmax - tmin)
         template = torch.unsqueeze(template, dim=0)
         template = torch.unsqueeze(template, dim=0)
 

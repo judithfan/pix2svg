@@ -21,8 +21,8 @@ from linerender import RenderNet
 
 
 def gen_ground_truth():
-    image = torch.zeros(1, 11, 11)
-    image[:, 5:, 5] = 1
+    image = torch.ones(1, 11, 11)
+    image[:, 5:, 5] = 0
     return Variable(torch.unsqueeze(image, dim=0))
 
 
@@ -42,23 +42,18 @@ if __name__ == "__main__":
                   epoch, loss.data[0], params[0].data.numpy()[0], params[1].data.numpy()[0]))
 
     # TEST 1: provide a nearby guess (i found we already need a big fuzz...)
-    renderer = RenderNet(5, 5, 7, 9, imsize=11, fuzz=3.0)
+    renderer = RenderNet(5, 5, 7, 9, imsize=11, fuzz=1.0)
     optimizer = optim.SGD(renderer.parameters(), lr=1e-2, momentum=0.5)
 
-    for i in range(500):
+    for i in range(250):
         train(renderer, optimizer, i)
 
-    params = list(renderer.named_parameters())
-    print('\nTEST 1:')
-    print(params)
+    print('')
 
     # TEST 2: provide the ground truth and make sure it doesn't deviate
-    renderer = RenderNet(5, 5, 5, 10, imsize=11, fuzz=3.0)
+    renderer = RenderNet(5, 5, 5, 10, imsize=11, fuzz=1.0)
     optimizer = optim.SGD(renderer.parameters(), lr=1e-2, momentum=0.5)
 
     for i in range(100):
         train(renderer, optimizer, i)
 
-    params = list(renderer.named_parameters())
-    print('\nTEST 2:')
-    print(params)

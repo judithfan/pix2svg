@@ -153,7 +153,7 @@ def sample_endpoint_gaussian2d(x_s, y_s, std=10, size=1, min_x=0, max_x=224, min
     samples[:, 0][samples[:, 0] > max_x] = max_x
     samples[:, 1][samples[:, 1] < min_y] = min_y
     samples[:, 1][samples[:, 1] > max_y] = max_y
-    return np.round(samples, 0).astype(int)
+    return samples
 
 
 def sample_endpoint_angle(x_s, y_s, x_l, y_l, std=10, angle_std=60, size=1,
@@ -190,7 +190,7 @@ def sample_endpoint_angle(x_s, y_s, x_l, y_l, std=10, angle_std=60, size=1,
     samples[:, 0][samples[:, 0] > max_x] = max_x
     samples[:, 1][samples[:, 1] < min_y] = min_y
     samples[:, 1][samples[:, 1] > max_y] = max_y
-    return np.round(samples, 0).astype(int)
+    return samples
 
 
 def load_vgg19(max_to_avg_pool=False, vgg_layer_index=-1):
@@ -286,20 +286,10 @@ def train(natural_image, distractor_images, **kwargs):
         # beam search across a fixed width
         for b in range(beam_width):
             # sample new coordinates in 2 ways
-            if args.sampling_prior == 'gaussian' or iter == 0:  # 1st iter has to be gaussian
-                std = kwargs.get('std', 15)
-                coord_samples = sample_endpoint_gaussian2d(x_beam_queue[b], y_beam_queue[b],
-                                                           std=std, size=n_samples,
-                                                           min_x=0, max_x=224, min_y=0, max_y=224)
-            elif args.sampling_prior == 'angle':
-                std = kwargs.get('std', 15)
-                angle_std = kwargs.get('angle_std', 15)
-                coord_samples = sample_endpoint_angle(x_beam_queue[b], y_beam_queue[b],
-                                                      # estimate local context by the last 3 drawn points!
-                                                      np.mean(x_beam_paths[b, -3:]),
-                                                      np.mean(y_beam_paths[b, -3:]),
-                                                      std=std, angle_std=angle_std, size=n_samples,
-                                                      min_x=0, max_x=224, min_y=0, max_y=224)
+            std = kwargs.get('std', 15)
+            coord_samples = sample_endpoint_gaussian2d(x_beam_queue[b], y_beam_queue[b],
+                                                       std=std, size=n_samples,
+                                                       min_x=0, max_x=224, min_y=0, max_y=224)
 
             x_samples, y_samples = coord_samples[:, 0], coord_samples[:, 1]
             print('- generated %d samples' % args.n_samples)
@@ -417,10 +407,6 @@ if __name__ == '__main__':
                         help='number of particles to preserve at each timestep')
     parser.add_argument('--vgg_layer_index', type=int, default=-1,
                         help='index of layer in vgg19 for feature extraction. Pass -1 to use all layers...')
-    parser.add_argument('--sampling_prior', type=str, default='gaussian',
-                        help='gaussian|angle')
-    parser.add_argument('--angle_std', type=int, default=60,
-                        help='std for angles when sampling_prior == angle')
     parser.add_argument('--max_to_avg_pool', action='store_true',
                         help='if true, replace MaxPool2D with AvgPool2D in VGG19')
     parser.add_argument('--segment_cost', type=float, default=0.0,
@@ -431,7 +417,6 @@ if __name__ == '__main__':
 
     assert args.beam_width <= args.n_samples
     assert args.vgg_layer_index >= -1 and args.vgg_layer_index < 45
-    assert args.sampling_prior in ALLOWABLE_SAMPLING_PRIORS
     assert args.distance_fn in ALLOWABLE_DISTANCE_FNS
 
     # prep images
@@ -445,11 +430,9 @@ if __name__ == '__main__':
     train_params = {'n_samples': args.n_samples,
                     'n_iters': args.n_iters,
                     'std': args.std,
-                    'angle_std': args.angle_std,
                     'patience': args.patience,
                     'beam_width': args.beam_width,
                     'vgg_layer_index': args.vgg_layer_index,
-                    'sampling_prior': args.sampling_prior,
                     'max_to_avg_pool': args.max_to_avg_pool,
                     'segment_cost': args.max_to_avg_pool,
                     'distance_fn': args.distance_fn}
