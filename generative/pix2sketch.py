@@ -66,22 +66,24 @@ def pixel_sketch_loss(natural_image, sketch_images, distractor_images=None,
     return loss + segment_cost
 
 
-def mean_semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None,
+def mean_semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None, distance_fn = 'cosine', 
                               segment_cost=0.0):
     losses = semantic_sketch_loss(natural_emb, sketch_embs,
                                   distractor_embs=distractor_embs,
+                                  distance_fn = distance_fn,
                                   segment_cost=segment_cost)
     return torch.mean(losses)
 
 
-def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None,
+def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None, distance_fn = 'cosine', 
                          segment_cost=0.0):
     """Calculate distance between natural image and sketch image
     where the distance is normalized by distractor images.
 
     :param natural_emb: tuple of PyTorch Variable
-    :sketch_embs: tuple of PyTorch Variables
-    :distractor_embs: tuple of PyTorch Variables (default None)
+    :param sketch_embs: tuple of PyTorch Variables
+    :param distractor_embs: tuple of PyTorch Variables (default None)
+    :param distance_fn: string defining the type of distance function to use (default cosine)
     :param segment_cost: cost of adding this segment (default 0)
     """
     n_sketches = sketch_embs[0].size()[0]
@@ -90,7 +92,12 @@ def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None,
     loss = Variable(torch.FloatTensor(n_sketches).zero_(), requires_grad=True)
 
     for f in range(n_features):
-        costs = F.cosine_similarity(natural_emb[f], sketch_embs[f], dim=1)
+        if distance_fn in ['cosine','correlation']:
+            costs = F.cosine_similarity(natural_emb[f], sketch_embs[f], dim=1)    
+        elif distance_fn in ['L_1','l1','manhattan']:
+            costs = F.pairwise_distance(natural_emb[f], sketch_embs[f], p=1)            
+        elif distance_fn in ['L_2','l2','euclidean']:
+            costs = F.pairwise_distance(natural_emb[f], sketch_embs[f], p=2)            
         loss = torch.add(loss, costs)
 
     if distractor_embs is not None:
@@ -99,7 +106,12 @@ def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None,
         for j in range(n_distractors):
             for f in range(n_features):
                 distraction_emb = torch.unsqueeze(distractor_embs[f][j], dim=0)
-                costs = F.cosine_similarity(distraction_emb, sketch_embs[f])
+                if distance_fn in ['cosine','correlation']:
+                    costs = F.cosine_similarity(distraction_emb, sketch_embs[f], dim=1)    
+                elif distance_fn in ['L_1','l1','manhattan']:
+                    costs = F.pairwise_distance(distraction_emb, sketch_embs[f], p=1)            
+                elif distance_fn in ['L_2','l2','euclidean']:
+                    costs = F.pairwise_distance(distraction_emb, sketch_embs[f], p=2)             
                 distraction_dists[j] = torch.add(distraction_dists[j], costs)
 
         all_dists = torch.cat((torch.unsqueeze(loss, dim=0), distraction_dists))
@@ -345,7 +357,7 @@ def train(natural_image, distractor_images, **kwargs):
 
             # compute loss functions
             sketch_embs = vgg19(sketches)
-            losses = semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs,
+            losses = semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs, distance_fn='cosine',
                                           segment_cost=segment_cost)
             print('- computed losses')
 
