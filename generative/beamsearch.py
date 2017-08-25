@@ -40,10 +40,13 @@ class BaseBeamSearch(object):
     :param patience: number of steps to run before quitting w/o lower loss (int)
     :param stdev: standard deviation for the sampling Gaussian (float)
     :param fuzz: hyperparameter for rendering (float)
+    :param fine_tune: if True, for each sampled endpoint, follow local
+                      gradients to get the best segment possible (bool)
     """
 
     def __init__(self, x0, y0, imsize, beam_width=2, n_samples=100,
-                 n_iters=10, patience=5, stdev=2, fuzz=1.0):
+                 n_iters=10, patience=5, stdev=2, fuzz=1.0, fine_tune=False,
+                 fine_tune_params={}):
         assert stdev > 0
         assert fuzz > 0
         assert patience >= 0
@@ -73,8 +76,10 @@ class BaseBeamSearch(object):
         self.stdev = stdev
         self.imsize = imsize
         self.fuzz = fuzz
+        self.fine_tune = fine_tune
+        self.fine_tune_params = fine_tune_params
 
-        self.beam_sketches = Variable(torch.zeros((beam_width, 1, 11, 11)))
+        self.beam_sketches = Variable(torch.zeros((beam_width, 1, imsize, imsize)))
 
     def sketch_loss(self, input_item, pred_items, distractor_items=None):
         raise NotImplementedError
@@ -88,6 +93,20 @@ class BaseBeamSearch(object):
             self.cur_patience = patience
         else:
             self.cur_patience -= 1
+
+    def fine_tune(self, epoch, renderer, optimizer, input_item,
+                  distractor_items=None):
+        renderer.train()
+        optimizer.zero_grad()
+        sketch = renderer()
+        losses = self.sketch_loss(input_item, sketch,
+                                  distractor_items=distractor_items)
+        loss = torch.sum(losses)
+        loss.backward()
+        optimizer.step()
+        params = list(renderer.parameters())
+        print('Fine Tuning Epoch: {} \tLoss: {:.6f} \tParams: ({}, {})'.format(
+              epoch, loss.data[0], params[0].data.numpy()[0], params[1].data.numpy()[0]))
 
     def train(self, epoch, input_item, distractor_items=None):
         for b in range(self.beam_width):
@@ -103,6 +122,15 @@ class BaseBeamSearch(object):
                 action_path = self.action_beam_paths[b] + [action_sample]
                 renderer = RenderNet(self.x_beam_paths[b][epoch], self.y_beam_paths[b][epoch],
                                      x_samples[i], y_samples[i], imsize=self.imsize, fuzz=self.fuzz)
+                if self.fine_tune:
+                    tune_lr = fine_tune_params.get('lr', 1e-2)
+                    tune_momentum = fine_tune_params.get('momentum', 0.5)
+                    tune_iters = self.fine_tune_params.get('n_iters', 100)
+                    optimizer = optim.SGD(renderer.parameters(), lr=tune_lr, momentum=tune_momentum)
+                    # wiggle the segment using the gradient to get a better fit
+                    for iter in range(tune_iters):
+                        self.fine_tune(iter, renderer, optimizer, input_item,
+                                       distractor_items)
                 sketch = renderer()
                 sketch = torch.add(sketch, self.beam_sketches[b])
                 sketch = (sketch - torch.min(sketch)) / (torch.max(sketch) - torch.min(sketch))
@@ -172,11 +200,12 @@ class SemanticBeamSearch(BaseBeamSearch):
 
     :param vgg_layer: layer to use for embeddings; pass -1 for all layers (int)
     :param vgg_pool: type of pooling to use (max|average)
+    :param distance_fn: type of distance metric (cosine|l1|l2)
     """
 
     def __init__(self, x0, y0, imsize, beam_width=2, n_samples=100,
                  n_iters=10, stdev=2, fuzz=1.0, vgg_layer=-1,
-                 vgg_pool='max'):
+                 vgg_pool='max', distance_fn='cosine'):
         super(x0, y0, imsize, beam_width=beam_width, n_samples=n_samples,
                  n_iters=n_iters, stdev=stdev, fuzz=1.0)
         assert vgg_pool in ALLOWABLE_POOLS
@@ -189,6 +218,11 @@ class SemanticBeamSearch(BaseBeamSearch):
         sketches[:, 1] = (sketches[:, 1] - 0.456) / 0.224
         sketches[:, 2] = (sketches[:, 2] - 0.406) / 0.225
         return self.vgg19(sketches)  # return embeddings
+
+    def sketch_loss(self, input_item, pred_items, distractor_items=None):
+        return semantic_sketch_loss(input_item, pred_items,
+                                    distractor_embs=distractor_items,
+                                    distance_fn='cosine')
 
 
 def pixel_sketch_loss(natural_image, sketch_images, distractor_images=None,
