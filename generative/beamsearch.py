@@ -10,6 +10,7 @@ from copy import deepcopy
 
 import torch
 import torch.nn as nn
+import torch.optim as optim
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
@@ -94,19 +95,21 @@ class BaseBeamSearch(object):
         else:
             self.cur_patience -= 1
 
-    def fine_tune(self, epoch, renderer, optimizer, input_item,
-                  distractor_items=None):
+    def tune(self, epoch, renderer, optimizer, input_item,
+                  distractor_items=None, verbose=False):
         renderer.train()
         optimizer.zero_grad()
         sketch = renderer()
-        losses = self.sketch_loss(input_item, sketch,
-                                  distractor_items=distractor_items)
-        loss = torch.sum(losses)
+        # losses = self.sketch_loss(input_item, sketch,
+        #                           distractor_items=distractor_items)
+        loss = torch.sum(torch.pow(input_item - sketch, 2))  # l2 loss
+        # loss = torch.sum(losses)
         loss.backward()
         optimizer.step()
-        params = list(renderer.parameters())
-        print('Fine Tuning Epoch: {} \tLoss: {:.6f} \tParams: ({}, {})'.format(
-              epoch, loss.data[0], params[0].data.numpy()[0], params[1].data.numpy()[0]))
+        if verbose:
+            params = list(renderer.parameters())
+            print('Fine Tuning Epoch: {} \tLoss: {:.6f} \tParams: ({}, {})'.format(
+                  epoch, loss.data[0], params[0].data.numpy()[0], params[1].data.numpy()[0]))
 
     def train(self, epoch, input_item, distractor_items=None):
         for b in range(self.beam_width):
@@ -123,14 +126,25 @@ class BaseBeamSearch(object):
                 renderer = RenderNet(self.x_beam_paths[b][epoch], self.y_beam_paths[b][epoch],
                                      x_samples[i], y_samples[i], imsize=self.imsize, fuzz=self.fuzz)
                 if self.fine_tune:
-                    tune_lr = fine_tune_params.get('lr', 1e-2)
-                    tune_momentum = fine_tune_params.get('momentum', 0.5)
+                    print('Fine Tuning Sample [{}/{}]'.format(i + 1, self.n_samples))
+                    tune_lr = self.fine_tune_params.get('lr', 1e-2)
+                    tune_momentum = self.fine_tune_params.get('momentum', 0.5)
                     tune_iters = self.fine_tune_params.get('n_iters', 100)
-                    optimizer = optim.SGD(renderer.parameters(), lr=tune_lr, momentum=tune_momentum)
+                    tune_log_interval = self.fine_tune_params.get('log_interval', 50)
+                    tune_fuzz = self.fine_tune_params.get('fuzz', 1.0)
+
+                    model = RenderNet(self.x_beam_paths[b][epoch], self.y_beam_paths[b][epoch],
+                                      x_samples[i], y_samples[i], imsize=self.imsize, fuzz=tune_fuzz)
+                    optimizer = optim.SGD(model.parameters(), lr=tune_lr, momentum=tune_momentum)
                     # wiggle the segment using the gradient to get a better fit
                     for iter in range(tune_iters):
-                        self.fine_tune(iter, renderer, optimizer, input_item,
-                                       distractor_items)
+                        self.tune(iter, model, optimizer, input_item, distractor_items,
+                                  verbose=iter % tune_log_interval == 0)
+                    print('')
+
+                    # update renderer using model's parameters
+                    renderer = model
+
                 sketch = renderer()
                 sketch = torch.add(sketch, self.beam_sketches[b])
                 sketch = (sketch - torch.min(sketch)) / (torch.max(sketch) - torch.min(sketch))
