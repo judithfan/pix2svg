@@ -21,8 +21,10 @@ from linerender import RenderNet
 from vggutils import (VGG19Split, vgg_convert_to_avg_pool)
 
 ALLOWABLE_POOLS = ['max', 'average']
-ALLOWABLE_DISTANCE_FNS = ['cosine', 'correlation', 'L_1','l1','manhattan',
-                          'L_2','l2','euclidean']
+ALLOWABLE_DISTANCE_FNS = ['cosine', 'euclidean', 'squared_euclidean',
+                          'normalized_squared_euclidean', 'manhattan',
+                          'chessboard', 'bray_curtis', 'canberra',
+                          'correlation', 'binary']
 
 
 class BaseBeamSearch(object):
@@ -239,6 +241,37 @@ class SemanticBeamSearch(BaseBeamSearch):
                                     distance_fn='cosine')
 
 
+def gen_distance(a, b, metric='cosine'):
+    """Implementation of difference distance metrics ripped from Wolfram:
+    http://reference.wolfram.com/language/guide/DistanceAndSimilarityMeasures.html
+    """
+    if metric == 'cosine':
+        return F.cosine_similarity(a, b, dim=1)
+    elif metric == 'euclidean':
+        return torch.norm(a - b, p=2)
+    elif metric == 'squared_euclidean':
+        return torch.pow(torch.norm(a - b, p=2))
+    elif metric == 'normalized_squared_euclidean':
+        c = a - torch.mean(a)
+        d = b - torch.mean(b)
+        n = torch.pow(torch.norm(c, p=2)) + torch.pow(torch.norm(d, p=2))
+        return 0.5 * torch.pow(torch.norm(c - d, p=2)) / n
+    elif metric == 'manhattan':
+        return F.pairwise_distance(a, b, p=1)
+    elif metric == 'chessboard':
+        return torch.max(torch.abs(a - b))
+    elif metric == 'bray_curtis':
+        return torch.sum(torch.abs(a - b)) / torch.sum(torch.abs(a + b))
+    elif metric == 'canberra':
+        return torch.sum(torch.abs(a - b) / (torch.abs(a) + torch.abs(b)))
+    elif metric == 'correlation':
+        c = a - torch.mean(a)
+        d = b - torch.mean(b)
+        return F.cosine_similarity(c, d)
+    elif metric == 'binary':
+        return torch.sum(a != b)
+
+
 def pixel_sketch_loss(natural_image, sketch_images, distractor_images=None,
                       segment_cost=0.0):
     """Calculate L2 distance between natural image and sketch
@@ -292,12 +325,7 @@ def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None,
     loss = Variable(torch.zeros(n_sketches), requires_grad=True)
 
     for f in range(n_features):
-        if distance_fn in ['cosine','correlation']:
-            costs = F.cosine_similarity(natural_emb[f], sketch_embs[f], dim=1)
-        elif distance_fn in ['L_1','l1','manhattan']:
-            costs = F.pairwise_distance(natural_emb[f], sketch_embs[f], p=1)
-        elif distance_fn in ['L_2','l2','euclidean']:
-            costs = F.pairwise_distance(natural_emb[f], sketch_embs[f], p=2)
+        costs = gen_distance(natural_emb[f], sketch_embs[f], metric=distance_fn)
         loss = torch.add(loss, costs)
 
     if distractor_embs is not None:
@@ -306,12 +334,7 @@ def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None,
         for j in range(n_distractors):
             for f in range(n_features):
                 distraction_emb = torch.unsqueeze(distractor_embs[f][j], dim=0)
-                if distance_fn in ['cosine','correlation']:
-                    costs = F.cosine_similarity(distraction_emb, sketch_embs[f], dim=1)
-                elif distance_fn in ['L_1','l1','manhattan']:
-                    costs = F.pairwise_distance(distraction_emb, sketch_embs[f], p=1)
-                elif distance_fn in ['L_2','l2','euclidean']:
-                    costs = F.pairwise_distance(distraction_emb, sketch_embs[f], p=2)
+                costs = gen_distance(distraction_emb, sketch_embs[f], metric=distance_fn)
                 distraction_dists[j] = torch.add(distraction_dists[j], costs)
 
         all_dists = torch.cat((torch.unsqueeze(loss, dim=0), distraction_dists))
