@@ -29,10 +29,9 @@ if __name__ == '__main__':
                         help='once the informativity measure stops improving, wait N epochs before quitting')
     parser.add_argument('--beam_width', type=int, default=2,
                         help='number of particles to preserve at each timestep')
-    parser.add_argument('--vgg_layer', type=int, default=-1,
-                        help='-1|0|1|...|44|45')
-    parser.add_argument('--vgg_pool', type=str, default='max'
-                        help='max|average')
+    parser.add_argument('--embedding_layer', type=int, default=-1,
+                        help='-1|0|1|...|7|8')
+    parser.add_argument('--embedding_net', type=str, default='vgg19', help='vgg19|resnet152')
     parser.add_argument('--distance_fn', type=str, default='cosine',
                         help='cosine|l1|l2')
     parser.add_argument('--fuzz', type=float, default=1.0,
@@ -61,8 +60,9 @@ if __name__ == '__main__':
 
     explorer = SemanticBeamSearch(112, 112, 224, beam_width=args.beam_width,
                                   n_samples=args.n_samples, n_iters=args.n_iters,
-                                  stdev=args.stdev, fuzz=1.0, vgg_layer=args.vgg_layer,
-                                  vgg_pool=args.vgg_pool)
+                                  stdev=args.stdev, fuzz=1.0,
+                                  embedding_net=args.embedding_net,
+                                  embedding_layer=args.embedding_layer)
 
     natural_emb = explorer.vgg19(natural)
     distractor_embs = explorer.vgg19(distractors)

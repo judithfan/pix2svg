@@ -9,14 +9,70 @@ import torch.nn as nn
 import torchvision.models as models
 
 
-class VGG19Split(nn.Module):
+class ResNet152Embeddings(nn.Module):
+    """Splits ResNet152 into layers so that we can get
+    feature embeddings from each section. For ResNet152,
+    we define 7 layers:
+        0 - early cnn; after maxpool
+        1 - layer 1 (contains 3 bottleneck layers)
+        2 - layer 2 (contains 7 bottleneck layers)
+        3 - layer 3 (contains 36 bottleneck layers)
+        4 - layer 4 (cotains 3 bottleneck layers)
+        5 - average pool
+        6 - fully connected
+    :param resnet152: pretrained resnet152 instance
+    :param layer_index: number from -1 to 6 (where -1 is a list of all)
+    """
+    def __init__(self, resnet152, layer_index=-1):
+        super(ResNet152Embeddings, self).__init__()
+        assert layer >= -1 and layer < 7
+        self.maxpool = nn.Sequential(*(list(resnet152.children())[slice(0, 4)]))
+        self.layer1 = nn.Sequential(*(list(resnet152.children())[4]))
+        self.layer2 = nn.Sequential(*(list(resnet152.children())[5]))
+        self.layer3 = nn.Sequential(*(list(resnet152.children())[6]))
+        self.layer4 = nn.Sequential(*(list(resnet152.children())[7]))
+        self.avgpool = nn.Sequential(list(resnet152.children())[8])
+        self.linear = nn.Sequential(list(resnet152.children())[9])
+        self.layer_index = layer_index
+
+    def _flatten(self, x):
+        return x.view(x.size(0), -1)
+
+    def forward(self, x):
+        x_maxpool = self.maxpool(x)
+        if self.layer_index == 0:
+            return [self._flatten(x_maxpool)]
+        x_layer1 = self.layer1(x_maxpool)
+        if self.layer_index == 1:
+            return [self._flatten(x_layer1)]
+        x_layer2 = self.layer2(x_layer1)
+        if self.layer_index == 2:
+            return [self._flatten(x_layer2)]
+        x_layer3 = self.layer3(x_layer2)
+        if self.layer_index == 3:
+            return [self._flatten(x_layer3)]
+        x_layer4 = self.layer4(x_layer3)
+        if self.layer_index == 4:
+            return [self._flatten(x_layer4)]
+        x_avgpool = self.avgpool(x_layer4)
+        if self.layer_index == 5:
+            return [self._flatten(x_avgpool)]
+        x_linear = self.linear(x_avgpool)
+        if self.layer_index == 6:
+            return [self._flatten(x_linear)]
+        return [self._flatten(x_maxpool), self._flatten(x_layer1), self._flatten(x_layer2),
+                self._flatten(x_layer3), self._flatten(x_layer4), self._flatten(x_avgpool),
+                self._flatten(x_linear)]
+
+
+class VGG19Embedding(nn.Module):
     """Splits vgg19 into separate sections so that we can get
     feature embeddings from each section.
 
     :param vgg19: traditional vgg19 model
     """
     def __init__(self, vgg19, layer_index=-1):
-        super(VGG19Split, self).__init__()
+        super(VGG19Embedding, self).__init__()
         self.conv1 = nn.Sequential(*(list(vgg19.features.children())[slice(0, 5)]))
         self.conv2 = nn.Sequential(*(list(vgg19.features.children())[slice(5, 10)]))
         self.conv3 = nn.Sequential(*(list(vgg19.features.children())[slice(10, 19)]))

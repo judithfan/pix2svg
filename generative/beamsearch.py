@@ -18,13 +18,14 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 from linerender import RenderNet
-from vggutils import (VGG19Split, vgg_convert_to_avg_pool)
+from embeddings import VGG19Embedding, ResNet152Embedding
 
 ALLOWABLE_POOLS = ['max', 'average']
 ALLOWABLE_DISTANCE_FNS = ['cosine', 'euclidean', 'squared_euclidean',
                           'normalized_squared_euclidean', 'manhattan',
                           'chessboard', 'bray_curtis', 'canberra',
                           'correlation', 'binary']
+ALLOWABLE_EMBEDDING_NETS = ['vgg19', 'resnet152']
 
 
 class BaseBeamSearch(object):
@@ -214,28 +215,33 @@ class PixelBeamSearch(BaseBeamSearch):
 class SemanticBeamSearch(BaseBeamSearch):
     """Beam search with a semantic VGG19-layer loss
 
-    :param vgg_layer: layer to use for embeddings; pass -1 for all layers (int)
+    :param embedding_layer: layer to use for embeddings; pass -1 for all layers (int)
     :param vgg_pool: type of pooling to use (max|average)
     :param distance_fn: type of distance metric (cosine|l1|l2)
     """
 
     def __init__(self, x0, y0, imsize, beam_width=2, n_samples=100,
-                 n_iters=10, stdev=2, fuzz=1.0, vgg_layer=-1,
-                 vgg_pool='max', distance_fn='cosine'):
+                 n_iters=10, stdev=2, fuzz=1.0, distance_fn='cosine',
+                 embedding_net='vgg19', embedding_layer=-1,):
         super(SemanticBeamSearch, self).__init__(x0, y0, imsize, beam_width=beam_width,
                                                  n_samples=n_samples, n_iters=n_iters,
                                                  stdev=stdev, fuzz=1.0)
         assert vgg_pool in ALLOWABLE_POOLS
-        assert vgg_layer >= -1 and vgg_layer < 45
-        self.vgg19 = load_vgg19(max_to_avg_pool=(vgg_pool == 'average'),
-                                vgg_layer_index=vgg_layer)
+        assert embedding_net in ALLOWABLE_EMBEDDING_NETS
+
+        if embedding_net == 'vgg19':
+            assert embedding_layer >= -1 and embedding_layer < 8
+            self.embedding_net = load_vgg19(layer_index=embedding_layer)
+        elif embedding_net == 'resnet152':
+            assert embedding_layer >= -1 and embedding_layer < 7
+            self.embedding_net = load_resnet152(layer_index=embedding_layer)
 
     def preprocess_sketches(self, sketches):
         sketches = torch.cat((sketches, sketches, sketches), dim=1)
         sketches[:, 0] = (sketches[:, 0] - 0.485) / 0.229
         sketches[:, 1] = (sketches[:, 1] - 0.456) / 0.224
         sketches[:, 2] = (sketches[:, 2] - 0.406) / 0.225
-        return self.vgg19(sketches)  # return embeddings
+        return self.embedding_net(sketches)  # return embeddings
 
     def sketch_loss(self, input_item, pred_items, distractor_items=None):
         return semantic_sketch_loss(input_item, pred_items,
@@ -415,11 +421,20 @@ def sample_endpoint_angle(x_s, y_s, x_l, y_l, std=10, angle_std=60, size=1,
     return samples
 
 
-def load_vgg19(max_to_avg_pool=False, vgg_layer_index=-1):
+def load_resnet152(layer_index=-1)
+    resnet152 = models.resnet152(pretrained=True)
+    resnet152 = ResNet152Embedding(resnet152, layer_index)
+    resnet152.eval()  # freeze dropout
+    # freeze each parameter
+    for p in resnet152.parameters():
+        p.requires_grad = False
+
+    return resnet152
+
+
+def load_vgg19(layer_index=-1):
     vgg19 = models.vgg19(pretrained=True)
-    if max_to_avg_pool:  # replace MaxPool2D with AveragePool2D
-        vgg19 = vgg_convert_to_avg_pool(vgg19)
-    vgg19 = VGG19Split(vgg19, vgg_layer_index)
+    vgg19 = VGG19Embedding(vgg19, layer_index)
     vgg19.eval()  # freeze dropout
 
     # freeze each parameter

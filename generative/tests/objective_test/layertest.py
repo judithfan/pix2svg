@@ -52,8 +52,8 @@ if __name__ == '__main__':
                                   n_samples=100, n_iters=20, stdev=20,
                                   fuzz=0.1, vgg_layer=args.layer)
 
-    natural_emb = explorer.vgg19(natural)
-    distractor_embs = explorer.vgg19(distractors)
+    natural_emb = explorer.embedding_net(natural)
+    distractor_embs = explorer.embedding_net(distractors)
 
     for i in range(20):
         sketch = explorer.train(i, natural_emb, distractor_items=distractor_embs)
