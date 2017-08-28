@@ -20,8 +20,10 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="generate sketches")
     parser.add_argument('--embedder', type=str, default='vgg19')
+    parser.add_argument('--cuda', action='store_true', default=False)
     parser.add_argument('folder', type=str)
     args = parser.parse_args()
+    args.cuda = args.cuda and torch.cuda.is_available()
 
     assert args.embedder in ALLOWABLE_EMBEDDING_NETS
 
@@ -47,15 +49,17 @@ if __name__ == '__main__':
         transforms.Normalize([0.485, 0.456, 0.406],
                              [0.229, 0.224, 0.225])])
 
-    natural = Variable(preprocessing(natural).unsqueeze(0))
-    distractors = Variable(torch.cat([preprocessing(image).unsqueeze(0)
-                                      for image in distractors]))
+    natural = preprocessing(natural).unsqueeze(0)
+    distractors = torch.cat([preprocessing(image).unsqueeze(0) for image in distractors])
+    if args.cuda:
+        natural, distractors = natural.cuda(), distractors.cuda()
+    natural, distractors = Variable(natural), Variable(distractors)
 
-    explorer = SemanticBeamSearch(112, 112, 224, beam_width=4,
-                                  n_samples=100, n_iters=20, stdev=20,
+    explorer = SemanticBeamSearch(112, 112, 224, beam_width=4, n_samples=100,
                                   # replace with best distance function
-                                  fuzz=0.1, embedding_layer=6, distance_fn='cosine',
-                                  embedding_net='resnet152')
+                                  n_iters=20, stdev=20, fuzz=0.1, embedding_layer=6,
+                                  distance_fn='cosine', embedding_net='resnet152',
+                                  use_cuda=args.cuda)
 
     natural_emb = explorer.embedding_net(natural)
     distractor_embs = explorer.embedding_net(distractors)
@@ -68,7 +72,10 @@ if __name__ == '__main__':
 
     gt_sketch = Image.open(os.path.join(args.folder, 'natural.png'))
     gt_sketch = gt_sketch.convert('RGB')
-    gt_sketch = Variable(preprocessing(gt_sketch).unsqueeze(0))
+    gt_sketch = preprocessing(gt_sketch).unsqueeze(0)
+    if args.cuda:
+        gt_sketch = gt_sketch.cuda()
+    gt_sketch = Variable(gt_sketch)
     sketch_emb = explorer.preprocess_sketches(sketch.unsqueeze(0))
 
     pred_dist = semantic_sketch_loss(natural_emb, sketch_emb, distractor_embs)

@@ -18,7 +18,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 from linerender import RenderNet
-from embeddings import VGG19Embedding, ResNet152Embedding
+from embeddings import VGG19Embeddings, ResNet152Embeddings
 
 ALLOWABLE_POOLS = ['max', 'average']
 ALLOWABLE_DISTANCE_FNS = ['cosine', 'euclidean', 'squared_euclidean',
@@ -50,7 +50,7 @@ class BaseBeamSearch(object):
 
     def __init__(self, x0, y0, imsize, beam_width=2, n_samples=100,
                  n_iters=10, patience=5, stdev=2, fuzz=1.0, fine_tune=False,
-                 fine_tune_params={}):
+                 fine_tune_params={}, use_cuda=False):
         assert stdev > 0
         assert fuzz > 0
         assert patience >= 0
@@ -82,6 +82,7 @@ class BaseBeamSearch(object):
         self.fuzz = fuzz
         self.fine_tune = fine_tune
         self.fine_tune_params = fine_tune_params
+        self.use_cuda = use_cuda
 
         self.beam_sketches = Variable(torch.zeros((beam_width, 1, imsize, imsize)))
 
@@ -99,14 +100,13 @@ class BaseBeamSearch(object):
             self.cur_patience -= 1
 
     def tune(self, epoch, renderer, optimizer, input_item,
-                  distractor_items=None, verbose=False):
+             distractor_items=None, verbose=False):
         renderer.train()
         optimizer.zero_grad()
         sketch = renderer()
-        # losses = self.sketch_loss(input_item, sketch,
-        #                           distractor_items=distractor_items)
-        loss = torch.sum(torch.pow(input_item - sketch, 2))  # l2 loss
-        # loss = torch.sum(losses)
+        losses = self.sketch_loss(input_item, sketch,
+                                  distractor_items=distractor_items)
+        loss = torch.sum(losses)
         loss.backward()
         optimizer.step()
         if verbose:
@@ -128,6 +128,9 @@ class BaseBeamSearch(object):
                 action_path = self.action_beam_paths[b] + [action_sample]
                 renderer = RenderNet(self.x_beam_paths[b][epoch], self.y_beam_paths[b][epoch],
                                      x_samples[i], y_samples[i], imsize=self.imsize, fuzz=self.fuzz)
+                if self.use_cuda:
+                    renderer.cuda()
+
                 if self.fine_tune:
                     print('Fine Tuning Sample [{}/{}]'.format(i + 1, self.n_samples))
                     tune_lr = self.fine_tune_params.get('lr', 1e-2)
@@ -138,6 +141,9 @@ class BaseBeamSearch(object):
 
                     model = RenderNet(self.x_beam_paths[b][epoch], self.y_beam_paths[b][epoch],
                                       x_samples[i], y_samples[i], imsize=self.imsize, fuzz=tune_fuzz)
+                    if self.use_cuda:
+                        model.cuda()
+
                     optimizer = optim.SGD(model.parameters(), lr=tune_lr, momentum=tune_momentum)
                     # wiggle the segment using the gradient to get a better fit
                     for iter in range(tune_iters):
@@ -222,19 +228,21 @@ class SemanticBeamSearch(BaseBeamSearch):
 
     def __init__(self, x0, y0, imsize, beam_width=2, n_samples=100,
                  n_iters=10, stdev=2, fuzz=1.0, distance_fn='cosine',
-                 embedding_net='vgg19', embedding_layer=-1,):
+                 embedding_net='vgg19', embedding_layer=-1, use_cuda=False):
         super(SemanticBeamSearch, self).__init__(x0, y0, imsize, beam_width=beam_width,
                                                  n_samples=n_samples, n_iters=n_iters,
-                                                 stdev=stdev, fuzz=1.0)
+                                                 stdev=stdev, fuzz=1.0, use_cuda=use_cuda)
         assert vgg_pool in ALLOWABLE_POOLS
         assert embedding_net in ALLOWABLE_EMBEDDING_NETS
 
         if embedding_net == 'vgg19':
             assert embedding_layer >= -1 and embedding_layer < 8
-            self.embedding_net = load_vgg19(layer_index=embedding_layer)
+            self.embedding_net = load_vgg19(layer_index=embedding_layer,
+                                            use_cuda=use_cuda)
         elif embedding_net == 'resnet152':
             assert embedding_layer >= -1 and embedding_layer < 7
-            self.embedding_net = load_resnet152(layer_index=embedding_layer)
+            self.embedding_net = load_resnet152(layer_index=embedding_layer,
+                                                use_cuda=use_cuda)
 
     def preprocess_sketches(self, sketches):
         sketches = torch.cat((sketches, sketches, sketches), dim=1)
@@ -421,10 +429,13 @@ def sample_endpoint_angle(x_s, y_s, x_l, y_l, std=10, angle_std=60, size=1,
     return samples
 
 
-def load_resnet152(layer_index=-1)
+def load_resnet152(layer_index=-1, use_cuda=False):
     resnet152 = models.resnet152(pretrained=True)
-    resnet152 = ResNet152Embedding(resnet152, layer_index)
+    resnet152 = ResNet152Embeddings(resnet152, layer_index)
     resnet152.eval()  # freeze dropout
+    if use_cuda:
+        resnet152.cuda()
+
     # freeze each parameter
     for p in resnet152.parameters():
         p.requires_grad = False
@@ -432,10 +443,12 @@ def load_resnet152(layer_index=-1)
     return resnet152
 
 
-def load_vgg19(layer_index=-1):
+def load_vgg19(layer_index=-1, use_cuda=False):
     vgg19 = models.vgg19(pretrained=True)
-    vgg19 = VGG19Embedding(vgg19, layer_index)
+    vgg19 = VGG19Embeddings(vgg19, layer_index)
     vgg19.eval()  # freeze dropout
+    if use_cuda:
+        vgg19.cuda()
 
     # freeze each parameter
     for p in vgg19.parameters():

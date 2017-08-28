@@ -65,14 +65,14 @@ class ResNet152Embeddings(nn.Module):
                 self._flatten(x_linear)]
 
 
-class VGG19Embedding(nn.Module):
+class VGG19Embeddings(nn.Module):
     """Splits vgg19 into separate sections so that we can get
     feature embeddings from each section.
 
     :param vgg19: traditional vgg19 model
     """
     def __init__(self, vgg19, layer_index=-1):
-        super(VGG19Embedding, self).__init__()
+        super(VGG19Embeddings, self).__init__()
         self.conv1 = nn.Sequential(*(list(vgg19.features.children())[slice(0, 5)]))
         self.conv2 = nn.Sequential(*(list(vgg19.features.children())[slice(5, 10)]))
         self.conv3 = nn.Sequential(*(list(vgg19.features.children())[slice(10, 19)]))
