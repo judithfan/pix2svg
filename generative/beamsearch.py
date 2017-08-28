@@ -157,13 +157,13 @@ class BaseBeamSearch(object):
             losses = self.sketch_loss(input_item, sketches, distractor_items)
 
             if b == 0:
-                beam_losses = losses.data.numpy()[0]
+                beam_losses = losses.data.numpy()
                 x_beam_samples = x_samples
                 y_beam_samples = y_samples
                 action_beam_samples = np.array([action_sample])
                 all_sketches = sketches_raw.clone()
             else:
-                beam_losses = np.concatenate((beam_losses, losses.data.numpy()[0]))
+                beam_losses = np.concatenate((beam_losses, losses.data.numpy()))
                 x_beam_samples = np.concatenate((x_beam_samples, x_samples))
                 y_beam_samples = np.concatenate((y_beam_samples, y_samples))
                 action_beam_samples = np.append(action_beam_samples, action_sample)
@@ -222,14 +222,16 @@ class SemanticBeamSearch(BaseBeamSearch):
     def __init__(self, x0, y0, imsize, beam_width=2, n_samples=100,
                  n_iters=10, stdev=2, fuzz=1.0, vgg_layer=-1,
                  vgg_pool='max', distance_fn='cosine'):
-        super(x0, y0, imsize, beam_width=beam_width, n_samples=n_samples,
-                 n_iters=n_iters, stdev=stdev, fuzz=1.0)
+        super(SemanticBeamSearch, self).__init__(x0, y0, imsize, beam_width=beam_width,
+                                                 n_samples=n_samples, n_iters=n_iters,
+                                                 stdev=stdev, fuzz=1.0)
         assert vgg_pool in ALLOWABLE_POOLS
         assert vgg_layer >= -1 and vgg_layer < 45
-        self.vgg19 = load_vgg(max_to_avg_pool=(vgg_pool == 'average'),
-                              vgg_layer_index=vgg_layer)
+        self.vgg19 = load_vgg19(max_to_avg_pool=(vgg_pool == 'average'),
+                                vgg_layer_index=vgg_layer)
 
     def preprocess_sketches(self, sketches):
+        sketches = torch.cat((sketches, sketches, sketches), dim=1)
         sketches[:, 0] = (sketches[:, 0] - 0.485) / 0.229
         sketches[:, 1] = (sketches[:, 1] - 0.456) / 0.224
         sketches[:, 2] = (sketches[:, 2] - 0.406) / 0.225

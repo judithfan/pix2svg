@@ -32,19 +32,35 @@ class VGG19Split(nn.Module):
         return x.view(x.size(0), -1)
 
     def forward(self, x):
+        # build in this ugly way so we don't have to evaluate things we don't need to.
         x_conv1 = self.conv1(x)
+        if self.layer_index == 0:
+            return [self._flatten(x_conv1)]
         x_conv2 = self.conv2(x_conv1)
+        if self.layer_index == 1:
+            return [self._flatten(x_conv2)]
         x_conv3 = self.conv3(x_conv2)
+        if self.layer_index == 2:
+            return [self._flatten(x_conv3)]
         x_conv4 = self.conv4(x_conv3)
+        if self.layer_index == 3:
+            return [self._flatten(x_conv4)]
         x_conv5 = self.conv5(x_conv4)
         x_conv5_flat = self._flatten(x_conv5)
+        if self.layer_index == 4:
+            return [x_conv5_flat]
         x_linear1 = self.linear1(x_conv5_flat)
+        if self.layer_index == 5:
+            return [x_linear1]
         x_linear2 = self.linear2(x_linear1)
+        if self.layer_index == 6:
+            return [x_linear2]
         x_linear3 = self.linear3(x_linear2)
-        layers = (self._flatten(x_conv1), self._flatten(x_conv2),
-                  self._flatten(x_conv3), self._flatten(x_conv4),
-                  self._flatten(x_conv5), x_linear1, x_linear2, x_linear3)
-        return layers if self.layer_index == -1 else (layers[self.layer_index])
+        if self.layer_index == 7:
+            return [x_linear3]
+        return [self._flatten(x_conv1), self._flatten(x_conv2),
+                self._flatten(x_conv3), self._flatten(x_conv4),
+                self._flatten(x_conv5), x_linear1, x_linear2, x_linear3]
 
 
 def vgg_convert_to_avg_pool(vgg):
