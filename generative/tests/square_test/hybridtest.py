@@ -15,9 +15,12 @@ if __name__ == "__main__":
     gt_sketch = gen_ground_truth()
     fine_tune_params = {'lr': 1e-2, 'momentum': 0.5, 'n_iters': 250,
                         'log_interval': 50, 'fuzz': 1.0}
-    beamer = PixelBeamSearch(5, 5, 11, beam_width=1, n_samples=100,
+
+    beamer = PixelBeamSearch(2, 2, 11, beam_width=1, n_samples=100,
                              n_iters=1, stdev=4, fuzz=0.1, fine_tune=True,
                              fine_tune_params=fine_tune_params)
-    sketch = beamer.train(0, gt_sketch)
+    for i in range(4):
+        sketch = beamer.train(i, gt_sketch)
+
     plt.matshow(sketch[0].data.numpy())
     plt.savefig('./sketch.png')

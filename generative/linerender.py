@@ -50,7 +50,7 @@ class RenderNet(nn.Module):
         ii_zero = torch.eq(x1, x0)
         n_zero = torch.sum(ii_zero).data[0]
 
-        if n_zero == 0:
+        if not n_zero:
             xp1, yp1 = gen_closest_point_on_line(x0[ii_nonzero], y0[ii_nonzero],
                                                  x1[ii_nonzero], y1[ii_nonzero],
                                                  xp0[ii_nonzero], yp0[ii_nonzero])
