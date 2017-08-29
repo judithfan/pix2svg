@@ -17,7 +17,7 @@ import torchvision.models as models
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-from linerender import RenderNet
+from linerender import LineRenderNet
 from embeddings import VGG19Embeddings, ResNet152Embeddings
 
 ALLOWABLE_POOLS = ['max', 'average']
@@ -83,8 +83,13 @@ class BaseBeamSearch(object):
         self.fine_tune = fine_tune
         self.fine_tune_params = fine_tune_params
         self.use_cuda = use_cuda
+        self.top_index = 0
 
         self.beam_sketches = Variable(torch.zeros((beam_width, 1, imsize, imsize)))
+
+    def gen_paths(self):
+        b = int(np.floor(self.top_index / self.n_samples))
+        return (self.x_beam_paths[b], self.y_beam_paths[b])
 
     def sketch_loss(self, input_item, pred_items, distractor_items=None):
         raise NotImplementedError
@@ -126,8 +131,8 @@ class BaseBeamSearch(object):
             sketches = Variable(torch.zeros((self.n_samples, 1, self.imsize, self.imsize)))
             for i in range(self.n_samples):
                 action_path = self.action_beam_paths[b] + [action_sample]
-                renderer = RenderNet(self.x_beam_paths[b][epoch], self.y_beam_paths[b][epoch],
-                                     x_samples[i], y_samples[i], imsize=self.imsize, fuzz=self.fuzz)
+                renderer = LineRenderNet(self.x_beam_paths[b][epoch], self.y_beam_paths[b][epoch],
+                                         x_samples[i], y_samples[i], imsize=self.imsize, fuzz=self.fuzz)
                 if self.use_cuda:
                     renderer.cuda()
 
@@ -139,8 +144,8 @@ class BaseBeamSearch(object):
                     tune_log_interval = self.fine_tune_params.get('log_interval', 50)
                     tune_fuzz = self.fine_tune_params.get('fuzz', 1.0)
 
-                    model = RenderNet(self.x_beam_paths[b][epoch], self.y_beam_paths[b][epoch],
-                                      x_samples[i], y_samples[i], imsize=self.imsize, fuzz=tune_fuzz)
+                    model = LineRenderNet(self.x_beam_paths[b][epoch], self.y_beam_paths[b][epoch],
+                                          x_samples[i], y_samples[i], imsize=self.imsize, fuzz=tune_fuzz)
                     if self.use_cuda:
                         model.cuda()
 
@@ -207,6 +212,7 @@ class BaseBeamSearch(object):
             print('Out of patience. Exited.')
             return all_sketches[top_indexes[0]]
 
+        self.top_index = top_indexes[0]  # save top index
         return all_sketches[top_indexes[0]]
 
 

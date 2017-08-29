@@ -11,7 +11,7 @@ import torchvision.transforms as transforms
 
 import numpy as np
 import sys; sys.path.append('../..')
-from linerender import RenderNet
+from linerender import LineRenderNet
 
 
 def gen_ground_truth():
@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     sketch = Variable(torch.zeros((1, 1, 11, 11)))
 
-    # renderer = RenderNet(2, 2, 5, 5, imsize=11, fuzz=0.1)
+    # renderer = LineRenderNet(2, 2, 5, 5, imsize=11, fuzz=0.1)
     # optimizer = optim.SGD(renderer.parameters(), lr=1e-3)
     # for j in xrange(500):
     #     # break tape on residual_sketch on purpose
@@ -61,7 +61,7 @@ if __name__ == "__main__":
         y2 = np.random.normal(loc=y_gt[i], scale=1)
 
         print('Param Initialization: ({}, {})'.format(x2, y2))
-        renderer = RenderNet(x1, y1, x2, y2, imsize=11, fuzz=0.1)
+        renderer = LineRenderNet(x1, y1, x2, y2, imsize=11, fuzz=0.1)
         optimizer = optim.SGD(renderer.parameters(), lr=1e-3)
 
         x1, y1 = x_gt[i], y_gt[i]
@@ -76,7 +76,7 @@ if __name__ == "__main__":
         print('')
 
     connect the 3rd point to the first
-    renderer = RenderNet(x1, y1, x0, y0, imsize=11)
+    renderer = LineRenderNet(x1, y1, x0, y0, imsize=11)
     _sketch = renderer()
     sketch += _sketch
 

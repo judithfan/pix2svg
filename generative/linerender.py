@@ -12,7 +12,48 @@ from torch.nn.parameter import Parameter
 from torch.autograd import Variable
 
 
-class RenderNet(nn.Module):
+class SketchRenderNet(nn.Module):
+    """Similar to LineRenderNet. This also renders an image
+    as a CxHxW matrix but it is given a sequence of points
+    (x0, x1, ..., xn), (y0, y1, .., yn) and all of them are
+    parameters (no fixed points).
+
+    :param x_list: path of x coordinates (x0, x1, ..., xn)
+    :param y_list: path of y coordinates (y0, y1, ..., yn)
+    :param imsize: image size to generate
+    :param fuzz: hyperparameter to scale differences; fuzz > 1 would
+                 localize around the line; fuzz < 1 would make things
+                 more uniform.
+    :return template: imsize by imsize rendered sketch
+    """
+    def __init__(self, x_list, y_list, imsize=224, fuzz=1):
+        super(SketchRenderNet, self).__init__()
+        assert len(x_list) == len(y_list)
+        self.n_points = len(x_list)
+        self.x_list = [Parameter(torch.Tensor([x])) for x in x_list]
+        self.y_list = [Parameter(torch.Tensor([y])) for y in y_list]
+        self.imsize = imsize
+        self.fuzz = fuzz
+
+    def forward(self):
+        template = Variable(torch.zeroes(self.imsize, self.imsize))
+        for i in range(1, self.n_points):
+            _template = draw_line(self.x_list[i - 1], self.y_list[i - 1],
+                                  self.x_list[i], self.y_list[i],
+                                  imsize=self.imsize, fuzz=self.fuzz)
+            template += _template
+
+        # renorm to 0 and 1
+        tmin = torch.min(template)
+        tmax = torch.max(template)
+        template = (template - tmin) / (tmax - tmin)
+        template = torch.unsqueeze(template, dim=0)
+        template = torch.unsqueeze(template, dim=0)
+
+        return template
+
+
+class LineRenderNet(nn.Module):
     """Renders an image as a CxHxW matrix given 2 points
     such that it is differentiable. The intensity of each
     pixel is the shortest distance from each pixel to the line.
@@ -28,7 +69,7 @@ class RenderNet(nn.Module):
     :return template: imsize by imsize rendered sketch
     """
     def __init__(self, x0, y0, x1, y1, imsize=224, fuzz=1):
-        super(RenderNet, self).__init__()
+        super(LineRenderNet, self).__init__()
         self.x0 = Variable(torch.Tensor([x0]))
         self.y0 = Variable(torch.Tensor([y0]))
         self.x1 = Parameter(torch.Tensor([x1]))
@@ -37,38 +78,8 @@ class RenderNet(nn.Module):
         self.fuzz = fuzz
 
     def forward(self):
-        x0 = self.x0.repeat(self.imsize * self.imsize)
-        y0 = self.y0.repeat(self.imsize * self.imsize)
-        x1 = self.x1.repeat(self.imsize * self.imsize)
-        y1 = self.y1.repeat(self.imsize * self.imsize)
-        xp0 = Variable(torch.arange(0, self.imsize).repeat(self.imsize))
-        yp0 = torch.t(xp0.view(self.imsize, self.imsize)).contiguous().view(-1)
-
-        # if x1 is equal to x0, we can't calculate slope so we need to handle
-        # this case separately
-        ii_nonzero = x1 != x0
-        ii_zero = torch.eq(x1, x0)
-        n_zero = torch.sum(ii_zero).data[0]
-
-        if not n_zero:
-            xp1, yp1 = gen_closest_point_on_line(x0[ii_nonzero], y0[ii_nonzero],
-                                                 x1[ii_nonzero], y1[ii_nonzero],
-                                                 xp0[ii_nonzero], yp0[ii_nonzero])
-        else:  # this is a vertical line
-            xp1, yp1 = gen_closest_point_on_vertical_line(x0[ii_zero], y0[ii_zero],
-                                                          x1[ii_zero], y1[ii_zero],
-                                                          xp0[ii_zero], yp0[ii_zero])
-
-        # points may be out of the line segments range
-        xp1 = torch.clamp(xp1, min=min((x0.data[0], x1.data[0])),
-                          max=max((x0.data[0], x1.data[0])))
-        yp1 = torch.clamp(yp1, min=min((y0.data[0], y1.data[0])),
-                          max=max((y0.data[0], y1.data[0])))
-
-        d = gen_euclidean_distance(xp0, yp0, xp1, yp1)
-        d = torch.pow(d, self.fuzz)  # scale the differences
-        template = d.view(self.imsize, self.imsize)
-
+        template = draw_line(self.x0, self.y0, self.x1, self.y1,
+                             imsize=self.imsize, fuzz=self.fuzz)
         # renorm to 0 and 1
         tmin = torch.min(template)
         tmax = torch.max(template)
@@ -77,6 +88,52 @@ class RenderNet(nn.Module):
         template = torch.unsqueeze(template, dim=0)
 
         return template
+
+
+def draw_line(x0, y0, x1, y1, imsize=224, fuzz=1.0):
+    """Given 2 points, populate a matrix with a smooth line from
+    (x0, y0) to (x1, y1).
+
+    :param x0: PyTorch Variable or Parameter
+    :param y0: PyTorch Variable or Parameter
+    :param x1: PyTorch Variable or Parameter
+    :param y1: PyTorch Variable or Parameter
+    :param imsize: size of matrix
+    :param fuzz: amount of blurring
+    :return template: matrix with line segment on it
+    """
+    x0 = x0.repeat(imsize * imsize)
+    y0 = y0.repeat(imsize * imsize)
+    x1 = x1.repeat(imsize * imsize)
+    y1 = y1.repeat(imsize * imsize)
+    xp0 = Variable(torch.arange(0, imsize).repeat(imsize))
+    yp0 = torch.t(xp0.view(imsize, imsize)).contiguous().view(-1)
+
+    # if x1 is equal to x0, we can't calculate slope so we need to handle
+    # this case separately
+    ii_nonzero = x1 != x0
+    ii_zero = torch.eq(x1, x0)
+    n_zero = torch.sum(ii_zero).data[0]
+
+    if not n_zero:
+        xp1, yp1 = gen_closest_point_on_line(x0[ii_nonzero], y0[ii_nonzero],
+                                             x1[ii_nonzero], y1[ii_nonzero],
+                                             xp0[ii_nonzero], yp0[ii_nonzero])
+    else:  # this is a vertical line
+        xp1, yp1 = gen_closest_point_on_vertical_line(x0[ii_zero], y0[ii_zero],
+                                                      x1[ii_zero], y1[ii_zero],
+                                                      xp0[ii_zero], yp0[ii_zero])
+
+    # points may be out of the line segments range
+    xp1 = torch.clamp(xp1, min=min((x0.data[0], x1.data[0])),
+                      max=max((x0.data[0], x1.data[0])))
+    yp1 = torch.clamp(yp1, min=min((y0.data[0], y1.data[0])),
+                      max=max((y0.data[0], y1.data[0])))
+
+    d = gen_euclidean_distance(xp0, yp0, xp1, yp1)
+    d = torch.pow(d, fuzz)  # scale the differences
+    template = d.view(imsize, imsize)
+    return template
 
 
 def _gen_closest_point_on_line(x0, y0, x1, y1, xp, yp, eps=1e-10):

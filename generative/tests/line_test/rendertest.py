@@ -17,7 +17,7 @@ from torch.autograd import Variable
 import torchvision.transforms as transforms
 
 import sys; sys.path.append('../..')
-from linerender import RenderNet
+from linerender import LineRenderNet
 
 
 def gen_ground_truth():
@@ -44,7 +44,7 @@ if __name__ == "__main__":
                   epoch, loss.data[0], params[0].data.numpy()[0], params[1].data.numpy()[0]))
 
     # TEST 1: provide a nearby guess (i found we already need a big fuzz...)
-    renderer = RenderNet(5, 5, 7, 9, imsize=11, fuzz=1.0)
+    renderer = LineRenderNet(5, 5, 7, 9, imsize=11, fuzz=1.0)
     optimizer = optim.SGD(renderer.parameters(), lr=1e-2, momentum=0.5)
 
     for i in range(250):
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     print('')
 
     # # TEST 2: provide the ground truth and make sure it doesn't deviate
-    # renderer = RenderNet(5, 5, 5, 10, imsize=11, fuzz=1.0)
+    # renderer = LineRenderNet(5, 5, 5, 10, imsize=11, fuzz=1.0)
     # optimizer = optim.SGD(renderer.parameters(), lr=1e-2, momentum=0.5)
 
     # for i in range(100):
