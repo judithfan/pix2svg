@@ -75,7 +75,7 @@ if __name__ == "__main__":
         sketch += _sketch
         print('')
 
-    connect the 3rd point to the first
+    # connect the 3rd point to the first
     renderer = LineRenderNet(x1, y1, x0, y0, imsize=11)
     _sketch = renderer()
     sketch += _sketch

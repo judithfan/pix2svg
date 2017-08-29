@@ -33,7 +33,7 @@ if __name__ == "__main__":
         loss.backward()
         optimizer.step()
         if epoch % 25 == 0:
-            print('Train Epoch: {} \tLoss: {:.6f}'.format(epoch, loss.data[0])
+            print('Train Epoch: {} \tLoss: {:.6f}'.format(epoch, loss.data[0]))
 
     for i in range(250):
         train(renderer, optimizer, i)
