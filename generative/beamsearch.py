@@ -488,8 +488,6 @@ def load_resnet152(layer_index=-1, use_cuda=False):
     resnet152 = models.resnet152(pretrained=True)
     resnet152 = ResNet152Embeddings(resnet152, layer_index)
     resnet152.eval()  # freeze dropout
-    if use_cuda:
-        resnet152.cuda()
 
     # freeze each parameter
     for p in resnet152.parameters():
@@ -502,8 +500,6 @@ def load_vgg19(layer_index=-1, use_cuda=False):
     vgg19 = models.vgg19(pretrained=True)
     vgg19 = VGG19Embeddings(vgg19, layer_index)
     vgg19.eval()  # freeze dropout
-    if use_cuda:
-        vgg19.cuda()
 
     # freeze each parameter
     for p in vgg19.parameters():
