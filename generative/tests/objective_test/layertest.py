@@ -54,7 +54,7 @@ if __name__ == '__main__':
         natural, distractors = natural.cuda(), distractors.cuda()
     natural, distractors = Variable(natural), Variable(distractors)
 
-    explorer = SemanticBeamSearch(112, 112, 224, beam_width=4, n_samples=100,
+    explorer = SemanticBeamSearch(112, 112, 224, beam_width=5, n_samples=100,
                                   n_iters=20, stdev=20, fuzz=0.1,
                                   embedding_layer=args.layer, use_cuda=args.cuda,
                                   verbose=True)

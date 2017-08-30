@@ -141,7 +141,7 @@ class BaseBeamSearch(object):
                                 volatile=True)  # no training in vgg
             if self.use_cuda:
                 sketches = sketches.cuda()
-            
+        
             for i in range(self.n_samples):
                 action_path = self.action_beam_paths[b] + [action_sample]
                 renderer = LineRenderNet(self.x_beam_paths[b][epoch], self.y_beam_paths[b][epoch],
@@ -175,13 +175,13 @@ class BaseBeamSearch(object):
                     renderer = model
 
                 sketch = renderer()
-                if self.verbose: print('-- Rendered sketch') 
                 sketch = torch.add(sketch, self.beam_sketches[b])
                 sketch_min = torch.min(sketch).expand_as(sketch)
                 sketch_max = torch.max(sketch).expand_as(sketch)
                 sketch = (sketch - sketch_min) / (sketch_max - sketch_min)
                 sketches[i] = sketch
 
+            print('-- Rendered {} sketches'.format(self.n_samples))
             sketches_raw = sketches.clone()
             sketches = self.preprocess_sketches(sketches)
             losses = self.sketch_loss(input_item, sketches, distractor_items, 
@@ -194,7 +194,7 @@ class BaseBeamSearch(object):
                 action_beam_samples = np.array([action_sample])
                 all_sketches = sketches_raw.clone()
             else:
-                beam_losses = np.concatenate((beam_losses, losses.data.numpy()[0]))
+                beam_losses = np.concatenate((beam_losses, losses.cpu().data.numpy()[0]))
                 x_beam_samples = np.concatenate((x_beam_samples, x_samples))
                 y_beam_samples = np.concatenate((y_beam_samples, y_samples))
                 action_beam_samples = np.append(action_beam_samples, action_sample)
@@ -251,12 +251,12 @@ class SemanticBeamSearch(BaseBeamSearch):
     :param distance_fn: type of distance metric (cosine|l1|l2)
     """
 
-    def __init__(self, x0, y0, imsize, beam_width=2, n_samples=100,
-                 n_iters=10, stdev=2, fuzz=1.0, distance_fn='cosine',
-                 embedding_net='vgg19', embedding_layer=-1, use_cuda=False):
+    def __init__(self, x0, y0, imsize, beam_width=2, n_samples=100, n_iters=10, stdev=2, 
+                 fuzz=1.0, distance_fn='cosine', embedding_net='vgg19', embedding_layer=-1, 
+                 use_cuda=False, verbose=False):
         super(SemanticBeamSearch, self).__init__(x0, y0, imsize, beam_width=beam_width,
-                                                 n_samples=n_samples, n_iters=n_iters,
-                                                 stdev=stdev, fuzz=1.0, use_cuda=use_cuda)
+                                                 n_samples=n_samples, n_iters=n_iters, stdev=stdev, 
+                                                 fuzz=1.0, use_cuda=use_cuda, verbose=verbose)
         assert embedding_net in ALLOWABLE_EMBEDDING_NETS
 
         if embedding_net == 'vgg19':
@@ -422,6 +422,7 @@ def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None,
         norm = torch.norm(all_dists, p=2, dim=0)
         loss = loss / norm
 
+    loss = torch.unsqueeze(loss, dim=0)
     return loss + segment_cost
 
 
