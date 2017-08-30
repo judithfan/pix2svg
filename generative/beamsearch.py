@@ -130,7 +130,8 @@ class BaseBeamSearch(object):
             x_samples, y_samples = samples[:, 0], samples[:, 1]
             action_sample = sample_action()
 
-            sketches = Variable(torch.zeros((self.n_samples, 1, self.imsize, self.imsize)))
+            sketches = Variable(torch.zeros((self.n_samples, 1, self.imsize, self.imsize)),
+                                volatile=True)  # no training in vgg
             if self.use_cuda:
                 sketches = sketches.cuda()
             
