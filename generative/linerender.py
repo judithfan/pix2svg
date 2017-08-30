@@ -24,28 +24,35 @@ class SketchRenderNet(nn.Module):
     :param fuzz: hyperparameter to scale differences; fuzz > 1 would
                  localize around the line; fuzz < 1 would make things
                  more uniform.
+    :param use_cuda: boolean to gen cuda variables
     :return template: imsize by imsize rendered sketch
     """
-    def __init__(self, x_list, y_list, imsize=224, fuzz=1):
+    def __init__(self, x_list, y_list, imsize=224, fuzz=1, use_cuda=False):
         super(SketchRenderNet, self).__init__()
         assert len(x_list) == len(y_list)
         self.n_points = len(x_list)
-        self.x_list = Parameter(torch.Tensor(x_list))
-        self.y_list = Parameter(torch.Tensor(y_list))
+        if use_cuda:
+            self.x_list = Parameter(torch.cuda.FloatTensor(x_list))
+            self.y_list = Parameter(torch.cuda.FloatTensor(y_list))
+        else:
+            self.x_list = Parameter(torch.Tensor(x_list))
+            self.y_list = Parameter(torch.Tensor(y_list))
         self.imsize = imsize
         self.fuzz = fuzz
+        self.use_cuda = use_cuda
 
     def forward(self):
         template = Variable(torch.zeros(self.imsize, self.imsize))
         for i in range(1, self.n_points):
             _template = draw_line(self.x_list[i - 1], self.y_list[i - 1],
                                   self.x_list[i], self.y_list[i],
-                                  imsize=self.imsize, fuzz=self.fuzz)
+                                  imsize=self.imsize, fuzz=self.fuzz,
+                                  use_cuda=self.use_cuda)
             template += _template
 
         # renorm to 0 and 1
-        tmin = torch.min(template)
-        tmax = torch.max(template)
+        tmin = torch.min(template).expand_as(template)
+        tmax = torch.max(template).expand_as(template)
         template = (template - tmin) / (tmax - tmin)
         template = torch.unsqueeze(template, dim=0)
         template = torch.unsqueeze(template, dim=0)
@@ -66,23 +73,32 @@ class LineRenderNet(nn.Module):
     :param fuzz: hyperparameter to scale differences; fuzz > 1 would
                  localize around the line; fuzz < 1 would make things
                  more uniform.
+    :param use_cuda: make variables using cuda
     :return template: imsize by imsize rendered sketch
     """
-    def __init__(self, x0, y0, x1, y1, imsize=224, fuzz=1):
+    def __init__(self, x0, y0, x1, y1, imsize=224, fuzz=1, use_cuda=False):
         super(LineRenderNet, self).__init__()
-        self.x0 = Variable(torch.Tensor([x0]))
-        self.y0 = Variable(torch.Tensor([y0]))
-        self.x1 = Parameter(torch.Tensor([x1]))
-        self.y1 = Parameter(torch.Tensor([y1]))
+        if use_cuda: 
+            self.x0 = Variable(torch.cuda.FloatTensor([x0]))
+            self.y0 = Variable(torch.cuda.FloatTensor([y0]))
+            self.x1 = Parameter(torch.cuda.FloatTensor([x1]))
+            self.y1 = Parameter(torch.cuda.FloatTensor([y1]))
+        else:
+            self.x0 = Variable(torch.Tensor([x0]))
+            self.y0 = Variable(torch.Tensor([y0]))
+            self.x1 = Parameter(torch.Tensor([x1]))
+            self.y1 = Parameter(torch.Tensor([y1]))
         self.imsize = imsize
         self.fuzz = fuzz
+        self.use_cuda = use_cuda
 
     def forward(self):
         template = draw_line(self.x0, self.y0, self.x1, self.y1,
-                             imsize=self.imsize, fuzz=self.fuzz)
+                             imsize=self.imsize, fuzz=self.fuzz,
+                             use_cuda=self.use_cuda)
         # renorm to 0 and 1
-        tmin = torch.min(template)
-        tmax = torch.max(template)
+        tmin = torch.min(template).expand_as(template)
+        tmax = torch.max(template).expand_as(template)
         template = (template - tmin) / (tmax - tmin)
         template = torch.unsqueeze(template, dim=0)
         template = torch.unsqueeze(template, dim=0)
@@ -90,7 +106,7 @@ class LineRenderNet(nn.Module):
         return template
 
 
-def draw_line(x0, y0, x1, y1, imsize=224, fuzz=1.0):
+def draw_line(x0, y0, x1, y1, imsize=224, fuzz=1.0, use_cuda=False):
     """Given 2 points, populate a matrix with a smooth line from
     (x0, y0) to (x1, y1).
 
@@ -100,6 +116,7 @@ def draw_line(x0, y0, x1, y1, imsize=224, fuzz=1.0):
     :param y1: PyTorch Variable or Parameter
     :param imsize: size of matrix
     :param fuzz: amount of blurring
+    :param use_cuda: create variables with cuda
     :return template: matrix with line segment on it
     """
     x0 = x0.repeat(imsize * imsize)
@@ -107,6 +124,8 @@ def draw_line(x0, y0, x1, y1, imsize=224, fuzz=1.0):
     x1 = x1.repeat(imsize * imsize)
     y1 = y1.repeat(imsize * imsize)
     xp0 = Variable(torch.arange(0, imsize).repeat(imsize))
+    if use_cuda:
+        xp0 = xp0.cuda()
     yp0 = torch.t(xp0.view(imsize, imsize)).contiguous().view(-1)
 
     # if x1 is equal to x0, we can't calculate slope so we need to handle

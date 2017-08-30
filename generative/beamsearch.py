@@ -86,6 +86,8 @@ class BaseBeamSearch(object):
         self.top_index = 0
 
         self.beam_sketches = Variable(torch.zeros((beam_width, 1, imsize, imsize)))
+        if use_cuda:
+            self.beam_sketches = self.beam_sketches.cuda()
 
     def gen_paths(self):
         b = int(np.floor(self.top_index / self.n_samples))
@@ -109,8 +111,8 @@ class BaseBeamSearch(object):
         renderer.train()
         optimizer.zero_grad()
         sketch = renderer()
-        losses = self.sketch_loss(input_item, sketch,
-                                  distractor_items=distractor_items)
+        losses = self.sketch_loss(input_item, sketch, distractor_items=distractor_items,
+                                  use_cuda=self.use_cuda)
         loss = torch.sum(losses)
         loss.backward()
         optimizer.step()
@@ -129,10 +131,14 @@ class BaseBeamSearch(object):
             action_sample = sample_action()
 
             sketches = Variable(torch.zeros((self.n_samples, 1, self.imsize, self.imsize)))
+            if self.use_cuda:
+                sketches = sketches.cuda()
+            
             for i in range(self.n_samples):
                 action_path = self.action_beam_paths[b] + [action_sample]
                 renderer = LineRenderNet(self.x_beam_paths[b][epoch], self.y_beam_paths[b][epoch],
-                                         x_samples[i], y_samples[i], imsize=self.imsize, fuzz=self.fuzz)
+                                         x_samples[i], y_samples[i], imsize=self.imsize, 
+                                         fuzz=self.fuzz, use_cuda=self.use_cuda)
                 if self.use_cuda:
                     renderer.cuda()
 
@@ -145,7 +151,8 @@ class BaseBeamSearch(object):
                     tune_fuzz = self.fine_tune_params.get('fuzz', 1.0)
 
                     model = LineRenderNet(self.x_beam_paths[b][epoch], self.y_beam_paths[b][epoch],
-                                          x_samples[i], y_samples[i], imsize=self.imsize, fuzz=tune_fuzz)
+                                          x_samples[i], y_samples[i], imsize=self.imsize, 
+                                          fuzz=tune_fuzz, use_cuda=self.use_cuda)
                     if self.use_cuda:
                         model.cuda()
 
@@ -161,15 +168,18 @@ class BaseBeamSearch(object):
 
                 sketch = renderer()
                 sketch = torch.add(sketch, self.beam_sketches[b])
-                sketch = (sketch - torch.min(sketch)) / (torch.max(sketch) - torch.min(sketch))
+                sketch_min = torch.min(sketch).expand_as(sketch)
+                sketch_max = torch.max(sketch).expand_as(sketch)
+                sketch = (sketch - sketch_min) / (sketch_max - sketch_min)
                 sketches[i] = sketch
 
             sketches_raw = sketches.clone()
             sketches = self.preprocess_sketches(sketches)
-            losses = self.sketch_loss(input_item, sketches, distractor_items)
+            losses = self.sketch_loss(input_item, sketches, distractor_items, 
+                                      use_cuda=self.use_cuda)
 
             if b == 0:
-                beam_losses = losses.data.numpy()[0]
+                beam_losses = losses.cpu().data.numpy()[0]
                 x_beam_samples = x_samples
                 y_beam_samples = y_samples
                 action_beam_samples = np.array([action_sample])
@@ -219,16 +229,15 @@ class BaseBeamSearch(object):
 class PixelBeamSearch(BaseBeamSearch):
     """Beam search with a pixel-wise loss"""
 
-    def sketch_loss(self, input_item, pred_items, distractor_items=None):
-        return pixel_sketch_loss(input_item, pred_items,
-                                 distractor_images=distractor_items)
+    def sketch_loss(self, input_item, pred_items, distractor_items=None, use_cuda=False):
+        return pixel_sketch_loss(input_item, pred_items, distractor_images=distractor_items,
+                                 use_cuda=use_cuda)
 
 
 class SemanticBeamSearch(BaseBeamSearch):
     """Beam search with a semantic VGG19-layer loss
 
     :param embedding_layer: layer to use for embeddings; pass -1 for all layers (int)
-    :param vgg_pool: type of pooling to use (max|average)
     :param distance_fn: type of distance metric (cosine|l1|l2)
     """
 
@@ -238,7 +247,6 @@ class SemanticBeamSearch(BaseBeamSearch):
         super(SemanticBeamSearch, self).__init__(x0, y0, imsize, beam_width=beam_width,
                                                  n_samples=n_samples, n_iters=n_iters,
                                                  stdev=stdev, fuzz=1.0, use_cuda=use_cuda)
-        assert vgg_pool in ALLOWABLE_POOLS
         assert embedding_net in ALLOWABLE_EMBEDDING_NETS
 
         if embedding_net == 'vgg19':
@@ -249,6 +257,8 @@ class SemanticBeamSearch(BaseBeamSearch):
             assert embedding_layer >= -1 and embedding_layer < 7
             self.embedding_net = load_resnet152(layer_index=embedding_layer,
                                                 use_cuda=use_cuda)
+        if use_cuda:
+            self.embedding_net.cuda()
 
     def preprocess_sketches(self, sketches):
         sketches = torch.cat((sketches, sketches, sketches), dim=1)
@@ -257,10 +267,39 @@ class SemanticBeamSearch(BaseBeamSearch):
         sketches[:, 2] = (sketches[:, 2] - 0.406) / 0.225
         return self.embedding_net(sketches)  # return embeddings
 
-    def sketch_loss(self, input_item, pred_items, distractor_items=None):
-        return semantic_sketch_loss(input_item, pred_items,
-                                    distractor_embs=distractor_items,
-                                    distance_fn='cosine')
+    def sketch_loss(self, input_item, pred_items, distractor_items=None, use_cuda=False):
+        return semantic_sketch_loss(input_item, pred_items, distractor_embs=distractor_items,
+                                    distance_fn='cosine', use_cuda=use_cuda)
+
+
+def cosine_similarity(x1, x2, dim=1, eps=1e-8):
+    r"""Returns cosine similarity between x1 and x2, computed along dim.
+
+    .. math ::
+        \text{similarity} = \dfrac{x_1 \cdot x_2}{\max(\Vert x_1 \Vert _2 \cdot \Vert x_2 \Vert _2, \epsilon)}
+
+    Args:
+        x1 (Variable): First input.
+        x2 (Variable): Second input (of size matching x1).
+        dim (int, optional): Dimension of vectors. Default: 1
+        eps (float, optional): Small value to avoid division by zero.
+            Default: 1e-8
+
+    Shape:
+        - Input: :math:`(\ast_1, D, \ast_2)` where D is at position `dim`.
+        - Output: :math:`(\ast_1, \ast_2)` where 1 is at position `dim`.
+
+    Example::
+
+        >>> input1 = autograd.Variable(torch.randn(100, 128))
+        >>> input2 = autograd.Variable(torch.randn(100, 128))
+        >>> output = F.cosine_similarity(input1, input2)
+        >>> print(output)
+    """
+    w12 = torch.sum(x1 * x2, dim)
+    w1 = torch.norm(x1, 2, dim)
+    w2 = torch.norm(x2, 2, dim)
+    return (w12 / (w1 * w2).clamp(min=eps)).squeeze()
 
 
 def gen_distance(a, b, metric='cosine'):
@@ -268,14 +307,14 @@ def gen_distance(a, b, metric='cosine'):
     http://reference.wolfram.com/language/guide/DistanceAndSimilarityMeasures.html
     """
     if metric == 'cosine':
-        return F.cosine_similarity(a, b, dim=1)
+        return cosine_similarity(a, b, dim=1)
     elif metric == 'euclidean':
         return torch.norm(a - b, p=2)
     elif metric == 'squared_euclidean':
         return torch.pow(torch.norm(a - b, p=2))
     elif metric == 'normalized_squared_euclidean':
-        c = a - torch.mean(a)
-        d = b - torch.mean(b)
+        c = a - torch.mean(a, dim=1)
+        d = b - torch.mean(b, dim=1)
         n = torch.pow(torch.norm(c, p=2)) + torch.pow(torch.norm(d, p=2))
         return 0.5 * torch.pow(torch.norm(c - d, p=2)) / n
     elif metric == 'manhattan':
@@ -287,15 +326,15 @@ def gen_distance(a, b, metric='cosine'):
     elif metric == 'canberra':
         return torch.sum(torch.abs(a - b) / (torch.abs(a) + torch.abs(b)))
     elif metric == 'correlation':
-        c = a - torch.mean(a)
-        d = b - torch.mean(b)
+        c = a - torch.mean(a, dim=1)
+        d = b - torch.mean(b, dim=1)
         return F.cosine_similarity(c, d)
     elif metric == 'binary':
         return torch.sum(a != b)
 
 
 def pixel_sketch_loss(natural_image, sketch_images, distractor_images=None,
-                      segment_cost=0.0):
+                      segment_cost=0.0, use_cuda=False):
     """Calculate L2 distance between natural image and sketch
     image + normalization using distractor images.
 
@@ -303,6 +342,8 @@ def pixel_sketch_loss(natural_image, sketch_images, distractor_images=None,
     :param sketch_images: PyTorch Tensor SxCxHxW
     :param distractor_images: PyTorch Tensor DxCxHxW (default None)
     :param segment_cost: cost of adding this segment (default 0.0)
+    :param use_cuda: create variables with cuda 
+    :return loss: vector of size sketch_images.size(0)
     """
     n_sketches = sketch_images.size()[0]
     # flatten images into a vector
@@ -330,7 +371,7 @@ def pixel_sketch_loss(natural_image, sketch_images, distractor_images=None,
 
 
 def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None,
-                         distance_fn='cosine', segment_cost=0.0):
+                         distance_fn='cosine', segment_cost=0.0, use_cuda=False):
     """Calculate distance between natural image and sketch image
     where the distance is normalized by distractor images.
 
@@ -339,24 +380,32 @@ def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None,
     :param distractor_embs: tuple of PyTorch Variables (default None)
     :param distance_fn: string defining the type of distance function to use (default cosine)
     :param segment_cost: cost of adding this segment (default 0)
+    :param use_cuda: create variables with cuda
+    :return loss: vector size of sketch_embs.size(0)
     """
     assert distance_fn in ALLOWABLE_DISTANCE_FNS
     n_sketches = sketch_embs[0].size()[0]
     n_features = len(natural_emb)
 
     loss = Variable(torch.zeros(n_sketches), requires_grad=True)
+    if use_cuda:
+        loss = loss.cuda()
 
     for f in range(n_features):
-        costs = gen_distance(natural_emb[f], sketch_embs[f], metric=distance_fn)
+        costs = gen_distance(natural_emb[f].expand_as(sketch_embs[f]), sketch_embs[f], 
+                             metric=distance_fn)
         loss = torch.add(loss, costs)
 
     if distractor_embs is not None:
         n_distractors = distractor_embs[0].size()[0]
         distraction_dists = Variable(torch.zeros((n_distractors, n_sketches)))
+        if use_cuda:
+            distraction_dists = distraction_dists.cuda()
         for j in range(n_distractors):
             for f in range(n_features):
                 distraction_emb = torch.unsqueeze(distractor_embs[f][j], dim=0)
-                costs = gen_distance(distraction_emb, sketch_embs[f], metric=distance_fn)
+                costs = gen_distance(distraction_emb.expand_as(sketch_embs[f]), sketch_embs[f], 
+                                     metric=distance_fn)
                 distraction_dists[j] = torch.add(distraction_dists[j], costs)
 
         all_dists = torch.cat((torch.unsqueeze(loss, dim=0), distraction_dists))
