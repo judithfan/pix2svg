@@ -169,13 +169,13 @@ class BaseBeamSearch(object):
             losses = self.sketch_loss(input_item, sketches, distractor_items)
 
             if b == 0:
-                beam_losses = losses.data.numpy()
+                beam_losses = losses.data.numpy()[0]
                 x_beam_samples = x_samples
                 y_beam_samples = y_samples
                 action_beam_samples = np.array([action_sample])
                 all_sketches = sketches_raw.clone()
             else:
-                beam_losses = np.concatenate((beam_losses, losses.data.numpy()))
+                beam_losses = np.concatenate((beam_losses, losses.data.numpy()[0]))
                 x_beam_samples = np.concatenate((x_beam_samples, x_samples))
                 y_beam_samples = np.concatenate((y_beam_samples, y_samples))
                 action_beam_samples = np.append(action_beam_samples, action_sample)

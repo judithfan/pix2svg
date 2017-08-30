@@ -30,13 +30,13 @@ class SketchRenderNet(nn.Module):
         super(SketchRenderNet, self).__init__()
         assert len(x_list) == len(y_list)
         self.n_points = len(x_list)
-        self.x_list = [Parameter(torch.Tensor([x])) for x in x_list]
-        self.y_list = [Parameter(torch.Tensor([y])) for y in y_list]
+        self.x_list = Parameter(torch.Tensor(x_list))
+        self.y_list = Parameter(torch.Tensor(y_list))
         self.imsize = imsize
         self.fuzz = fuzz
 
     def forward(self):
-        template = Variable(torch.zeroes(self.imsize, self.imsize))
+        template = Variable(torch.zeros(self.imsize, self.imsize))
         for i in range(1, self.n_points):
             _template = draw_line(self.x_list[i - 1], self.y_list[i - 1],
                                   self.x_list[i], self.y_list[i],

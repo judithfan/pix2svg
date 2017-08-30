@@ -5,6 +5,9 @@ from __future__ import absolute_import
 import sys; sys.path.append('../..')
 import numpy as np
 
+import torch
+import torch.optim as optim
+
 from beamsearch import PixelBeamSearch
 from linerender import SketchRenderNet
 from rendertest import gen_ground_truth
@@ -14,7 +17,7 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     gt_sketch = gen_ground_truth()
-    beamer = PixelBeamSearch(5, 5, 11, beam_width=1, n_samples=100,
+    beamer = PixelBeamSearch(5, 5, 11, beam_width=1, n_samples=10000,
                              n_iters=1, stdev=4, fuzz=0.1)
     sketch = beamer.train(0, gt_sketch)
     x_paths, y_paths = beamer.gen_paths()
@@ -22,7 +25,7 @@ if __name__ == "__main__":
     plt.savefig('./sketch_beam.png')
 
     renderer = SketchRenderNet(x_paths, y_paths, imsize=11, fuzz=1.0)
-    optimizer = optim.SGD(renderer.parameters(), lr=1e-2, momentum=0.5)
+    optimizer = optim.SGD(renderer.parameters(), lr=1e-3, momentum=0.5)
 
     def train(renderer, optimizer, epoch):
         renderer.train()
@@ -38,5 +41,5 @@ if __name__ == "__main__":
         train(renderer, optimizer, i)
 
     sketch = renderer()
-    plt.matshow(sketch[0].data.numpy())
+    plt.matshow(sketch[0][0].data.numpy())
     plt.savefig('./sketch_tune.png')
