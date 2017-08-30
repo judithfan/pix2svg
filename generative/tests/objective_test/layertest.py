@@ -26,6 +26,7 @@ if __name__ == '__main__':
 
     natural = Image.open(os.path.join(args.folder, 'natural.png'))
     natural = natural.convert('RGB')
+    print('loaded natural image')
 
     distractors = []
     distractors_folder = os.path.join(args.folder, 'distractors')
@@ -38,6 +39,7 @@ if __name__ == '__main__':
         distractor = Image.open(distractor_path)
         distractor = distractor.convert('RGB')
         distractors.append(distractor)
+    print('loaded distractor images')
 
     preprocessing = transforms.Compose([
         transforms.Scale(256),
@@ -54,7 +56,8 @@ if __name__ == '__main__':
 
     explorer = SemanticBeamSearch(112, 112, 224, beam_width=4, n_samples=100,
                                   n_iters=20, stdev=20, fuzz=0.1,
-                                  embedding_layer=args.layer, use_cuda=args.cuda)
+                                  embedding_layer=args.layer, use_cuda=args.cuda,
+                                  verbose=True)
 
     natural_emb = explorer.embedding_net(natural)
     distractor_embs = explorer.embedding_net(distractors)

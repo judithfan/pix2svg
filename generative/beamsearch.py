@@ -46,11 +46,13 @@ class BaseBeamSearch(object):
     :param fuzz: hyperparameter for rendering (float)
     :param fine_tune: if True, for each sampled endpoint, follow local
                       gradients to get the best segment possible (bool)
+    :param use_cuda: create variables using cuda Tensors
+    :param verbose: if True, show print statements
     """
 
     def __init__(self, x0, y0, imsize, beam_width=2, n_samples=100,
                  n_iters=10, patience=5, stdev=2, fuzz=1.0, fine_tune=False,
-                 fine_tune_params={}, use_cuda=False):
+                 fine_tune_params={}, use_cuda=False, verbose=False):
         assert stdev > 0
         assert fuzz > 0
         assert patience >= 0
@@ -84,6 +86,7 @@ class BaseBeamSearch(object):
         self.fine_tune_params = fine_tune_params
         self.use_cuda = use_cuda
         self.top_index = 0
+        self.verbose = verbose
 
         self.beam_sketches = Variable(torch.zeros((beam_width, 1, imsize, imsize)))
         if use_cuda:
@@ -122,13 +125,17 @@ class BaseBeamSearch(object):
                   epoch, loss.data[0], params[0].data.numpy()[0], params[1].data.numpy()[0]))
 
     def train(self, epoch, input_item, distractor_items=None):
+        if self.verbose: print('Training Epoch [{}/{}]'.format(epoch + 1, self.n_iters))
         for b in range(self.beam_width):
+            if self.verbose: print('- Beam [{}/{}]'.format(b + 1, self.beam_width))
             samples = sample_endpoint_gaussian2d(self.x_beam_queue[b], self.y_beam_queue[b],
                                                  std=self.stdev, size=self.n_samples,
                                                  min_x=0, max_x=self.imsize,
                                                  min_y=0, max_y=self.imsize)
             x_samples, y_samples = samples[:, 0], samples[:, 1]
+            if self.verbose: print('-- Sampled {} coordinates'.format(self.n_samples))
             action_sample = sample_action()
+            if self.verbose: print('-- Sampled 1 action')
 
             sketches = Variable(torch.zeros((self.n_samples, 1, self.imsize, self.imsize)),
                                 volatile=True)  # no training in vgg
@@ -144,7 +151,7 @@ class BaseBeamSearch(object):
                     renderer.cuda()
 
                 if self.fine_tune:
-                    print('Fine Tuning Sample [{}/{}]'.format(i + 1, self.n_samples))
+                    print('-- Fine Tuning Sample [{}/{}]'.format(i + 1, self.n_samples))
                     tune_lr = self.fine_tune_params.get('lr', 1e-2)
                     tune_momentum = self.fine_tune_params.get('momentum', 0.5)
                     tune_iters = self.fine_tune_params.get('n_iters', 100)
@@ -168,6 +175,7 @@ class BaseBeamSearch(object):
                     renderer = model
 
                 sketch = renderer()
+                if self.verbose: print('-- Rendered sketch') 
                 sketch = torch.add(sketch, self.beam_sketches[b])
                 sketch_min = torch.min(sketch).expand_as(sketch)
                 sketch_max = torch.max(sketch).expand_as(sketch)
@@ -207,6 +215,7 @@ class BaseBeamSearch(object):
             self.y_beam_paths[b, :] = y_beam_path
             self.action_beam_paths[b].append(action_beam_samples[b])
             _beam_sketches[b] = all_sketches[top_indexes[b]]
+            if self.verbose: print('- Updated beam {} variables'.format(b))
 
         self.beam_sketches = _beam_sketches  # replace old with new
         self.x_beam_queue = np.array([x_beam_samples[top_indexes[b]]  # recreate queue
@@ -215,12 +224,12 @@ class BaseBeamSearch(object):
                                       for b in range(self.beam_width)])
         self.update_patience(beam_losses[top_indexes[0]])
 
-        print('Train Epoch: {} \tLoss: {:.6f} \tParams: ({}, {}) \tPatience: {}'.format(
+        print('- Loss: {:.6f} \tParams: ({}, {}) \tPatience: {}'.format(
               epoch, beam_losses[top_indexes[0]], x_beam_samples[top_indexes[0]],
               y_beam_samples[top_indexes[0]], self.cur_patience))
 
         if self.cur_patience <= 0:
-            print('Out of patience. Exited.')
+            print('- Out of patience. Exited.')
             return all_sketches[top_indexes[0]]
 
         self.top_index = top_indexes[0]  # save top index
