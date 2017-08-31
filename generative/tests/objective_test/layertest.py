@@ -2,6 +2,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
+import numpy as np
 from PIL import Image
 
 import torch
@@ -65,9 +66,12 @@ if __name__ == '__main__':
     for i in range(20):
         sketch = explorer.train(i, natural_emb, distractor_items=distractor_embs)
 
-    sketch = torch.cat((sketch, sketch, sketch), dim=0) * 255
-    sketch = sketch.cpu().data.numpy()
-    im = Image.fromarray(sketch)
+    sketch_np = torch.cat((sketch, sketch, sketch), dim=0) * 255
+    sketch_np = sketch_np.cpu().data.numpy()
+    sketch_np = np.rollaxis(sketch_np, 0, 3)
+    sketch_np = np.round(sketch_np).astype('uint8')
+
+    im = Image.fromarray(sketch_np) 
     im.save('./sketch.png')
 
     gt_sketch = Image.open(os.path.join(args.folder, 'natural.png'))
@@ -75,11 +79,15 @@ if __name__ == '__main__':
     gt_sketch = preprocessing(gt_sketch).unsqueeze(0)
     if args.cuda:
         gt_sketch = gt_sketch.cuda()
-    gt_sketch = Variable(gt_sketch)
+    gt_sketch = Variable(gt_sketch, volatile=True)
+    if args.cuda:
+        gt_sketch = gt_sketch.cuda()
+    
     sketch_emb = explorer.preprocess_sketches(sketch.unsqueeze(0))
+    gt_sketch_emb = explorer.embedding_net(gt_sketch)
 
-    pred_dist = semantic_sketch_loss(natural_emb, sketch_emb, distractor_embs)
-    gt_dist = semantic_sketch_loss(natural_emb, gt_sketch_emb, distractor_embs)
+    pred_dist = semantic_sketch_loss(natural_emb, sketch_emb, distractor_embs, use_cuda=True)
+    gt_dist = semantic_sketch_loss(natural_emb, gt_sketch_emb, distractor_embs, use_cuda=True)
 
     print("True Sketch & Natural Image Loss: {}".format(gt_dist.data[0]))
     print("Generated Sketch & Natural Image Loss: {}".format(pred_dist.data[0]))

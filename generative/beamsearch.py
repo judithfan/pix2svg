@@ -274,9 +274,9 @@ class SemanticBeamSearch(BaseBeamSearch):
 
     def preprocess_sketches(self, sketches):
         sketches = torch.cat((sketches, sketches, sketches), dim=1)
-        sketches[:, 0] = (sketches[:, 0] - 0.485) / 0.229
-        sketches[:, 1] = (sketches[:, 1] - 0.456) / 0.224
-        sketches[:, 2] = (sketches[:, 2] - 0.406) / 0.225
+        sketches[:, :, 0] = (sketches[:, :, 0] - 0.485) / 0.229
+        sketches[:, :, 1] = (sketches[:, :, 1] - 0.456) / 0.224
+        sketches[:, :, 2] = (sketches[:, :, 2] - 0.406) / 0.225
         return self.embedding_net(sketches)  # return embeddings
 
     def sketch_loss(self, input_item, pred_items, distractor_items=None, use_cuda=False):
