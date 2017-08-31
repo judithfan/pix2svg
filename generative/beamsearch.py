@@ -141,11 +141,11 @@ class BaseBeamSearch(object):
                                 volatile=True)  # no training in vgg
             if self.use_cuda:
                 sketches = sketches.cuda()
-        
+
             for i in range(self.n_samples):
                 action_path = self.action_beam_paths[b] + [action_sample]
                 renderer = LineRenderNet(self.x_beam_paths[b][epoch], self.y_beam_paths[b][epoch],
-                                         x_samples[i], y_samples[i], imsize=self.imsize, 
+                                         x_samples[i], y_samples[i], imsize=self.imsize,
                                          fuzz=self.fuzz, use_cuda=self.use_cuda)
                 if self.use_cuda:
                     renderer.cuda()
@@ -159,7 +159,7 @@ class BaseBeamSearch(object):
                     tune_fuzz = self.fine_tune_params.get('fuzz', 1.0)
 
                     model = LineRenderNet(self.x_beam_paths[b][epoch], self.y_beam_paths[b][epoch],
-                                          x_samples[i], y_samples[i], imsize=self.imsize, 
+                                          x_samples[i], y_samples[i], imsize=self.imsize,
                                           fuzz=tune_fuzz, use_cuda=self.use_cuda)
                     if self.use_cuda:
                         model.cuda()
@@ -175,16 +175,15 @@ class BaseBeamSearch(object):
                     renderer = model
 
                 sketch = renderer()
-                sketch = torch.add(sketch, self.beam_sketches[b])
-                sketch_min = torch.min(sketch).expand_as(sketch)
-                sketch_max = torch.max(sketch).expand_as(sketch)
-                sketch = (sketch - sketch_min) / (sketch_max - sketch_min)
+                sketch = torch.add(sketch, self.beam_sketches[b])  # this is unnormalized
                 sketches[i] = sketch
 
             print('-- Rendered {} sketches'.format(self.n_samples))
             sketches_raw = sketches.clone()
+            for i in range(self.n_samples):  #  normalize each sketch
+                sketches[i, ...] = normalize_sketch(sketches[i, ...])
             sketches = self.preprocess_sketches(sketches)
-            losses = self.sketch_loss(input_item, sketches, distractor_items, 
+            losses = self.sketch_loss(input_item, sketches, distractor_items,
                                       use_cuda=self.use_cuda)
 
             if b == 0:
@@ -232,10 +231,14 @@ class BaseBeamSearch(object):
 
         if self.cur_patience <= 0:
             print('- Out of patience. Exited.')
-            return all_sketches[top_indexes[0]]
+            top_sketch = all_sketches[top_indexes[0]]
+            top_sketch = normalize_sketch(top_sketch)
+            return top_sketch
 
         self.top_index = top_indexes[0]  # save top index
-        return all_sketches[top_indexes[0]]
+        top_sketch = all_sketches[top_indexes[0]]
+        top_sketch = normalize_sketch(top_sketch)
+        return top_sketch
 
 
 class PixelBeamSearch(BaseBeamSearch):
@@ -253,12 +256,12 @@ class SemanticBeamSearch(BaseBeamSearch):
     :param distance_fn: type of distance metric (cosine|l1|l2)
     """
 
-    def __init__(self, x0, y0, imsize, beam_width=2, n_samples=100, n_iters=10, stdev=2, 
-                 fuzz=1.0, distance_fn='cosine', embedding_net='vgg19', embedding_layer=-1, 
+    def __init__(self, x0, y0, imsize, beam_width=2, n_samples=100, n_iters=10, stdev=2,
+                 fuzz=1.0, distance_fn='cosine', embedding_net='vgg19', embedding_layer=-1,
                  use_cuda=False, verbose=False):
         super(SemanticBeamSearch, self).__init__(x0, y0, imsize, beam_width=beam_width,
-                                                 n_samples=n_samples, n_iters=n_iters, stdev=stdev, 
-                                                 fuzz=1.0, use_cuda=use_cuda, verbose=verbose)
+                                                 n_samples=n_samples, n_iters=n_iters, stdev=stdev,
+                                                 fuzz=fuzz, use_cuda=use_cuda, verbose=verbose)
         assert embedding_net in ALLOWABLE_EMBEDDING_NETS
 
         if embedding_net == 'vgg19':
@@ -354,7 +357,7 @@ def pixel_sketch_loss(natural_image, sketch_images, distractor_images=None,
     :param sketch_images: PyTorch Tensor SxCxHxW
     :param distractor_images: PyTorch Tensor DxCxHxW (default None)
     :param segment_cost: cost of adding this segment (default 0.0)
-    :param use_cuda: create variables with cuda 
+    :param use_cuda: create variables with cuda
     :return loss: vector of size sketch_images.size(0)
     """
     n_sketches = sketch_images.size()[0]
@@ -404,7 +407,7 @@ def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None,
         loss = loss.cuda()
 
     for f in range(n_features):
-        costs = gen_distance(natural_emb[f].expand_as(sketch_embs[f]), sketch_embs[f], 
+        costs = gen_distance(natural_emb[f].expand_as(sketch_embs[f]), sketch_embs[f],
                              metric=distance_fn)
         loss = torch.add(loss, costs)
 
@@ -416,7 +419,7 @@ def semantic_sketch_loss(natural_emb, sketch_embs, distractor_embs=None,
         for j in range(n_distractors):
             for f in range(n_features):
                 distraction_emb = torch.unsqueeze(distractor_embs[f][j], dim=0)
-                costs = gen_distance(distraction_emb.expand_as(sketch_embs[f]), sketch_embs[f], 
+                costs = gen_distance(distraction_emb.expand_as(sketch_embs[f]), sketch_embs[f],
                                      metric=distance_fn)
                 distraction_dists[j] = torch.add(distraction_dists[j], costs)
 
@@ -519,3 +522,12 @@ def load_vgg19(layer_index=-1, use_cuda=False):
         p.requires_grad = False
 
     return vgg19
+
+
+def normalize_sketch(sketch):
+    """ Normalize to 0 to 1
+    :param sketch: torch variable or tensor
+    """
+    sketch_min = torch.min(sketch).expand_as(sketch)
+    sketch_max = torch.max(sketch).expand_as(sketch)
+    return (sketch - sketch_min) / (sketch_max - sketch_min)

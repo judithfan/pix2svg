@@ -14,6 +14,15 @@ from beamsearch import SemanticBeamSearch
 from beamsearch import semantic_sketch_loss
 
 
+def save_sketch_to_file(sketch, epoch):
+    sketch_np = sketch * 255
+    sketch_np = sketch_np.cpu().data.numpy()[0]
+    sketch_np = np.round(sketch_np).astype('uint8')
+
+    im = Image.fromarray(sketch_np)
+    im.save('./sketch_{}.png'.format(epoch))
+
+
 if __name__ == '__main__':
     import os
     import argparse
@@ -55,24 +64,17 @@ if __name__ == '__main__':
         natural, distractors = natural.cuda(), distractors.cuda()
     natural, distractors = Variable(natural), Variable(distractors)
 
-    explorer = SemanticBeamSearch(112, 112, 224, beam_width=5, n_samples=100,
-                                  n_iters=20, stdev=20, fuzz=0.1,
+    explorer = SemanticBeamSearch(112, 112, 224, beam_width=2, n_samples=10,
+                                  n_iters=5, stdev=20, fuzz=0.1,
                                   embedding_layer=args.layer, use_cuda=args.cuda,
                                   verbose=True)
 
     natural_emb = explorer.embedding_net(natural)
     distractor_embs = explorer.embedding_net(distractors)
 
-    for i in range(20):
+    for i in range(5):
         sketch = explorer.train(i, natural_emb, distractor_items=distractor_embs)
-
-    sketch_np = torch.cat((sketch, sketch, sketch), dim=0) * 255
-    sketch_np = sketch_np.cpu().data.numpy()
-    sketch_np = np.rollaxis(sketch_np, 0, 3)
-    sketch_np = np.round(sketch_np).astype('uint8')
-
-    im = Image.fromarray(sketch_np) 
-    im.save('./sketch.png')
+        save_sketch_to_file(sketch, i)
 
     gt_sketch = Image.open(os.path.join(args.folder, 'natural.png'))
     gt_sketch = gt_sketch.convert('RGB')
@@ -82,12 +84,12 @@ if __name__ == '__main__':
     gt_sketch = Variable(gt_sketch, volatile=True)
     if args.cuda:
         gt_sketch = gt_sketch.cuda()
-    
+
     sketch_emb = explorer.preprocess_sketches(sketch.unsqueeze(0))
     gt_sketch_emb = explorer.embedding_net(gt_sketch)
 
-    pred_dist = semantic_sketch_loss(natural_emb, sketch_emb, distractor_embs, use_cuda=True)
-    gt_dist = semantic_sketch_loss(natural_emb, gt_sketch_emb, distractor_embs, use_cuda=True)
+    pred_dist = semantic_sketch_loss(natural_emb, sketch_emb, distractor_embs, use_cuda=args.cuda)
+    gt_dist = semantic_sketch_loss(natural_emb, gt_sketch_emb, distractor_embs, use_cuda=args.cuda)
 
     print("True Sketch & Natural Image Loss: {}".format(gt_dist.data[0]))
     print("Generated Sketch & Natural Image Loss: {}".format(pred_dist.data[0]))

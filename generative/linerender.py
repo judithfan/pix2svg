@@ -49,11 +49,6 @@ class SketchRenderNet(nn.Module):
                                   imsize=self.imsize, fuzz=self.fuzz,
                                   use_cuda=self.use_cuda)
             template += _template
-
-        # renorm to 0 and 1
-        tmin = torch.min(template).expand_as(template)
-        tmax = torch.max(template).expand_as(template)
-        template = (template - tmin) / (tmax - tmin)
         template = torch.unsqueeze(template, dim=0)
         template = torch.unsqueeze(template, dim=0)
 
@@ -78,7 +73,7 @@ class LineRenderNet(nn.Module):
     """
     def __init__(self, x0, y0, x1, y1, imsize=224, fuzz=1, use_cuda=False):
         super(LineRenderNet, self).__init__()
-        if use_cuda: 
+        if use_cuda:
             self.x0 = Variable(torch.cuda.FloatTensor([x0]))
             self.y0 = Variable(torch.cuda.FloatTensor([y0]))
             self.x1 = Parameter(torch.cuda.FloatTensor([x1]))
@@ -96,10 +91,6 @@ class LineRenderNet(nn.Module):
         template = draw_line(self.x0, self.y0, self.x1, self.y1,
                              imsize=self.imsize, fuzz=self.fuzz,
                              use_cuda=self.use_cuda)
-        # renorm to 0 and 1
-        tmin = torch.min(template).expand_as(template)
-        tmax = torch.max(template).expand_as(template)
-        template = (template - tmin) / (tmax - tmin)
         template = torch.unsqueeze(template, dim=0)
         template = torch.unsqueeze(template, dim=0)
 
