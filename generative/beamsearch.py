@@ -127,7 +127,7 @@ class BaseBeamSearch(object):
     def train(self, epoch, input_item, distractor_items=None):
         if self.verbose: print('Training Epoch [{}/{}]'.format(epoch + 1, self.n_iters))
         for b in range(self.beam_width):
-            if self.verbose: print('- Beam [{}/{}]'.format(b + 1, self.beam_width))
+            if self.verbose: print('- Training Beam [{}/{}]'.format(b + 1, self.beam_width))
             samples = sample_endpoint_gaussian2d(self.x_beam_queue[b], self.y_beam_queue[b],
                                                  std=self.stdev, size=self.n_samples,
                                                  min_x=0, max_x=self.imsize,
@@ -202,6 +202,8 @@ class BaseBeamSearch(object):
 
         top_indexes = np.argsort(beam_losses)[:self.beam_width]
         _beam_sketches = Variable(torch.zeros((self.beam_width, 1, self.imsize, self.imsize)))
+        if self.use_cuda:
+            _beam_sketches = _beam_sketches.cuda()
 
         for b in range(self.beam_width):
             # not each beam will update...
@@ -215,7 +217,7 @@ class BaseBeamSearch(object):
             self.y_beam_paths[b, :] = y_beam_path
             self.action_beam_paths[b].append(action_beam_samples[b])
             _beam_sketches[b] = all_sketches[top_indexes[b]]
-            if self.verbose: print('- Updated beam {} variables'.format(b))
+            if self.verbose: print('- Updated Beam {} variables'.format(b))
 
         self.beam_sketches = _beam_sketches  # replace old with new
         self.x_beam_queue = np.array([x_beam_samples[top_indexes[b]]  # recreate queue
@@ -224,9 +226,9 @@ class BaseBeamSearch(object):
                                       for b in range(self.beam_width)])
         self.update_patience(beam_losses[top_indexes[0]])
 
-        print('- Loss: {:.6f} \tParams: ({}, {}) \tPatience: {}'.format(
-              epoch, beam_losses[top_indexes[0]], x_beam_samples[top_indexes[0]],
-              y_beam_samples[top_indexes[0]], self.cur_patience))
+        print('- Loss: {:.6f} \tParams: ({}, {})'.format(
+              beam_losses[top_indexes[0]], x_beam_samples[top_indexes[0]],
+              y_beam_samples[top_indexes[0]]))
 
         if self.cur_patience <= 0:
             print('- Out of patience. Exited.')

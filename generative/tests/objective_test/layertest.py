@@ -65,6 +65,8 @@ if __name__ == '__main__':
     for i in range(20):
         sketch = explorer.train(i, natural_emb, distractor_items=distractor_embs)
 
+    sketch = torch.cat((sketch, sketch, sketch), dim=0) * 255
+    sketch = sketch.cpu().data.numpy()
     im = Image.fromarray(sketch)
     im.save('./sketch.png')
 
