@@ -216,12 +216,14 @@ def draw_binary_line(x0, y0, x1, y1, imsize=224, width=1):
     for x in range(x0, x1 + 1):
         if is_steep:
             if hw > 0:
-                template[y-hw:y+hw, x-hw:x+hw] = 1
+                template[max(y-hw, 0):min(y+hw, imsize), 
+                         max(x-hw, 0):min(x+hw, imsize)] = 1
             else:
                 template[y, x] = 1
         else:
             if hw > 0:
-                template[x-hw:x+hw, y-hw:y+hw] = 1
+                template[max(x-hw, 0):min(x+hw, imsize), 
+                         max(y-hw, 0):min(y+hw, imsize)] = 1
             else:
                 template[x, y] = 1
         error -= abs(dy)

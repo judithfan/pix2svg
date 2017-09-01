@@ -86,7 +86,7 @@ if __name__ == '__main__':
         sketch = explorer.train(i, natural_emb, distractor_items=distractor_embs)
 
         x_paths, y_paths = explorer.gen_paths()
-        save_sketch_to_file(x_paths, y_paths, i, outpath=args.outpath)
+        save_sketch_to_file(x_paths[:i+2], y_paths[:i+2], i, outpath=args.outpath)
 
     gt_sketch = Image.open(os.path.join(args.folder, 'sketch.png'))
     gt_sketch = gt_sketch.convert('RGB')
