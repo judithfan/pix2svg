@@ -25,7 +25,7 @@ ALLOWABLE_DISTANCE_FNS = ['cosine', 'euclidean', 'squared_euclidean',
                           'normalized_squared_euclidean', 'manhattan',
                           'chessboard', 'bray_curtis', 'canberra',
                           'correlation', 'binary']
-ALLOWABLE_EMBEDDING_NETS = ['vgg19', 'resnet152']
+ALLOWABLE_EMBEDDING_NETS = ['vgg19', 'alexnet', 'resnet152']
 
 
 class BaseBeamSearch(object):
@@ -266,12 +266,13 @@ class SemanticBeamSearch(BaseBeamSearch):
 
         if embedding_net == 'vgg19':
             assert embedding_layer >= -1 and embedding_layer < 8
-            self.embedding_net = load_vgg19(layer_index=embedding_layer,
-                                            use_cuda=use_cuda)
+            self.embedding_net = load_vgg19(layer_index=embedding_layer)
         elif embedding_net == 'resnet152':
             assert embedding_layer >= -1 and embedding_layer < 7
-            self.embedding_net = load_resnet152(layer_index=embedding_layer,
-                                                use_cuda=use_cuda)
+            self.embedding_net = load_resnet152(layer_index=embedding_layer)
+        elif embedding_net == 'alexnet':
+            assert embedding_layer >= -1 and embedding_layer < 8
+            self.embedding_net = load_alexnet(layer_index=embedding_layer)
         if use_cuda:
             self.embedding_net.cuda()
 

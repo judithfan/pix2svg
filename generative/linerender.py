@@ -98,7 +98,7 @@ class LineRenderNet(nn.Module):
         return template
 
 
-class BresenhamRenderNet(nn.Module):
+class BresenhamRenderNet(object):
     """Non-differentiable renderer. After we learn the parameters
     we should use this to render the final image so that it will
     look cleaner.
@@ -117,8 +117,8 @@ class BresenhamRenderNet(nn.Module):
     def forward(self):
         template = torch.zeros(self.imsize, self.imsize)
         for i in range(1, self.n_points):
-            _template = draw_binary_line(self.x_list[i - 1], self.y_list[i - 1],
-                                         self.x_list[i], self.y_list[i],
+            _template = draw_binary_line(int(round(self.x_list[i - 1])), int(round(self.y_list[i - 1])),
+                                         int(round(self.x_list[i])), int(round(self.y_list[i])),
                                          imsize=self.imsize, width=self.linewidth)
             template += _template
         template = torch.clamp(template, 0, 1)
@@ -192,7 +192,7 @@ def draw_binary_line(x0, y0, x1, y1, imsize=224, width=1):
         width += 1
     hw = int((width - 1) / 2)
 
-    template = torch.ones((imsize, imsize))
+    template = torch.zeros((imsize, imsize))
     dx, dy = x1 - x0, y1 - y0
     is_steep = abs(dy) > abs(dx)
 
@@ -216,14 +216,14 @@ def draw_binary_line(x0, y0, x1, y1, imsize=224, width=1):
     for x in range(x0, x1 + 1):
         if is_steep:
             if hw > 0:
-                template[y-hw:y+hw, x-hw:x+hw] = 0
+                template[y-hw:y+hw, x-hw:x+hw] = 1
             else:
-                template[y, x] = 0
+                template[y, x] = 1
         else:
             if hw > 0:
-                template[x-hw:x+hw, y-hw:y+hw] = 0
+                template[x-hw:x+hw, y-hw:y+hw] = 1
             else:
-                template[x, y] = 0
+                template[x, y] = 1
         error -= abs(dy)
         if error < 0:
             y += ystep
