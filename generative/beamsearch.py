@@ -289,7 +289,7 @@ class SemanticBeamSearch(BaseBeamSearch):
 
         # pass sketches through deep net using minibatches
         sketch_embs = minibatch_exec(self.embedding_net, sketches, self.minibatch_size,
-                                     out_dim=self.out_dim)
+                                     out_dim=self.out_dim, verbose=self.verbose)
         return sketch_embs
 
     def sketch_loss(self, input_item, pred_items, distractor_items=None, use_cuda=False):
@@ -510,7 +510,7 @@ def sample_endpoint_angle(x_s, y_s, x_l, y_l, std=10, angle_std=60, size=1,
     return samples
 
 
-def minibatch_exec(fn, objects, minibatch_size, out_dim=1):
+def minibatch_exec(fn, objects, minibatch_size, out_dim=1, verbose=False):
     """Batch execution on Pytorch variables using Pytorch function.
     The intended purpose is to save memory.
 
@@ -518,39 +518,35 @@ def minibatch_exec(fn, objects, minibatch_size, out_dim=1):
     :param objects: PyTorch Variable containing data
     :param minibatch_size: number to process at a time
     :param out_dim: fn() returns how many outputs?
+    :param verbose: is True, show print statements
     """
     num_objects = objects.size()[0]  # number of images total
     num_reads = int(math.floor(num_objects / minibatch_size))  # number of passes needed
     num_processed = 0  # track the number of minibatches processed
-    out_arr = [] if out_dim == 1 else [[] for o in range(out_dim)]
+    out_arr = [[] for o in range(out_dim)]
 
     for i in range(num_reads):
         objects_batch = objects[
             num_processed:num_processed+minibatch_size,
         ]
         out_batch = fn(objects_batch)
-        if out_dim == 1:
-            out_arr.append(out_batch[0])
-        else:
-            for o in range(out_dim):
-                out_arr[o].append(out_batch[o])
+        for o in range(out_dim):
+            out_arr[o].append(out_batch[o])
         num_processed += minibatch_size
+        if verbose: print('-- Finished forward pass [{}/{}] (minibatch {})'.format(
+                          num_processed, num_objects, i))
 
     # process remaining images
     if num_objects - num_processed > 0:
         objects_batch = objects[num_processed:]
         out_batch = fn(objects_batch)
-        if out_dim == 1:
-            out_arr.append(out_batch[0])
-        else:
-            for o in range(out_dim):
-                out_arr[o].append(out_batch[o])
+        for o in range(out_dim):
+            out_arr[o].append(out_batch[o])
+        if verbose: print('-- Finished forward pass [{}/{}] (minibatch {})'.format(
+                          num_objects, num_objects, num_reads))
 
     # stack all of them together
-    if out_dim == 1:
-        out_arr = torch.cat(out_arr, dim=0)
-    else:
-        out_arr = [torch.cat(arr, dim=0) for arr in out_arr]
+    out_arr = [torch.cat(arr, dim=0) for arr in out_arr]
 
     return out_arr
 

@@ -71,15 +71,15 @@ if __name__ == '__main__':
         natural, distractors = natural.cuda(), distractors.cuda()
     natural, distractors = Variable(natural), Variable(distractors)
 
-    explorer = SemanticBeamSearch(112, 112, 224, beam_width=2, n_samples=100,
-                                  n_iters=1, stdev=20, fuzz=0.1,
+    explorer = SemanticBeamSearch(112, 112, 224, beam_width=2, n_samples=1000,
+                                  n_iters=10, stdev=30, fuzz=0.1,
                                   embedding_layer=args.layer, use_cuda=args.cuda,
                                   verbose=True)
 
     natural_emb = explorer.embedding_net(natural)
     distractor_embs = explorer.embedding_net(distractors)
 
-    for i in range(1):
+    for i in range(10):
         sketch = explorer.train(i, natural_emb, distractor_items=distractor_embs)
 
     x_paths, y_paths = explorer.gen_paths()
