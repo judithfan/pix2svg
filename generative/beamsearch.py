@@ -500,7 +500,7 @@ def sample_endpoint_angle(x_s, y_s, x_l, y_l, std=10, angle_std=60, size=1,
     return samples
 
 
-def load_resnet152(layer_index=-1, use_cuda=False):
+def load_resnet152(layer_index=-1):
     resnet152 = models.resnet152(pretrained=True)
     resnet152 = ResNet152Embeddings(resnet152, layer_index)
     resnet152.eval()  # freeze dropout
@@ -512,7 +512,19 @@ def load_resnet152(layer_index=-1, use_cuda=False):
     return resnet152
 
 
-def load_vgg19(layer_index=-1, use_cuda=False):
+def load_alexnet(layer_index=-1):
+    alexnet = models.alexnet(pretrained=True)
+    alexnet = AlexNetEmbeddings(alexnet, layer_index)
+    alexnet.eval()  # freeze dropout
+
+    # freeze each parameter
+    for p in alexnet.parameters():
+        p.requires_grad = False
+
+    return alexnet
+
+
+def load_vgg19(layer_index=-1):
     vgg19 = models.vgg19(pretrained=True)
     vgg19 = VGG19Embeddings(vgg19, layer_index)
     vgg19.eval()  # freeze dropout

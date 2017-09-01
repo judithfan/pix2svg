@@ -10,17 +10,18 @@ import torchvision.transforms as transforms
 from torch.autograd import Variable
 
 import sys; sys.path.append('../..')
+from linerender import BresenhamRenderNet
 from beamsearch import SemanticBeamSearch
 from beamsearch import semantic_sketch_loss
 
 
-def save_sketch_to_file(sketch, epoch):
-    sketch_np = sketch * 255
-    sketch_np = sketch_np.cpu().data.numpy()[0]
-    sketch_np = np.round(sketch_np).astype('uint8')
-
+def save_sketch_to_file(x_paths, y_paths):
+    # rerender the paths using non-differentiable but pretty renderer
+    renderer = BresenhamRenderNet(x_paths, y_paths, imsize=11, linewidth=3)
+    sketch = renderer()
+    sketch_np = sketch.int().numpy()[0][0]
     im = Image.fromarray(sketch_np)
-    im.save('./sketch_{}.png'.format(epoch))
+    im.save('./sketch.png')
 
 
 if __name__ == '__main__':
@@ -64,19 +65,21 @@ if __name__ == '__main__':
         natural, distractors = natural.cuda(), distractors.cuda()
     natural, distractors = Variable(natural), Variable(distractors)
 
-    explorer = SemanticBeamSearch(112, 112, 224, beam_width=2, n_samples=10,
-                                  n_iters=5, stdev=20, fuzz=0.1,
+    explorer = SemanticBeamSearch(112, 112, 224, beam_width=2, n_samples=100,
+                                  n_iters=10, stdev=20, fuzz=0.1,
                                   embedding_layer=args.layer, use_cuda=args.cuda,
                                   verbose=True)
 
     natural_emb = explorer.embedding_net(natural)
     distractor_embs = explorer.embedding_net(distractors)
 
-    for i in range(5):
+    for i in range(10):
         sketch = explorer.train(i, natural_emb, distractor_items=distractor_embs)
-        save_sketch_to_file(sketch, i)
 
-    gt_sketch = Image.open(os.path.join(args.folder, 'natural.png'))
+    x_paths, y_paths = explorer.gen_paths()
+    save_sketch_to_file(x_paths, y_paths)
+
+    gt_sketch = Image.open(os.path.join(args.folder, 'sketch.png'))
     gt_sketch = gt_sketch.convert('RGB')
     gt_sketch = preprocessing(gt_sketch).unsqueeze(0)
     if args.cuda:

@@ -9,9 +9,12 @@ import torchvision.transforms as transforms
 from torch.autograd import Variable
 
 import sys; sys.path.append('../..')
+from linerender import BresenhamRenderNet
 from beamsearch import SemanticBeamSearch
 from beamsearch import semantic_sketch_loss
 from beamsearch import ALLOWABLE_DISTANCE_FNS
+
+from layertest import save_sketch_to_file
 
 
 if __name__ == '__main__':
@@ -55,27 +58,31 @@ if __name__ == '__main__':
         natural, distractors = natural.cuda(), distractors.cuda()
     natural, distractors = Variable(natural), Variable(distractors)
 
-    explorer = SemanticBeamSearch(112, 112, 224, beam_width=4, n_samples=100,
+    explorer = SemanticBeamSearch(112, 112, 224, beam_width=2, n_samples=100,
                                   # TODO: replace me w/ best layer
-                                  n_iters=20, stdev=20, fuzz=0.1, embedding_layer=-1,
+                                  n_iters=20, stdev=10, fuzz=0.1, embedding_layer=-1,
                                   distance_fn=args.distance, use_cuda=args.cuda)
 
     natural_emb = explorer.embedding_net(natural)
     distractor_embs = explorer.embedding_net(distractors)
 
-    for i in range(20):
+    for i in range(10):
         sketch = explorer.train(i, natural_emb, distractor_items=distractor_embs)
 
-    im = Image.fromarray(sketch)
-    im.save('./sketch.png')
+    x_paths, y_paths = explorer.gen_paths()
+    save_sketch_to_file(x_paths, y_paths)
 
-    gt_sketch = Image.open(os.path.join(args.folder, 'natural.png'))
+    gt_sketch = Image.open(os.path.join(args.folder, 'sketch.png'))
     gt_sketch = gt_sketch.convert('RGB')
     gt_sketch = preprocessing(gt_sketch).unsqueeze(0)
     if args.cuda:
         gt_sketch = gt_sketch.cuda()
-    gt_sketch = Variable(gt_sketch)
+    gt_sketch = Variable(gt_sketch, volatile=True)
+    if args.cuda:
+        gt_sketch = gt_sketch.cuda()
+
     sketch_emb = explorer.preprocess_sketches(sketch.unsqueeze(0))
+    gt_sketch_emb = explorer.embedding_net(gt_sketch)
 
     pred_dist = semantic_sketch_loss(natural_emb, sketch_emb, distractor_embs)
     gt_dist = semantic_sketch_loss(natural_emb, gt_sketch_emb, distractor_embs)

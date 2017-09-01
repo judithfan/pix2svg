@@ -2,6 +2,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
+import math
 import numpy as np
 
 import torch
@@ -97,6 +98,36 @@ class LineRenderNet(nn.Module):
         return template
 
 
+class BresenhamRenderNet(nn.Module):
+    """Non-differentiable renderer. After we learn the parameters
+    we should use this to render the final image so that it will
+    look cleaner.
+    """
+    def __init__(self, x_list, y_list, imsize=224, linewidth=1):
+        super(BresenhamRenderNet, self).__init__()
+        assert len(x_list) == len(y_list)
+        self.n_points = len(x_list)
+        self.x_list = x_list
+        self.y_list = y_list
+        self.imsize = imsize
+        if linewidth % 2 == 0:
+            linewidth += 1
+        self.linewidth = linewidth
+
+    def forward(self):
+        template = torch.zeros(self.imsize, self.imsize)
+        for i in range(1, self.n_points):
+            _template = draw_binary_line(self.x_list[i - 1], self.y_list[i - 1],
+                                         self.x_list[i], self.y_list[i],
+                                         imsize=self.imsize, width=self.linewidth)
+            template += _template
+        template = torch.clamp(template, 0, 1)
+        template = torch.unsqueeze(template, dim=0)
+        template = torch.unsqueeze(template, dim=0)
+
+        return template
+
+
 def draw_line(x0, y0, x1, y1, imsize=224, fuzz=1.0, use_cuda=False):
     """Given 2 points, populate a matrix with a smooth line from
     (x0, y0) to (x1, y1).
@@ -143,6 +174,61 @@ def draw_line(x0, y0, x1, y1, imsize=224, fuzz=1.0, use_cuda=False):
     d = gen_euclidean_distance(xp0, yp0, xp1, yp1)
     d = torch.pow(d, fuzz)  # scale the differences
     template = d.view(imsize, imsize)
+    return template
+
+
+def draw_binary_line(x0, y0, x1, y1, imsize=224, width=1):
+    """Non-differentiable way to draw a line with no fuzz
+
+    :param x0: int, x coordinate of point 0
+    :param y0: int, y coordinate of point 0
+    :param x1: int, x coordinate of point 1
+    :param y1: int, y coordinate of point 1
+    :param imsize: size of image frame
+    :param width: width of line
+    :return template: torch Tensor of imsize x imsize
+    """
+    if width % 2 == 0:
+        width += 1
+    hw = int((width - 1) / 2)
+
+    template = torch.ones((imsize, imsize))
+    dx, dy = x1 - x0, y1 - y0
+    is_steep = abs(dy) > abs(dx)
+
+    if is_steep:
+        x0, y0 = y0, x0
+        x1, y1 = y1, x1
+
+    swapped = False
+    if x0 > x1:
+        x0, x1 = x1, x0
+        y0, y1 = y1, y0
+        swapped = True
+
+    dx = x1 - x0
+    dy = y1 - y0
+
+    error = int(dx / 2.0)
+    ystep = 1 if y0 < y1 else  -1
+
+    y = y0
+    for x in range(x0, x1 + 1):
+        if is_steep:
+            if hw > 0:
+                template[y-hw:y+hw, x-hw:x+hw] = 0
+            else:
+                template[y, x] = 0
+        else:
+            if hw > 0:
+                template[x-hw:x+hw, y-hw:y+hw] = 0
+            else:
+                template[x, y] = 0
+        error -= abs(dy)
+        if error < 0:
+            y += ystep
+            error += dx
+
     return template
 
 

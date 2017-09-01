@@ -6,7 +6,6 @@ import copy
 import numpy as np
 
 import torch.nn as nn
-import torchvision.models as models
 
 
 class ResNet152Embeddings(nn.Module):
@@ -63,6 +62,67 @@ class ResNet152Embeddings(nn.Module):
         return [self._flatten(x_maxpool), self._flatten(x_layer1), self._flatten(x_layer2),
                 self._flatten(x_layer3), self._flatten(x_layer4), self._flatten(x_avgpool),
                 self._flatten(x_linear)]
+
+
+class AlexNetEmbeddings(nn.Module):
+    """Splits AlexNet into layers to get embeddings for
+    each group of Convolutional/Pooling/Nonlinear layers.
+    For AlexNet, we define 7 layers:
+        0 - after maxpool (2)
+        1 - after maxpool (5)
+        2 - after relu (7)
+        3 - after relu (9)
+        4 - after maxpool (12)
+        5 - after relu (2)
+        6 - after relu (5)
+        7 - after linear (6)
+    :param alexnet: pretrained alexnet instance
+    :param layer_index: number from -1 to 7 (where -1 is a list of all)
+    """
+    def __init__(self, alexnet, layer_index=-1):
+        super(AlexNetEmbeddings, self).__init__()
+        assert layer >= -1 and layer < 8
+        self.group1 = nn.Sequential(*(list(alexnet.features.children())[slice(0, 3)]))
+        self.group2 = nn.Sequential(*(list(alexnet.features.children())[slice(3, 6)]))
+        self.group3 = nn.Sequential(*(list(alexnet.features.children())[slice(6, 8)]))
+        self.group4 = nn.Sequential(*(list(alexnet.features.children())[slice(8, 10)]))
+        self.group5 = nn.Sequential(*(list(alexnet.features.children())[slice(10, 13)]))
+        self.group6 = nn.Sequential(*(list(alexnet.classifier.children())[slice(0, 4)]))
+        self.group7 = nn.Sequential(*(list(alexnet.classifier.children())[slice(4, 6)]))
+        self.group8 = nn.Sequential(*(list(alexnet.classifier.children())[6]))
+        self.layer_index = layer_index
+
+    def _flatten(self, x):
+        return x.view(x.size(0), -1)
+
+    def forward(self, x):
+        x_group1 = self.group1(x)
+        if self.layer_index == 0:
+            return [self._flatten(x_group1)]
+        x_group2 = self.group2(x_group1)
+        if self.layer_index == 1:
+            return [self._flatten(x_group2)]
+        x_group3 = self.group3(x_group2)
+        if self.layer_index == 2:
+            return [self._flatten(x_group3)]
+        x_group4 = self.group4(x_group3)
+        if self.layer_index == 3:
+            return [self._flatten(x_group4)]
+        x_group5 = self.group5(x_group4)
+        if self.layer_index == 4:
+            return [self._flatten(x_group5)]
+        x_group6 = self.group6(x_group5)
+        if self.layer_index == 5:
+            return [self._flatten(x_group6)]
+        x_group7 = self.group7(x_group6)
+        if self.layer_index == 6:
+            return [self._flatten(x_group7)]
+        x_group8 = self.group7(x_group7)
+        if self.layer_index == 7:
+            return [self._flatten(x_group8)]
+        return [self._flatten(x_group1), self._flatten(x_group2), self._flatten(x_group3),
+                self._flatten(x_group4), self._flatten(x_group5), self._flatten(x_group6),
+                self._flatten(x_group7), self._flatten(x_group8)]
 
 
 class VGG19Embeddings(nn.Module):
