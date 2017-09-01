@@ -258,7 +258,7 @@ class SemanticBeamSearch(BaseBeamSearch):
 
     def __init__(self, x0, y0, imsize, beam_width=2, n_samples=100, n_iters=10, stdev=2,
                  fuzz=1.0, distance_fn='cosine', embedding_net='vgg19', embedding_layer=-1,
-                 use_cuda=False, verbose=False):
+                 minibatch_size=64, use_cuda=False, verbose=False):
         super(SemanticBeamSearch, self).__init__(x0, y0, imsize, beam_width=beam_width,
                                                  n_samples=n_samples, n_iters=n_iters, stdev=stdev,
                                                  fuzz=fuzz, use_cuda=use_cuda, verbose=verbose)
@@ -268,19 +268,27 @@ class SemanticBeamSearch(BaseBeamSearch):
             assert embedding_layer >= -1 and embedding_layer < 8
             self.embedding_net = load_vgg19(layer_index=embedding_layer,
                                             use_cuda=use_cuda)
+            self.out_dim = 8 if embedding_layer == -1 else 1
         elif embedding_net == 'resnet152':
             assert embedding_layer >= -1 and embedding_layer < 7
             self.embedding_net = load_resnet152(layer_index=embedding_layer,
                                                 use_cuda=use_cuda)
+            self.out_dim = 7 if embedding_layer == -1 else 1
         if use_cuda:
             self.embedding_net.cuda()
+
+        self.minibatch_size = minibatch_size
 
     def preprocess_sketches(self, sketches):
         sketches = torch.cat((sketches, sketches, sketches), dim=1)
         sketches[:, :, 0] = (sketches[:, :, 0] - 0.485) / 0.229
         sketches[:, :, 1] = (sketches[:, :, 1] - 0.456) / 0.224
         sketches[:, :, 2] = (sketches[:, :, 2] - 0.406) / 0.225
-        return self.embedding_net(sketches)  # return embeddings
+
+        # pass sketches through deep net using minibatches
+        sketch_embs = minibatch_exec(self.embedding_net, sketches, self.minibatch_size,
+                                     out_dim=self.out_dim)
+        return sketch_embs
 
     def sketch_loss(self, input_item, pred_items, distractor_items=None, use_cuda=False):
         return semantic_sketch_loss(input_item, pred_items, distractor_embs=distractor_items,
@@ -498,6 +506,51 @@ def sample_endpoint_angle(x_s, y_s, x_l, y_l, std=10, angle_std=60, size=1,
     samples[:, 1][samples[:, 1] < min_y] = min_y
     samples[:, 1][samples[:, 1] > max_y] = max_y
     return samples
+
+
+def minibatch_exec(fn, objects, minibatch_size, out_dim=1):
+    """Batch execution on Pytorch variables using Pytorch function.
+    The intended purpose is to save memory.
+
+    :param fn: function must take a PyTorch variable of sketches as input
+    :param objects: PyTorch Variable containing data
+    :param minibatch_size: number to process at a time
+    :param out_dim: fn() returns how many outputs?
+    """
+    num_objects = objects.size()[0]  # number of images total
+    num_reads = int(math.floor(num_objects / minibatch_size))  # number of passes needed
+    num_processed = 0  # track the number of minibatches processed
+    out_arr = [] if out_dim == 1 else [[] for o in range(out_dim)]
+
+    for i in range(num_reads):
+        objects_batch = objects[
+            num_processed:num_processed+minibatch_size,
+        ]
+        out_batch = fn(objects_batch)
+        if out_dim == 1:
+            out_arr.append(out_batch)
+        else:
+            for o in range(out_dim):
+                out_arr[o].append(out_batch[o])
+        num_processed += minibatch_size
+
+    # process remaining images
+    if num_objects - num_processed > 0:
+        objects_batch = objects[num_processed:]
+        out_batch = fn(objects_batch)
+        if out_dim == 1:
+            out_arr.append(out_batch)
+        else:
+            for o in range(out_dim):
+                out_arr[o].append(out_batch[o])
+
+    # stack all of them together
+    if out_dim == 1:
+        out_arr = np.vstack(out_arr)
+    else:
+        out_arr = [np.vstack(arr) for arr in out_arr]
+
+    return out_arr
 
 
 def load_resnet152(layer_index=-1):
