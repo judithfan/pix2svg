@@ -17,9 +17,15 @@ from beamsearch import semantic_sketch_loss
 
 def save_sketch_to_file(x_paths, y_paths):
     # rerender the paths using non-differentiable but pretty renderer
-    renderer = BresenhamRenderNet(x_paths, y_paths, imsize=11, linewidth=3)
-    sketch = renderer()
-    sketch_np = sketch.int().numpy()[0][0]
+    renderer = BresenhamRenderNet(x_paths, y_paths, imsize=224, linewidth=5)
+    sketch = renderer.forward()
+    sketch = sketch.int()
+    sketch = torch.cat((sketch, sketch, sketch), dim=1)
+    sketch = 1 - sketch
+    sketch = sketch * 255
+    sketch_np = sketch.numpy()[0]
+    sketch_np = np.rollaxis(sketch_np, 0, 3)
+    sketch_np = sketch_np.astype('uint8')
     im = Image.fromarray(sketch_np)
     im.save('./sketch.png')
 
@@ -66,14 +72,14 @@ if __name__ == '__main__':
     natural, distractors = Variable(natural), Variable(distractors)
 
     explorer = SemanticBeamSearch(112, 112, 224, beam_width=2, n_samples=100,
-                                  n_iters=10, stdev=20, fuzz=0.1,
+                                  n_iters=1, stdev=20, fuzz=0.1,
                                   embedding_layer=args.layer, use_cuda=args.cuda,
                                   verbose=True)
 
     natural_emb = explorer.embedding_net(natural)
     distractor_embs = explorer.embedding_net(distractors)
 
-    for i in range(10):
+    for i in range(1):
         sketch = explorer.train(i, natural_emb, distractor_items=distractor_embs)
 
     x_paths, y_paths = explorer.gen_paths()

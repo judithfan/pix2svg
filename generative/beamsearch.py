@@ -25,7 +25,7 @@ ALLOWABLE_DISTANCE_FNS = ['cosine', 'euclidean', 'squared_euclidean',
                           'normalized_squared_euclidean', 'manhattan',
                           'chessboard', 'bray_curtis', 'canberra',
                           'correlation', 'binary']
-ALLOWABLE_EMBEDDING_NETS = ['vgg19', 'resnet152']
+ALLOWABLE_EMBEDDING_NETS = ['vgg19', 'alexnet', 'resnet152']
 
 
 class BaseBeamSearch(object):
@@ -266,14 +266,16 @@ class SemanticBeamSearch(BaseBeamSearch):
 
         if embedding_net == 'vgg19':
             assert embedding_layer >= -1 and embedding_layer < 8
-            self.embedding_net = load_vgg19(layer_index=embedding_layer,
-                                            use_cuda=use_cuda)
+            self.embedding_net = load_vgg19(layer_index=embedding_layer)
             self.out_dim = 8 if embedding_layer == -1 else 1
         elif embedding_net == 'resnet152':
             assert embedding_layer >= -1 and embedding_layer < 7
-            self.embedding_net = load_resnet152(layer_index=embedding_layer,
-                                                use_cuda=use_cuda)
+            self.embedding_net = load_resnet152(layer_index=embedding_layer)
             self.out_dim = 7 if embedding_layer == -1 else 1
+        elif embedding_net == 'alexnet':
+            assert embedding_layer >= -1 and embedding_layer < 8
+            self.embedding_net = load_alexnet(layer_index=embedding_layer)
+            self.out_dim = 8 if embedding_layer == -1 else 1
         if use_cuda:
             self.embedding_net.cuda()
 
@@ -528,7 +530,7 @@ def minibatch_exec(fn, objects, minibatch_size, out_dim=1):
         ]
         out_batch = fn(objects_batch)
         if out_dim == 1:
-            out_arr.append(out_batch)
+            out_arr.append(out_batch[0])
         else:
             for o in range(out_dim):
                 out_arr[o].append(out_batch[o])
@@ -539,16 +541,16 @@ def minibatch_exec(fn, objects, minibatch_size, out_dim=1):
         objects_batch = objects[num_processed:]
         out_batch = fn(objects_batch)
         if out_dim == 1:
-            out_arr.append(out_batch)
+            out_arr.append(out_batch[0])
         else:
             for o in range(out_dim):
                 out_arr[o].append(out_batch[o])
 
     # stack all of them together
     if out_dim == 1:
-        out_arr = np.vstack(out_arr)
+        out_arr = torch.cat(out_arr, dim=0)
     else:
-        out_arr = [np.vstack(arr) for arr in out_arr]
+        out_arr = [torch.cat(arr, dim=0) for arr in out_arr]
 
     return out_arr
 
