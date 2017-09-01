@@ -322,7 +322,7 @@ def gen_distance(a, b, metric='cosine'):
     http://reference.wolfram.com/language/guide/DistanceAndSimilarityMeasures.html
     """
     if metric == 'cosine':
-        return cosine_similarity(a, b, dim=1)
+        return 1 - cosine_similarity(a, b, dim=1)
     elif metric == 'euclidean':
         return torch.norm(a - b, p=2)
     elif metric == 'squared_euclidean':
@@ -343,7 +343,7 @@ def gen_distance(a, b, metric='cosine'):
     elif metric == 'correlation':
         c = a - torch.mean(a, dim=1)
         d = b - torch.mean(b, dim=1)
-        return F.cosine_similarity(c, d)
+        return 1 - F.cosine_similarity(c, d)
     elif metric == 'binary':
         return torch.sum(a != b)
 

@@ -123,9 +123,9 @@ def draw_line(x0, y0, x1, y1, imsize=224, fuzz=1.0, use_cuda=False):
     # this case separately
     ii_nonzero = x1 != x0
     ii_zero = torch.eq(x1, x0)
-    n_zero = torch.sum(ii_zero).data[0]
+    n_zero = sum(ii_zero.data)
 
-    if not n_zero:
+    if n_zero == 0:
         xp1, yp1 = gen_closest_point_on_line(x0[ii_nonzero], y0[ii_nonzero],
                                              x1[ii_nonzero], y1[ii_nonzero],
                                              xp0[ii_nonzero], yp0[ii_nonzero])

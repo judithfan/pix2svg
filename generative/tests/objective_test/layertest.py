@@ -64,19 +64,19 @@ if __name__ == '__main__':
         natural, distractors = natural.cuda(), distractors.cuda()
     natural, distractors = Variable(natural), Variable(distractors)
 
-    explorer = SemanticBeamSearch(112, 112, 224, beam_width=2, n_samples=10,
-                                  n_iters=5, stdev=20, fuzz=0.1,
+    explorer = SemanticBeamSearch(112, 112, 224, beam_width=2, n_samples=100,
+                                  n_iters=10, stdev=20, fuzz=0.1,
                                   embedding_layer=args.layer, use_cuda=args.cuda,
                                   verbose=True)
 
     natural_emb = explorer.embedding_net(natural)
     distractor_embs = explorer.embedding_net(distractors)
 
-    for i in range(5):
+    for i in range(10):
         sketch = explorer.train(i, natural_emb, distractor_items=distractor_embs)
         save_sketch_to_file(sketch, i)
 
-    gt_sketch = Image.open(os.path.join(args.folder, 'natural.png'))
+    gt_sketch = Image.open(os.path.join(args.folder, 'sketch.png'))
     gt_sketch = gt_sketch.convert('RGB')
     gt_sketch = preprocessing(gt_sketch).unsqueeze(0)
     if args.cuda:
