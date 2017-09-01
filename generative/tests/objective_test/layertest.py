@@ -15,7 +15,7 @@ from beamsearch import SemanticBeamSearch
 from beamsearch import semantic_sketch_loss
 
 
-def save_sketch_to_file(x_paths, y_paths):
+def save_sketch_to_file(x_paths, y_paths, epoch, outpath='./'):
     # rerender the paths using non-differentiable but pretty renderer
     renderer = BresenhamRenderNet(x_paths, y_paths, imsize=224, linewidth=5)
     sketch = renderer.forward()
@@ -27,7 +27,7 @@ def save_sketch_to_file(x_paths, y_paths):
     sketch_np = np.rollaxis(sketch_np, 0, 3)
     sketch_np = sketch_np.astype('uint8')
     im = Image.fromarray(sketch_np)
-    im.save('./sketch.png')
+    im.save(os.path.join(outpath, 'sketch_{}.png'.format(epoch)))
 
 
 if __name__ == '__main__':
@@ -37,7 +37,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="generate sketches")
     parser.add_argument('--layer', type=int, default=-1)
     parser.add_argument('--cuda', action='store_true', default=False)
+    parser.add_argument('--n_epochs', type=int, default=10)
+    parser.add_argument('--n_samples', type=int, default=100)
     parser.add_argument('folder', type=str)
+    parser.add_argument('outpath', type=str)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
@@ -71,19 +74,19 @@ if __name__ == '__main__':
         natural, distractors = natural.cuda(), distractors.cuda()
     natural, distractors = Variable(natural), Variable(distractors)
 
-    explorer = SemanticBeamSearch(112, 112, 224, beam_width=2, n_samples=1000,
-                                  n_iters=10, stdev=30, fuzz=0.1,
+    explorer = SemanticBeamSearch(112, 112, 224, beam_width=2, n_samples=args.n_samples,
+                                  n_iters=args.n_epochs, stdev=30, fuzz=0.1,
                                   embedding_layer=args.layer, use_cuda=args.cuda,
                                   verbose=True)
 
     natural_emb = explorer.embedding_net(natural)
     distractor_embs = explorer.embedding_net(distractors)
 
-    for i in range(10):
+    for i in range(args.n_epochs):
         sketch = explorer.train(i, natural_emb, distractor_items=distractor_embs)
 
-    x_paths, y_paths = explorer.gen_paths()
-    save_sketch_to_file(x_paths, y_paths)
+        x_paths, y_paths = explorer.gen_paths()
+        save_sketch_to_file(x_paths, y_paths, i, outpath=args.outpath)
 
     gt_sketch = Image.open(os.path.join(args.folder, 'sketch.png'))
     gt_sketch = gt_sketch.convert('RGB')
