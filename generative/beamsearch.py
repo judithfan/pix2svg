@@ -333,7 +333,6 @@ def gen_distance(a, b, metric='cosine'):
     """Implementation of difference distance metrics ripped from Wolfram:
     http://reference.wolfram.com/language/guide/DistanceAndSimilarityMeasures.html
     """
-    import pdb; pdb.set_trace()
     if metric == 'cosine':
         return 1 - cosine_similarity(a, b, dim=1)
     elif metric == 'euclidean':
