@@ -263,6 +263,8 @@ class SemanticBeamSearch(BaseBeamSearch):
                                                  n_samples=n_samples, n_iters=n_iters, stdev=stdev,
                                                  fuzz=fuzz, use_cuda=use_cuda, verbose=verbose)
         assert embedding_net in ALLOWABLE_EMBEDDING_NETS
+        assert distance_fn in ALLOWABLE_DISTANCE_FNS
+        self.distance_fn = distance_fn
 
         if embedding_net == 'vgg19':
             assert embedding_layer >= -1 and embedding_layer < 8
@@ -294,7 +296,7 @@ class SemanticBeamSearch(BaseBeamSearch):
 
     def sketch_loss(self, input_item, pred_items, distractor_items=None, use_cuda=False):
         return semantic_sketch_loss(input_item, pred_items, distractor_embs=distractor_items,
-                                    distance_fn='cosine', use_cuda=use_cuda)
+                                    distance_fn=self.distance_fn, use_cuda=use_cuda)
 
 
 def cosine_similarity(x1, x2, dim=1, eps=1e-8):
