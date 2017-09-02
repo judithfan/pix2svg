@@ -334,28 +334,28 @@ def gen_distance(a, b, metric='cosine'):
     if metric == 'cosine':
         return 1 - cosine_similarity(a, b, dim=1)
     elif metric == 'euclidean':
-        return torch.norm(a - b, p=2)
+        return torch.norm(a - b, p=2, dim=1)
     elif metric == 'squared_euclidean':
-        return torch.pow(torch.norm(a - b, p=2))
+        return torch.pow(torch.norm(a - b, p=2, dim=1), 2)
     elif metric == 'normalized_squared_euclidean':
-        c = a - torch.mean(a, dim=1)
-        d = b - torch.mean(b, dim=1)
-        n = torch.pow(torch.norm(c, p=2)) + torch.pow(torch.norm(d, p=2))
-        return 0.5 * torch.pow(torch.norm(c - d, p=2)) / n
+        c = a - torch.mean(a, dim=1).unsqueeze(1)
+        d = b - torch.mean(b, dim=1).unsqueeze(1)
+        n = torch.pow(torch.norm(c, p=2, dim=1), 2) + torch.pow(torch.norm(d, p=2, dim=1), 2)
+        return 0.5 * torch.pow(torch.norm(c - d, p=2, dim=1), 2) / n
     elif metric == 'manhattan':
         return F.pairwise_distance(a, b, p=1)
     elif metric == 'chessboard':
-        return torch.max(torch.abs(a - b))
+        return torch.max(torch.abs(a - b), dim=1)[0]
     elif metric == 'bray_curtis':
-        return torch.sum(torch.abs(a - b)) / torch.sum(torch.abs(a + b))
+        return torch.sum(torch.abs(a - b), dim=1) / torch.sum(torch.abs(a + b), dim=1)
     elif metric == 'canberra':
-        return torch.sum(torch.abs(a - b) / (torch.abs(a) + torch.abs(b)))
+        return torch.sum(torch.abs(a - b) / (torch.abs(a) + torch.abs(b)), dim=1)
     elif metric == 'correlation':
-        c = a - torch.mean(a, dim=1)
-        d = b - torch.mean(b, dim=1)
-        return 1 - F.cosine_similarity(c, d)
+        c = a - torch.mean(a, dim=1).unsqueeze(1)
+        d = b - torch.mean(b, dim=1).unsqueeze(1)
+        return 1 - F.cosine_similarity(c, d, dim=1)
     elif metric == 'binary':
-        return torch.sum(a != b)
+        return torch.sum(a != b, dim=1)
 
 
 def pixel_sketch_loss(natural_image, sketch_images, distractor_images=None,

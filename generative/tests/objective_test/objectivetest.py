@@ -2,6 +2,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
+import numpy as np
 from PIL import Image
 
 import torch
@@ -12,9 +13,23 @@ import sys; sys.path.append('../..')
 from linerender import BresenhamRenderNet
 from beamsearch import SemanticBeamSearch
 from beamsearch import semantic_sketch_loss
+from beamsearch import ALLOWABLE_EMBEDDING_NETS
 from beamsearch import ALLOWABLE_DISTANCE_FNS
 
-from layertest import save_sketch_to_file
+
+def save_sketch_to_file(x_paths, y_paths, epoch, outpath='./'):
+    # rerender the paths using non-differentiable but pretty renderer
+    renderer = BresenhamRenderNet(x_paths, y_paths, imsize=224, linewidth=5)
+    sketch = renderer.forward()
+    sketch = sketch.int()
+    sketch = torch.cat((sketch, sketch, sketch), dim=1)
+    sketch = 1 - sketch
+    sketch = sketch * 255
+    sketch_np = sketch.numpy()[0]
+    sketch_np = np.rollaxis(sketch_np, 0, 3)
+    sketch_np = sketch_np.astype('uint8')
+    im = Image.fromarray(sketch_np)
+    im.save(os.path.join(outpath, 'sketch_{}.png'.format(epoch)))
 
 
 if __name__ == '__main__':
@@ -22,16 +37,22 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description="generate sketches")
+    parser.add_argument('--layer', type=int, default=-1)
     parser.add_argument('--distance', type=str, default='cosine')
+    parser.add_argument('--embedder', type=str, default='vgg19')
     parser.add_argument('--cuda', action='store_true', default=False)
+    parser.add_argument('--n_epochs', type=int, default=10)
+    parser.add_argument('--n_samples', type=int, default=100)
     parser.add_argument('folder', type=str)
+    parser.add_argument('outpath', type=str)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
-
     assert args.distance in ALLOWABLE_DISTANCE_FNS
+    assert args.embedder in ALLOWABLE_EMBEDDING_NETS
 
     natural = Image.open(os.path.join(args.folder, 'natural.png'))
     natural = natural.convert('RGB')
+    print('loaded natural image')
 
     distractors = []
     distractors_folder = os.path.join(args.folder, 'distractors')
@@ -44,6 +65,7 @@ if __name__ == '__main__':
         distractor = Image.open(distractor_path)
         distractor = distractor.convert('RGB')
         distractors.append(distractor)
+    print('loaded distractor images')
 
     preprocessing = transforms.Compose([
         transforms.Scale(256),
@@ -58,19 +80,19 @@ if __name__ == '__main__':
         natural, distractors = natural.cuda(), distractors.cuda()
     natural, distractors = Variable(natural), Variable(distractors)
 
-    explorer = SemanticBeamSearch(112, 112, 224, beam_width=2, n_samples=100,
-                                  # TODO: replace me w/ best layer
-                                  n_iters=20, stdev=10, fuzz=0.1, embedding_layer=-1,
-                                  distance_fn=args.distance, use_cuda=args.cuda)
+    explorer = SemanticBeamSearch(112, 112, 224, beam_width=2, n_samples=args.n_samples,
+                                  n_iters=args.n_epochs, stdev=30, fuzz=0.1,
+                                  embedding_net=args.embedder, embedding_layer=args.layer,
+                                  use_cuda=args.cuda, distance_fn=args.distance, verbose=True)
 
     natural_emb = explorer.embedding_net(natural)
     distractor_embs = explorer.embedding_net(distractors)
 
-    for i in range(10):
+    for i in range(args.n_epochs):
         sketch = explorer.train(i, natural_emb, distractor_items=distractor_embs)
 
-    x_paths, y_paths = explorer.gen_paths()
-    save_sketch_to_file(x_paths, y_paths)
+        x_paths, y_paths = explorer.gen_paths()
+        save_sketch_to_file(x_paths[:i+2], y_paths[:i+2], i, outpath=args.outpath)
 
     gt_sketch = Image.open(os.path.join(args.folder, 'sketch.png'))
     gt_sketch = gt_sketch.convert('RGB')
@@ -84,8 +106,10 @@ if __name__ == '__main__':
     sketch_emb = explorer.preprocess_sketches(sketch.unsqueeze(0))
     gt_sketch_emb = explorer.embedding_net(gt_sketch)
 
-    pred_dist = semantic_sketch_loss(natural_emb, sketch_emb, distractor_embs)
-    gt_dist = semantic_sketch_loss(natural_emb, gt_sketch_emb, distractor_embs)
+    pred_dist = semantic_sketch_loss(natural_emb, sketch_emb, distractor_embs,
+                                     distance_fn=args.distance, use_cuda=args.cuda)
+    gt_dist = semantic_sketch_loss(natural_emb, gt_sketch_emb, distractor_embs,
+                                   distance_fn=args.distance, use_cuda=args.cuda)
 
     print("True Sketch & Natural Image Loss: {}".format(gt_dist.data[0]))
     print("Generated Sketch & Natural Image Loss: {}".format(pred_dist.data[0]))
