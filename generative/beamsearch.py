@@ -355,7 +355,7 @@ def gen_distance(a, b, metric='cosine'):
     elif metric == 'correlation':
         c = a - torch.mean(a, dim=1).expand_as(a)
         d = b - torch.mean(b, dim=1).expand_as(b)
-        return 1 - F.cosine_similarity(c, d, dim=1)
+        return 1 - cosine_similarity(c, d, dim=1)
     elif metric == 'binary':
         return torch.sum(a != b, dim=1)
 
