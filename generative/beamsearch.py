@@ -18,7 +18,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 from linerender import LineRenderNet
-from embeddings import VGG19Embeddings, ResNet152Embeddings
+from embeddings import VGG19Embeddings, ResNet152Embeddings, AlexNetEmbeddings
 
 ALLOWABLE_POOLS = ['max', 'average']
 ALLOWABLE_DISTANCE_FNS = ['cosine', 'euclidean', 'squared_euclidean',
