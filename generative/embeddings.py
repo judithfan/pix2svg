@@ -89,7 +89,7 @@ class AlexNetEmbeddings(nn.Module):
         self.group5 = nn.Sequential(*(list(alexnet.features.children())[slice(10, 13)]))
         self.group6 = nn.Sequential(*(list(alexnet.classifier.children())[slice(0, 4)]))
         self.group7 = nn.Sequential(*(list(alexnet.classifier.children())[slice(4, 6)]))
-        self.group8 = nn.Sequential(*(list(alexnet.classifier.children())[6]))
+        self.group8 = nn.Sequential(list(alexnet.classifier.children())[6])
         self.layer_index = layer_index
 
     def _flatten(self, x):
