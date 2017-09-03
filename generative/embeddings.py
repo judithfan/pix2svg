@@ -24,7 +24,7 @@ class ResNet152Embeddings(nn.Module):
     """
     def __init__(self, resnet152, layer_index=-1):
         super(ResNet152Embeddings, self).__init__()
-        assert layer >= -1 and layer < 7
+        assert layer_index >= -1 and layer_index < 7
         self.maxpool = nn.Sequential(*(list(resnet152.children())[slice(0, 4)]))
         self.layer1 = nn.Sequential(*(list(resnet152.children())[4]))
         self.layer2 = nn.Sequential(*(list(resnet152.children())[5]))
@@ -81,7 +81,7 @@ class AlexNetEmbeddings(nn.Module):
     """
     def __init__(self, alexnet, layer_index=-1):
         super(AlexNetEmbeddings, self).__init__()
-        assert layer >= -1 and layer < 8
+        assert layer_index >= -1 and layer_index < 8
         self.group1 = nn.Sequential(*(list(alexnet.features.children())[slice(0, 3)]))
         self.group2 = nn.Sequential(*(list(alexnet.features.children())[slice(3, 6)]))
         self.group3 = nn.Sequential(*(list(alexnet.features.children())[slice(6, 8)]))
