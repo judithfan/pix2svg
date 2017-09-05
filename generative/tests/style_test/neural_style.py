@@ -213,9 +213,10 @@ def image_loader(image_name):
     return image
 
 
-def imsave(tensor, title=None):
+def imshow(tensor, imsize, title=None):
     image = tensor.clone().cpu()  # we clone the tensor to not do changes on it
     image = image.view(3, imsize, imsize)  # remove the fake batch dimension
+    unloader = transforms.ToPILImage()
     image = unloader(image)
     plt.imshow(image)
     if title is not None:
@@ -234,13 +235,11 @@ if __name__ == '__main__':
         transforms.Scale(imsize),  # scale imported image
         transforms.ToTensor()])  # transform it into a torch tensor
 
-    style_img = image_loader("./images/picasso.jpg").type(dtype)
+    style_img = image_loader("./images/sketch.jpg").type(dtype)
     content_img = image_loader("./images/dancing.jpg").type(dtype)
 
     assert style_img.size() == content_img.size(), \
         "we need to import style and content images of the same size"
-
-    unloader = transforms.ToPILImage()
 
     cnn = models.vgg19(pretrained=True).features
 
