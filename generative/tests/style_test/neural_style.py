@@ -158,7 +158,7 @@ def get_style_model_and_losses(cnn, style_img, content_img,
 def get_input_param_optimizer(input_img):
     # this line to show that input is a parameter that requires a gradient
     input_param = nn.Parameter(input_img.data)
-    optimizer = optim.Adam([input_param], lr=0.01)
+    optimizer = optim.LBFGS([input_param])
     return input_param, optimizer
 
 
@@ -251,4 +251,4 @@ if __name__ == '__main__':
     input_img = content_img.clone()
 
     output = run_style_transfer(cnn, content_img, style_img, input_img, use_cuda=use_cuda)
-    torch.save('./output.pt', output)
+    torch.save(output, './outputs/output.pt')
