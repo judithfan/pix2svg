@@ -155,20 +155,28 @@ def get_style_model_and_losses(cnn, style_img, content_img,
     return model, style_losses, content_losses
 
 
-def get_input_param_optimizer(input_img):
+def get_input_param_optimizer(input_img, init_lr=0.1):
     # this line to show that input is a parameter that requires a gradient
     input_param = nn.Parameter(input_img.data)
-    optimizer = optim.LBFGS([input_param])
+    optimizer = optim.LBFGS([input_param], lr=init_lr)
     return input_param, optimizer
 
 
 def run_style_transfer(cnn, content_img, style_img, input_img, num_steps=300,
-                       style_weight=1000, content_weight=1, use_cuda=False):
+                       style_weight=1000, content_weight=1, use_cuda=False, 
+                       init_lr=0.1, anneal_freq=100):
     """Run the style transfer."""
     print('Building the style transfer model..')
     model, style_losses, content_losses = get_style_model_and_losses(cnn,
         style_img, content_img, style_weight, content_weight, use_cuda=use_cuda)
-    input_param, optimizer = get_input_param_optimizer(input_img)
+    input_param, optimizer = get_input_param_optimizer(input_img, init_lr=init_lr)
+
+    def adjust_learning_rate(optimizer, epoch):
+        lr = init_lr * (0.1** (epoch // anneal_freq))
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
+        if epoch % anneal_freq == 0:
+            print('Learning rate set to {}'.format(lr)) 
 
     print('Optimizing..')
     run = [0]
@@ -197,6 +205,7 @@ def run_style_transfer(cnn, content_img, style_img, input_img, num_steps=300,
 
             return style_score + content_score
 
+	adjust_learning_rate(optimizer, run[0])
         optimizer.step(closure)
 
     # a last correction...
@@ -225,6 +234,16 @@ def imshow(tensor, imsize, title=None):
 
 
 if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='neural style')
+    parser.add_argument('--n_iters', type=int, default=300)
+    parser.add_argument('--style_weight', type=int, default=1000)
+    parser.add_argument('--content_weight', type=int, default=1)
+    parser.add_argument('--save_path', type=str, default='./outputs/output.pt')
+    parser.add_argument('--init_lr', type=float, default=1)
+    parser.add_argument('--anneal_freq', type=int, default=100)
+    args = parser.parse_args()
+
     use_cuda = torch.cuda.is_available()
     dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 
@@ -249,5 +268,8 @@ if __name__ == '__main__':
 
     input_img = content_img.clone()
 
-    output = run_style_transfer(cnn, content_img, style_img, input_img, use_cuda=use_cuda)
-    torch.save(output, './outputs/output.pt')
+    output = run_style_transfer(cnn, content_img, style_img, input_img, use_cuda=use_cuda,
+                                num_steps=args.n_iters, style_weight=args.style_weight,
+                                content_weight=args.content_weight, init_lr=args.init_lr,
+                                anneal_freq=args.anneal_freq)
+    torch.save(output, args.save_path)
