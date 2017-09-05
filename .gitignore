@@ -102,4 +102,5 @@ generative/data
 generative/notebooks
 **.DS_Store
 generative/sketch
+generative/save_states
 ipynb/
