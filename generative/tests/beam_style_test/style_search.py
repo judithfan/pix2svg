@@ -24,14 +24,14 @@ from beamsearch import sample_endpoint_gaussian2d
 
 # tunable parameters
 beam_width = 2
-n_iters = 10
-n_samples = 100
+n_iters = 15
+n_samples = 1000
 use_cuda = torch.cuda.is_available()
 dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 imsize = 512 if use_cuda else 128
-stdev = imsize // 11
+stdev = 25
 content_weight = 1
-style_weight = 1000
+style_weight = 10
 x0, y0 = imsize // 2, imsize // 2
 
 loader = transforms.Compose([
@@ -110,7 +110,8 @@ def train(epoch):
             y_list = copy.deepcopy(y_beam_paths[b])
             x_list[epoch + 1] = x_samples[i]
             y_list[epoch + 1] = y_samples[i]
-            renderer = BresenhamRenderNet(x_list, y_list, imsize=imsize, linewidth=5)
+            renderer = BresenhamRenderNet(x_list[:epoch + 2], y_list[:epoch + 2],
+                                          imsize=imsize, linewidth=5)
             sketch = renderer.forward()
             sketch = torch.cat((sketch, sketch, sketch), dim=1)
             sketch = Variable(sketch, volatile=True)
@@ -151,7 +152,7 @@ def train(epoch):
 
     top_renderer = BresenhamRenderNet(x_list, y_list, imsize=imsize, linewidth=5)
     top_sketch = top_renderer.forward()
-    print('- generated top sketch...')
+    print('- generated top sketch | loss: {}'.format(beam_losses[best_ii]))
 
     return top_sketch
 
