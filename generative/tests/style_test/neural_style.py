@@ -163,7 +163,7 @@ def get_input_param_optimizer(input_img, init_lr=0.1):
 
 
 def run_style_transfer(cnn, content_img, style_img, input_img, num_steps=300,
-                       style_weight=1000, content_weight=1, use_cuda=False, 
+                       style_weight=1000, content_weight=1, use_cuda=False,
                        init_lr=0.1, anneal_freq=100):
     """Run the style transfer."""
     print('Building the style transfer model..')
@@ -176,7 +176,7 @@ def run_style_transfer(cnn, content_img, style_img, input_img, num_steps=300,
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
         if epoch % anneal_freq == 0:
-            print('Learning rate set to {}'.format(lr)) 
+            print('Learning rate set to {}'.format(lr))
 
     print('Optimizing..')
     run = [0]
@@ -187,6 +187,7 @@ def run_style_transfer(cnn, content_img, style_img, input_img, num_steps=300,
             input_param.data.clamp_(0, 1)
 
             optimizer.zero_grad()
+            import pdb; pdb.set_trace()
             model(input_param)
             style_score = 0
             content_score = 0
