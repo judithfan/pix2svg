@@ -13,6 +13,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 import torch.optim as optim
 
+import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 
@@ -267,8 +268,8 @@ if __name__ == '__main__':
     if use_cuda:
         cnn = cnn.cuda()
 
-    input_img = content_img.clone()
-
+    # input_img = content_img.clone()
+    input_img = Variable(torch.rand(style_img.size())).type(dtype)
     output = run_style_transfer(cnn, content_img, style_img, input_img, use_cuda=use_cuda,
                                 num_steps=args.n_iters, style_weight=args.style_weight,
                                 content_weight=args.content_weight, init_lr=args.init_lr,
