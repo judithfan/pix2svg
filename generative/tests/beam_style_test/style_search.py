@@ -24,14 +24,14 @@ from beamsearch import sample_endpoint_gaussian2d
 
 # tunable parameters
 beam_width = 2
-n_iters = 15
+n_iters = 20
 n_samples = 1000
 use_cuda = torch.cuda.is_available()
 dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
-imsize = 512 if use_cuda else 128
+imsize = 256 if use_cuda else 128
 stdev = 25
 content_weight = 1
-style_weight = 10
+style_weight = 1000
 x0, y0 = imsize // 2, imsize // 2
 
 loader = transforms.Compose([
@@ -169,7 +169,7 @@ def save_sketch(sketch, epoch, outfolder='./'):
 print('training beam model...')
 for iter in range(n_iters):
     sketch = train(iter)
-    save_sketch(sketch, iter)
+    save_sketch(sketch, iter, outfolder='./outputs')
 
 print('saving final sketch...')
-save_sketch(sketch, 'final')
+save_sketch(sketch, 'final', outfolder='./outputs')
