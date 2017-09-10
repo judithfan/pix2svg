@@ -54,7 +54,7 @@ class BaseLossTest(object):
 class SingleLayerLossTest(BaseLossTest):
     def __init__(self, layer_name, distance='euclidean', use_cuda=False):
         super(SingleLayerLossTest, self).__init__()
-        cnn = copy.deepcopy(models.vgg19(pretrained=True))
+        cnn = copy.deepcopy(models.vgg19(pretrained=True).features)
         cnn.eval()
         for p in cnn.parameters():
             p.requires_grad = False
@@ -79,9 +79,11 @@ class SingleLayerLossTest(BaseLossTest):
             elif isinstance(layers[i], nn.ReLU):
                 name = 'relu_{group}_{index}'.format(group=pool_i, index=relu_i)
                 relu_i += 1
-            elif isinstance(layer, nn.MaxPool2d):
+            elif isinstance(layers[i], nn.MaxPool2d):
                 name = 'pool_{index}'.format(index=pool_i)
                 pool_i += 1
+                conv_i = 1
+                relu_i = 1
             else:
                 raise Exception('layer {} not recognized'.format(type(layers[i])))
 
@@ -125,6 +127,9 @@ class MultiLayerLossTest(BaseLossTest):
         n = images.size(0)
 
         losses = Variable(torch.zeros(n))
+        if self.use_cuda:
+            losses = losses.cuda()
+
         for i in range(n_layers):
             if isinstance(layers[i], nn.Conv2d):
                 name = 'conv_{group}_{index}'.format(group=pool_i, index=conv_i) 
@@ -149,6 +154,36 @@ class MultiLayerLossTest(BaseLossTest):
                 losses = torch.add(losses, layer_losses)
 
         return losses
+
+
+def cosine_similarity(x1, x2, dim=1, eps=1e-8):
+    r"""Returns cosine similarity between x1 and x2, computed along dim.
+
+    .. math ::
+        \text{similarity} = \dfrac{x_1 \cdot x_2}{\max(\Vert x_1 \Vert _2 \cdot \Vert x_2 \Vert _2, \epsilon)}
+
+    Args:
+        x1 (Variable): First input.
+        x2 (Variable): Second input (of size matching x1).
+        dim (int, optional): Dimension of vectors. Default: 1
+        eps (float, optional): Small value to avoid division by zero.
+            Default: 1e-8
+
+    Shape:
+        - Input: :math:`(\ast_1, D, \ast_2)` where D is at position `dim`.
+        - Output: :math:`(\ast_1, \ast_2)` where 1 is at position `dim`.
+
+    Example::
+
+        >>> input1 = autograd.Variable(torch.randn(100, 128))
+        >>> input2 = autograd.Variable(torch.randn(100, 128))
+        >>> output = F.cosine_similarity(input1, input2)
+        >>> print(output)
+    """
+    w12 = torch.sum(x1 * x2, dim)
+    w1 = torch.norm(x1, 2, dim)
+    w2 = torch.norm(x2, 2, dim)
+    return (w12 / (w1 * w2).clamp(min=eps)).squeeze()
 
 
 def gen_distance(a, b, metric='cosine'):
@@ -186,7 +221,7 @@ def list_files(path, ext='jpg'):
     return result
 
 
-def load_image(path, imsize=256, volatile=True):
+def load_image(path, imsize=256, volatile=True, use_cuda=False):
     im = Image.open(path)
     im = im.convert('RGB')
 
@@ -196,10 +231,12 @@ def load_image(path, imsize=256, volatile=True):
 
     im = Variable(loader(im), volatile=volatile)
     im = im.unsqueeze(0)
+    if use_cuda:
+        im = im.cuda()
     return im
 
 
-def data_generator(imsize=256):
+def data_generator(imsize=256, use_cuda=False):
     photo_dir = '/home/jefan/full_sketchy_dataset/photos'
     sketch_dir = '/home/jefan/full_sketchy_dataset/sketches'
 
@@ -214,8 +251,8 @@ def data_generator(imsize=256):
         photo_filename = sketch_filename.split('-')[0] + '.jpg'
         photo_path = os.path.join(photo_dir, sketch_folder, photo_filename)
 
-        photo = load_image(photo_path, imsize=imsize)
-        sketch = load_image(sketch_path, imsize=imsize)
+        photo = load_image(photo_path, imsize=imsize, use_cuda=use_cuda)
+        sketch = load_image(sketch_path, imsize=imsize, use_cuda=use_cuda)
 
         yield (photo, sketch)
 
@@ -226,22 +263,36 @@ if __name__ == '__main__':
     parser.add_argument('--layer_name', type=str, default='conv_4_2')
     parser.add_argument('--distance', type=str, default='euclidean')
     parser.add_argument('--batch', type=int, default=32)
+    parser.add_argument('--outdir', type=str, default='./outputs')
     args = parser.parse_args()
 
-    generator = data_generator()
+    print('-------------------------')
+    print('Layer Name: {}'.format(args.layer_name))
+    print('Distance: {}'.format(args.distance))
+    print('Batch Size: {}'.format(args.batch))
+    print('-------------------------')
+    print('')
+
     use_cuda = torch.cuda.is_available()
+    generator = data_generator(use_cuda=use_cuda)
     layer_test = SingleLayerLossTest(args.layer_name, distance=args.distance, 
                                      use_cuda=use_cuda)
 
+    b = 0  # number of batches
     n = 0  # number of examples
-    l = 0  # loss
     quit = False
+    loss_list = []
 
     if generator:
         while True:
             photo_batch = Variable(torch.zeros(args.batch, 3, 256, 256))
             sketch_batch = Variable(torch.zeros(args.batch, 3, 256, 256))
-            
+  
+            if use_cuda:
+                photo_batch = photo_batch.cuda()
+                sketch_batch = sketch_batch.cuda()
+
+            print('Batch {} | Examples {}'.format(b + 1, n))
             for b in range(args.batch):
                 try:
                     photo, sketch = generator.next()
@@ -251,13 +302,18 @@ if __name__ == '__main__':
                     quit = True
                     break
 
-            photo_batch = photo_batch[:b]
-            sketch_batch = sketch_batch[:b]
+            photo_batch = photo_batch[:b + 1]
+            sketch_batch = sketch_batch[:b + 1]
 
             losses = layer_test.loss(photo_batch, sketch_batch)
-            l += torch.sum(losses)
-            n += b
+            losses = losses.cpu().data.numpy().flatten()
+            loss_list += losses.tolist()
+            
+            n += (b + 1)
 
             if quit: 
                 break
 
+    loss_list = np.array(loss_list)
+    filename = 'loss_{name}_{distance}.npy'.format(name=args.layer_name, distance=args.distance)
+    np.save(os.path.join(args.outdir, filename), loss_list)
