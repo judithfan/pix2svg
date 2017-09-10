@@ -7,6 +7,7 @@ import copy
 from glob import glob
 import numpy as np
 from PIL import Image
+from copy import deepcopy
 
 import torch
 import torch.nn as nn
@@ -305,6 +306,47 @@ def swapped_generator(imsize=256, use_cuda=False):
         yield (photo, sketch)
 
 
+def perturbed_generator(imsize=256, use_cuda=False, n_perturbations_per_image=5):
+    photo_dir = '/home/jefan/full_sketchy_dataset/photos'
+    photo_paths = list_files(photo_dir, ext='jpg')
+
+    for i in range(len(photo_paths)):
+        photo_path = photo_paths[i]
+        photo = load_image(photo_path, imsize=imsize, use_cuda=use_cuda)
+        
+        for j in range(n_perturbations_per_image):
+            perturbed_photo = add_gaussian_noise(photo, imsize=imsize, std=0.1)
+            yield (photo, perturbed_photo)
+
+
+def add_salt_and_pepper(image, imsize=224, amount=0.01):
+    im = copy.deepcopy(image)
+    
+    num_salt = int(np.ceil(amount * np.prod(im.size()) * s_vs_p))
+    x_noise = np.random.randint(0, imsize, num_salt)
+    y_noise = np.random.randint(0, imsize, num_salt)
+    
+    for x, y in zip(x_noise, y_noise):
+        im[:, x, y] = 0
+
+    num_pepper = int(np.ceil(amount* np.prod(im.size()) * (1. - s_vs_p)))
+    x_noise = np.random.randint(0, imsize, num_pepper)
+    y_noise = np.random.randint(0, imsize, num_pepper)
+    
+    for x, y in zip(x_noise, y_noise):
+        im[:, x, y] = 1
+
+    return im
+
+
+def add_gaussian_noise(image, imsize=224, std=0.1):
+    im = copy.deepcopy(image) 
+    noise = torch.normal(0, torch.ones(imsize * imsize * 3) * std).view((3, imsize, imsize))
+    im = im + noise
+    im = im.clamp(0, 1)
+    return im
+
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
@@ -315,7 +357,7 @@ if __name__ == '__main__':
     parser.add_argument('--datatype', type=str, default='data')
     args = parser.parse_args()
 
-    assert args.datatype in ['data', 'noisy', 'swapped']
+    assert args.datatype in ['data', 'noisy', 'swapped', 'perturbed']
 
     print('-------------------------')
     print('Layer Name: {}'.format(args.layer_name))
@@ -332,6 +374,8 @@ if __name__ == '__main__':
         generator = noisy_generator(use_cuda=use_cuda)
     elif args.datatype == 'swapped':
         generator = swapped_generator(use_cuda=use_cuda)
+    elif args.datatype == 'perturbed':
+        generator = perturbed_generator(use_cuda=use_cuda)
 
     layer_test = SingleLayerLossTest(args.layer_name, distance=args.distance, 
                                      use_cuda=use_cuda)
