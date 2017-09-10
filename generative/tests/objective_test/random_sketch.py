@@ -5,6 +5,8 @@ from __future__ import absolute_import
 import os
 import sys
 sys.path.append('../..')
+
+import numpy as np
 from PIL import Image
 
 import torch
@@ -39,17 +41,25 @@ if __name__ == '__main__':
     photo_dir = '/home/jefan/full_sketchy_dataset/sketches'
     noise_dir = '/home/jefan/full_sketchy_dataset/noise'
 
+    print('-----------------------------------------------')
+    print('Photo Directory: {}'.format(photo_dir))
+    print('Noise Directory: {}'.format(noise_dir))
+    print('-----------------------------------------------')
+
     if not os.path.exists(noise_dir):
         os.makedirs(noise_dir)
+        print('Creating Directory: {}'.format(noise_dir))
 
     photo_class_dirs = os.listdir(photo_dir)
     for class_dir in photo_class_dirs:
         noise_class_path = os.path.join(noise_dir, class_dir)
         if not os.path.exists(noise_class_path):
             os.makedirs(noise_class_path)
+            print('Creating Directory: {}'.format(noise_class_path))
 
 
     for class_dir in photo_class_dirs:
+        print('Creating sketches for class {}'.format(class_dir))
         class_files = os.listdir(os.path.join(photo_dir, class_dir))
 
         for class_file in class_files:

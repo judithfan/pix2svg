@@ -257,6 +257,54 @@ def data_generator(imsize=256, use_cuda=False):
         yield (photo, sketch)
 
 
+def noisy_generator(imsize=256, use_cuda=False):
+    photo_dir = '/home/jefan/full_sketchy_dataset/photos'
+    sketch_dir = '/home/jefan/full_sketchy_dataset/noise'
+
+    photo_paths = list_files(photo_dir, ext='jpg')
+    sketch_paths = list_files(sketch_dir, ext='png')
+
+    for i in range(len(sketch_paths)):
+        sketch_path = sketch_paths[i]
+        sketch_filename = os.path.basename(sketch_path)
+        sketch_folder = os.path.dirname(sketch_path).split('/')[-1]
+
+        photo_filename = sketch_filename.split('-')[0] + '.jpg'
+        photo_path = os.path.join(photo_dir, sketch_folder, photo_filename)
+
+        photo = load_image(photo_path, imsize=imsize, use_cuda=use_cuda)
+        sketch = load_image(sketch_path, imsize=imsize, use_cuda=use_cuda)
+
+        yield (photo, sketch)
+
+
+def swapped_generator(imsize=256, use_cuda=False):
+    photo_dir = '/home/jefan/full_sketchy_dataset/photos'
+    sketch_dir = '/home/jefan/full_sketchy_dataset/sketches'
+
+    photo_paths = list_files(photo_dir, ext='jpg')
+    sketch_paths = list_files(sketch_dir, ext='png')
+    
+    # for each sketch, i'm going to randomly sample a photo that is not 
+    # in the same parent directory (class).
+
+    for i in range(len(sketch_paths)):
+        sketch_path = sketch_paths[i]
+        sketch_filename = os.path.basename(sketch_path)
+        sketch_folder = os.path.dirname(sketch_path).split('/')[-1]
+
+        while True:
+            random_photo_path = np.random.choice(photo_paths)
+            random_photo_folder = os.path.dirname(random_photo_path).split('/')[-1]
+            if random_photo_folder != sketch_folder:
+                break
+
+        photo = load_image(random_photo_path, imsize=imsize, use_cuda=use_cuda)
+        sketch = load_image(sketch_path, imsize=imsize, use_cuda=use_cuda)
+
+        yield (photo, sketch)
+
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
@@ -264,17 +312,27 @@ if __name__ == '__main__':
     parser.add_argument('--distance', type=str, default='euclidean')
     parser.add_argument('--batch', type=int, default=32)
     parser.add_argument('--outdir', type=str, default='./outputs')
+    parser.add_argument('--datatype', type=str, default='data')
     args = parser.parse_args()
+
+    assert args.datatype in ['data', 'noisy', 'swapped']
 
     print('-------------------------')
     print('Layer Name: {}'.format(args.layer_name))
     print('Distance: {}'.format(args.distance))
     print('Batch Size: {}'.format(args.batch))
+    print('Data Type: {}'.format(args.datatype))
     print('-------------------------')
     print('')
 
     use_cuda = torch.cuda.is_available()
-    generator = data_generator(use_cuda=use_cuda)
+    if args.datatype == 'data':
+        generator = data_generator(use_cuda=use_cuda)
+    elif args.datatype == 'noisy':
+        generator = noisy_generator(use_cuda=use_cuda)
+    elif args.datatype == 'swapped':
+        generator = swapped_generator(use_cuda=use_cuda)
+
     layer_test = SingleLayerLossTest(args.layer_name, distance=args.distance, 
                                      use_cuda=use_cuda)
 
