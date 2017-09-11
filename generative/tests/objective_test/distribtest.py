@@ -52,6 +52,64 @@ class BaseLossTest(object):
         return losses
 
 
+def LinearLayerLossTest(BaseLossTest):
+     def __init__(self, layer_name, distance='euclidean', use_cuda=False):
+        super(LinearLayerLossTest, self).__init__()
+        vgg19 = models.vgg19(pretrained=True)
+        cnn = copy.deepcopy(vgg19.features)
+        classifier = copy.deepcopy(vgg19.classifier)
+        
+        cnn.eval()
+        for p in cnn.parameters():
+            p.requires_grad = False
+
+        classifier.eval()
+        for p in classifier.parameters():
+            p.requires_grad = False
+
+        if use_cuda:
+            cnn = cnn.cuda()
+            classifier = classifier.cuda()
+
+        self.cnn = cnn
+        self.classifier = classifier
+        self.layer_name = layer_name
+        self.distance = distance
+        self.use_cuda = use_cuda
+
+    def loss(self, images, sketches):
+        images_emb = self.cnn(images)
+        images_emb = images_emb.view(images_emb.size(0), -1)
+        sketches_emb = self.cnn(sketches)
+        sketches_emb = sketches_emb.view(sketches_emb.size(0), -1)
+
+        layers = list(self.classifier)
+        n_layers = len(layers)
+
+        fc_i = 1
+        relu_i = 1
+        dropout_i = 1
+
+        for i in range(n_layers):
+            if isinstance(layers[i], nn.Linear):
+                name = 'fc_{index}'.format(index=fc_i)
+                fc_i += 1
+            elif isinstance(layers[i], nn.ReLU):
+                name = 'relu_{index}'.format(index=relu_i)
+                relu_i += 1
+            elif isinstance(layers[i], nn.Dropout):
+                name = 'dropout_{index}'.format(index=dropout_i)
+                dropout_i += 1
+            else:
+                raise Exception('layer {} not recognized'.format(type(layers[i])))
+
+            images_emb = layers[i](images_emb)
+            sketches_emb = layers[i](sketches_emb)
+
+            if name == self.layer_name:
+                return gen_distance(images_emb, sketches_emb, metric=self.distance)
+
+
 class SingleLayerLossTest(BaseLossTest):
     def __init__(self, layer_name, distance='euclidean', use_cuda=False):
         super(SingleLayerLossTest, self).__init__()
@@ -341,7 +399,7 @@ def perturbed_generator(imsize=256, use_cuda=False, n_perturbations_per_image=5)
         photo = load_image(photo_path, imsize=imsize, use_cuda=use_cuda)
         
         for j in range(n_perturbations_per_image):
-            perturbed_photo = add_gaussian_noise(photo, imsize=imsize, std=0.1)
+            perturbed_photo = add_gaussian_noise(photo, imsize=imsize, std=0.1, use_cuda=use_cuda)
             yield (photo, perturbed_photo)
 
 
@@ -351,7 +409,6 @@ def add_salt_and_pepper(image, imsize=224, amount=0.01):
     num_salt = int(np.ceil(amount * np.prod(im.size()) * s_vs_p))
     x_noise = np.random.randint(0, imsize, num_salt)
     y_noise = np.random.randint(0, imsize, num_salt)
-    
     for x, y in zip(x_noise, y_noise):
         im[:, x, y] = 0
 
@@ -365,9 +422,13 @@ def add_salt_and_pepper(image, imsize=224, amount=0.01):
     return im
 
 
-def add_gaussian_noise(image, imsize=224, std=0.1):
+def add_gaussian_noise(image, imsize=224, std=0.1, use_cuda=False):
     im = copy.deepcopy(image) 
     noise = torch.normal(0, torch.ones(imsize * imsize * 3) * std).view((3, imsize, imsize))
+    noise = noise.unsqueeze(0)
+    noise = Variable(noise)
+    if use_cuda:
+        noise = noise.cuda()
     im = im + noise
     im = im.clamp(0, 1)
     return im
@@ -381,6 +442,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch', type=int, default=32)
     parser.add_argument('--outdir', type=str, default='./outputs')
     parser.add_argument('--datatype', type=str, default='data')
+    parser.add_argument('--classifier', action='store_true', default=False)
     args = parser.parse_args()
 
     assert args.datatype in ['data', 'noisy', 'swapped', 'perturbed', 'neighbor']
@@ -405,8 +467,13 @@ if __name__ == '__main__':
     elif args.datatype == 'neighbor':
         generator = neighbor_generator(use_cuda=use_cuda)
        
-    layer_test = SingleLayerLossTest(args.layer_name, distance=args.distance, 
-                                     use_cuda=use_cuda)
+
+    if args.classifier:
+        layer_test = LinearLayerLossTest(args.layer_name, distance=args.distance, 
+                                         use_cuda=use_cuda)
+    else:
+        layer_test = SingleLayerLossTest(args.layer_name, distance=args.distance, 
+                                         use_cuda=use_cuda)
 
     b = 0  # number of batches
     n = 0  # number of examples
