@@ -315,7 +315,7 @@ def perturbed_generator(imsize=256, use_cuda=False, n_perturbations_per_image=5)
         photo = load_image(photo_path, imsize=imsize, use_cuda=use_cuda)
         
         for j in range(n_perturbations_per_image):
-            perturbed_photo = add_gaussian_noise(photo, imsize=imsize, std=0.1)
+            perturbed_photo = add_gaussian_noise(photo, imsize=imsize, std=0.1, use_cuda=use_cuda)
             yield (photo, perturbed_photo)
 
 
@@ -325,7 +325,6 @@ def add_salt_and_pepper(image, imsize=224, amount=0.01):
     num_salt = int(np.ceil(amount * np.prod(im.size()) * s_vs_p))
     x_noise = np.random.randint(0, imsize, num_salt)
     y_noise = np.random.randint(0, imsize, num_salt)
-    
     for x, y in zip(x_noise, y_noise):
         im[:, x, y] = 0
 
@@ -339,9 +338,13 @@ def add_salt_and_pepper(image, imsize=224, amount=0.01):
     return im
 
 
-def add_gaussian_noise(image, imsize=224, std=0.1):
+def add_gaussian_noise(image, imsize=224, std=0.1, use_cuda=False):
     im = copy.deepcopy(image) 
     noise = torch.normal(0, torch.ones(imsize * imsize * 3) * std).view((3, imsize, imsize))
+    noise = noise.unsqueeze(0)
+    noise = Variable(noise)
+    if use_cuda:
+        noise = noise.cuda()
     im = im + noise
     im = im.clamp(0, 1)
     return im
