@@ -10,6 +10,7 @@ from sklearn.metrics import accuracy_score
 
 import torch
 import torch.nn as nn
+import torch.optim as optim
 import torch.nn.functional as F
 from torch.autograd import Variable
 
@@ -20,12 +21,13 @@ from distribtest import list_files, load_image
 
 
 class RetrieverNet(nn.Module):
-    def __init__(self):
-        self.fc = nn.Linear(4096, 1250)  # 1,250 classes
+    def __init__(self, n_class):
+        super(RetrieverNet, self).__init__()
+        self.fc = nn.Linear(4096, n_class)
 
     def forward(self, x):
         x = self.fc(x)
-        return F.softmax(x)
+        return F.log_softmax(x)
 
 
 def gen_class_order():
@@ -37,11 +39,14 @@ def gen_class_order():
         sketch_path = sketch_paths[i]
         sketch_folder = os.path.dirname(sketch_path).split('/')[-1] 
         classes.append(sketch_folder)
+    
+    classes = np.array(classes)
+    classes = np.unique(classes)
 
-    return classes
+    return classes.tolist()
 
 
-def gen_airplane_order(path):
+def gen_airplane_order():
     airplane_dir = '/home/jefan/full_sketchy_dataset/photos/airplane'
     return [i for i in os.listdir(airplane_dir) if '.jpg' in i]
 
@@ -65,17 +70,22 @@ def class_generator(imsize=256, use_cuda=False, train=True):
         sketch_folder = os.path.dirname(sketch_path).split('/')[-1]
         
         label_i = class_order.index(sketch_folder)
-        label = Variable(torch.zeros(n_classes))
-        label[label_i] = 1
-        if use_cuda:
-            label = label.cuda()
-
         sketch = load_image(sketch_path, imsize=imsize, use_cuda=use_cuda)
-        yield (sketch, label, sketch_path)
+        yield (sketch, label_i, sketch_path)
+
+
+def class_generator_size(train=True):
+    sketch_dir = '/home/jefan/full_sketchy_dataset/sketches'
+    sketch_paths = list_files(sketch_dir, ext='png')
+    # for training, we will use sketches 1 --> 5
+    if train:
+        sketch_paths = [i for i in sketch_paths if int(i.split('.')[0].split('-')[-1]) <= 5]
+    else:  # test <-- this uses sketches after 5
+        sketch_paths = [i for i in sketch_paths if int(i.split('.')[0].split('-')[-1]) > 5]
+    return len(sketch_paths)
 
 
 def airplane_generator(imsize=256, use_cuda=False, train=True):
-    # todo -- split into train/validation/test set
     sketch_dir = '/home/jefan/full_sketchy_dataset/sketches/airplane'
     sketch_paths = list_files(sketch_dir, ext='png')
     # for training, we will use sketches 1 --> 5
@@ -94,13 +104,19 @@ def airplane_generator(imsize=256, use_cuda=False, train=True):
         photo_filename = sketch_filename.split('-')[0] + '.jpg'
 
         label_i = airplane_order.index(photo_filename)
-        label = Variable(torch.zeros(n_airplanes))
-        label[label_i] = 1
-        if use_cuda:
-            label = label.cuda()
-
         sketch = load_image(sketch_path, imsize=imsize, use_cuda=use_cuda)
         yield (sketch, label)
+
+
+def airplane_generator_size(train=True):
+    sketch_dir = '/home/jefan/full_sketchy_dataset/sketches/airplane'	    
+    sketch_paths = list_files(sketch_dir, ext='png')
+    # for training, we will use sketches 1 --> 5
+    if train:
+        sketch_paths = [i for i in sketch_paths if int(i.split('.')[0].split('-')[-1]) <= 5]
+    else:  # test <-- this uses sketches after 5
+        sketch_paths = [i for i in sketch_paths if int(i.split('.')[0].split('-')[-1]) > 5]
+    return len(sketch_paths)
 
 
 def deactivate(net):
@@ -130,9 +146,9 @@ class AverageMeter(object):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('experiment', type=str, required=True)
+    parser.add_argument('experiment', type=str, help='class|airplane')
     parser.add_argument('--epochs', type=int, default=20)
-    parser.add_argument('--lr', type=int, default=0.01)
+    parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--batch', type=int, default=32)
     parser.add_argument('--log_interval', type=int, default=1)
     parser.add_argument('--cuda', action='store_true', default=False)
@@ -152,20 +168,26 @@ if __name__ == '__main__':
     deactivate(vgg19_features)
     deactivate(vgg19_classifier)
 
-    retriever = RetrieverNet()
+    if args.experiment == 'class':
+        train_generator = class_generator(imsize=224, use_cuda=use_cuda, train=True)
+        test_generator = class_generator(imsize=224, use_cuda=use_cuda, train=False)
+        n_outputs = 125
+        train_generator_size = class_generator_size(train=True)
+	test_generator_size = class_generator_size(train=False)
+    else:
+        train_generator = airplane_generator(imsize=224, use_cuda=use_cuda, train=True)
+        test_generator = airplane_generator(imsize=224, use_cuda=use_cuda, train=False)
+        n_outputs = 100
+	train_generator_size = airplane_generator_size(train=True)
+	test_generator_size = airplane_generator_size(train=False)
 
+    retriever = RetrieverNet(n_outputs)
+    optimizer = optim.Adam(retriever.parameters(), lr=args.lr)
+    
     if use_cuda:
         vgg19_features.cuda()
         vgg19_classifier.cuda()
         retriever.cuda()
-
-    if args.experiment == 'class':
-        train_generator = class_generator(imsize=224, use_cuda=use_cuda, train=True)
-        test_generator = class_generator(imsize=224, use_cuda=use_cuda, train=False)
-    else:
-        train_generator = airplane_generator(imsize=224, use_cuda=use_cuda, train=True)
-        test_generator = airplane_generator(imsize=224, use_cuda=use_cuda, train=False)
-    optimizer = optim.Adam(retriever.parameters(), lr=args.lr)
 
 
     def train(epoch):
@@ -181,11 +203,12 @@ if __name__ == '__main__':
 
                 if use_cuda:
                     sketch_batch = sketch_batch.cuda()
+                    label_batch = label_batch.cuda()
 
                 for b in range(args.batch):
                     try:
                         sketch, label, _ = train_generator.next()
-                        sketch_batch[b] = sketch
+                        sketch_batch[b] = sketch[0]
                         label_batch[b] = label
                     except StopIteration:
                         quit = True
@@ -195,8 +218,10 @@ if __name__ == '__main__':
                 label_batch = label_batch[:b + 1]  
 
                 sketch_batch = vgg19_features(sketch_batch) 
+                sketch_batch = sketch_batch.view(args.batch, -1)
                 sketch_batch = vgg19_classifier(sketch_batch)
-
+                label_batch = label_batch.long()
+    
                 optimizer.zero_grad()
                 output = retriever(sketch_batch)
 
@@ -208,7 +233,7 @@ if __name__ == '__main__':
 
                 if b % args.log_interval == 0:
                     print('Train Epoch: {} [{}/{}]\tLoss: {:.6f}'.format(
-                        epoch, b * sketch_batch.size()[0], '--', loss.data[0]))
+                        epoch, n, train_generator_size, loss.data[0]))
 
                 if quit:
                     break
@@ -233,7 +258,7 @@ if __name__ == '__main__':
                 for b in range(args.batch):
                     try:
                         sketch, label, _ = test_generator.next()
-                        sketch_batch[b] = sketch
+                        sketch_batch[b] = sketch[0]
                         label_batch[b] = label
                     except StopIteration:
                         quit = True
@@ -243,6 +268,7 @@ if __name__ == '__main__':
                 label_batch = label_batch[:b + 1]  
 
                 sketch_batch = vgg19_features(sketch_batch) 
+                sketch_batch = sketch_batch.view(args.batch, -1)
                 sketch_batch = vgg19_classifier(sketch_batch)
 
                 output_batch = retriever(sketch_batch)
@@ -258,7 +284,7 @@ if __name__ == '__main__':
 
                 if b % args.log_interval == 0:
                     print('Test Epoch: {} [{}/{}]\tAcc: {:.6f}'.format(
-                        epoch, b * sketch_batch.size()[0], '--', acc_meter.avg))
+                        epoch, n, test_generator_size, acc_meter.avg))
 
                 if quit:
                     break

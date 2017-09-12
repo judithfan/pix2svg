@@ -24,7 +24,7 @@ from beamsearch import sample_endpoint_gaussian2d
 from distribtest import SingleLayerLossTest
 
 
-beam_width = 2
+beam_width = 5
 n_iters = 40
 n_samples = 2000
 use_cuda = torch.cuda.is_available()
