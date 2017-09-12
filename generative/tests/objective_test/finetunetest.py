@@ -90,9 +90,9 @@ def airplane_generator(imsize=256, use_cuda=False, train=True):
     sketch_paths = list_files(sketch_dir, ext='png')
     # for training, we will use sketches 1 --> 5
     if train:
-        sketch_paths = [i for i in sketch_paths if int(i.split('.')[0].split('-')[-1]) <= 5]
+        sketch_paths = [i for i in sketch_paths if int(i.split('.')[0].split('-')[-1]) <= 6]
     else:  # test <-- this uses sketches after 5 
-        sketch_paths = [i for i in sketch_paths if int(i.split('.')[0].split('-')[-1]) > 5]
+        sketch_paths = [i for i in sketch_paths if int(i.split('.')[0].split('-')[-1]) > 6]
     random.shuffle(sketch_paths)
 
     airplane_order = gen_airplane_order()
@@ -105,7 +105,7 @@ def airplane_generator(imsize=256, use_cuda=False, train=True):
 
         label_i = airplane_order.index(photo_filename)
         sketch = load_image(sketch_path, imsize=imsize, use_cuda=use_cuda)
-        yield (sketch, label)
+        yield (sketch, label_i, sketch_path)
 
 
 def airplane_generator_size(train=True):
@@ -113,9 +113,9 @@ def airplane_generator_size(train=True):
     sketch_paths = list_files(sketch_dir, ext='png')
     # for training, we will use sketches 1 --> 5
     if train:
-        sketch_paths = [i for i in sketch_paths if int(i.split('.')[0].split('-')[-1]) <= 5]
+        sketch_paths = [i for i in sketch_paths if int(i.split('.')[0].split('-')[-1]) <= 6]
     else:  # test <-- this uses sketches after 5
-        sketch_paths = [i for i in sketch_paths if int(i.split('.')[0].split('-')[-1]) > 5]
+        sketch_paths = [i for i in sketch_paths if int(i.split('.')[0].split('-')[-1]) > 6]
     return len(sketch_paths)
 
 
@@ -167,21 +167,19 @@ if __name__ == '__main__':
 
     deactivate(vgg19_features)
     deactivate(vgg19_classifier)
-
+    
     if args.experiment == 'class':
         train_generator = class_generator(imsize=224, use_cuda=use_cuda, train=True)
         test_generator = class_generator(imsize=224, use_cuda=use_cuda, train=False)
-        n_outputs = 125
         train_generator_size = class_generator_size(train=True)
-	test_generator_size = class_generator_size(train=False)
+        test_generator_size = class_generator_size(train=False)
     else:
         train_generator = airplane_generator(imsize=224, use_cuda=use_cuda, train=True)
         test_generator = airplane_generator(imsize=224, use_cuda=use_cuda, train=False)
-        n_outputs = 100
-	train_generator_size = airplane_generator_size(train=True)
-	test_generator_size = airplane_generator_size(train=False)
+        train_generator_size = airplane_generator_size(train=True)
+        test_generator_size = airplane_generator_size(train=False) 
 
-    retriever = RetrieverNet(n_outputs)
+    retriever = RetrieverNet(125 if args.experiment == 'class' else 100)
     optimizer = optim.Adam(retriever.parameters(), lr=args.lr)
     
     if use_cuda:
@@ -242,6 +240,8 @@ if __name__ == '__main__':
                 if quit:
                     break
 
+            return loss_meter.avg
+
 
     def test(epoch):
         retriever.eval()
@@ -280,10 +280,9 @@ if __name__ == '__main__':
 
                 output_batch_np = output_batch.cpu().data.numpy()
                 label_batch_np = label_batch.cpu().data.numpy()
-                output_batch_ix = np.argmax(output_batch_np, dim=1)
-                label_batch_ix = np.argmax(label_batch_np)
+                output_batch_ix = np.argmax(output_batch_np, axis=1)
 
-                acc = accuracy_score(label_batch_ix, output_batch_ix)
+                acc = accuracy_score(label_batch_np, output_batch_ix)
                 acc_meter.update(acc, args.batch)
                 n += (b + 1)
 
@@ -295,8 +294,23 @@ if __name__ == '__main__':
                     break
 
             print('Average Total Accuracy: {}'.format(acc_meter.avg))
+            return acc_meter.avg
 
 
+    best_score = 0
     for epoch in range(1, args.epochs + 1):
-        train(epoch)
-        test(epoch)
+        avg_loss = train(epoch)
+        avg_score = test(epoch)
+
+        if avg_score > best_score:
+            best_score = avg_score
+
+	if args.experiment == 'class':
+            train_generator = class_generator(imsize=224, use_cuda=use_cuda, train=True)
+            test_generator = class_generator(imsize=224, use_cuda=use_cuda, train=False)
+        else:
+            train_generator = airplane_generator(imsize=224, use_cuda=use_cuda, train=True)
+            test_generator = airplane_generator(imsize=224, use_cuda=use_cuda, train=False)
+
+    print('\nBest Accuracy Score: {}'.format(best_score))
+
