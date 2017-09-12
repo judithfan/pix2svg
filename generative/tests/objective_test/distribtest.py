@@ -52,8 +52,8 @@ class BaseLossTest(object):
         return losses
 
 
-def LinearLayerLossTest(BaseLossTest):
-     def __init__(self, layer_name, distance='euclidean', use_cuda=False):
+class LinearLayerLossTest(BaseLossTest):
+    def __init__(self, layer_name, distance='euclidean', use_cuda=False):
         super(LinearLayerLossTest, self).__init__()
         vgg19 = models.vgg19(pretrained=True)
         cnn = copy.deepcopy(vgg19.features)
@@ -457,15 +457,15 @@ if __name__ == '__main__':
 
     use_cuda = torch.cuda.is_available()
     if args.datatype == 'data':
-        generator = data_generator(use_cuda=use_cuda)
+        generator = data_generator(imsize=224, use_cuda=use_cuda)
     elif args.datatype == 'noisy':
-        generator = noisy_generator(use_cuda=use_cuda)
+        generator = noisy_generator(imsize=224, use_cuda=use_cuda)
     elif args.datatype == 'swapped':
-        generator = swapped_generator(use_cuda=use_cuda)
+        generator = swapped_generator(imsize=224, use_cuda=use_cuda)
     elif args.datatype == 'perturbed':
-        generator = perturbed_generator(use_cuda=use_cuda)
+        generator = perturbed_generator(imsize=224, use_cuda=use_cuda)
     elif args.datatype == 'neighbor':
-        generator = neighbor_generator(use_cuda=use_cuda)
+        generator = neighbor_generator(imsize=224, use_cuda=use_cuda)
        
 
     if args.classifier:
@@ -482,8 +482,8 @@ if __name__ == '__main__':
 
     if generator:
         while True:
-            photo_batch = Variable(torch.zeros(args.batch, 3, 256, 256))
-            sketch_batch = Variable(torch.zeros(args.batch, 3, 256, 256))
+            photo_batch = Variable(torch.zeros(args.batch, 3, 224, 224))
+            sketch_batch = Variable(torch.zeros(args.batch, 3, 224, 224))
   
             if use_cuda:
                 photo_batch = photo_batch.cuda()
