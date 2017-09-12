@@ -389,10 +389,11 @@ def neighbor_generator(imsize=256, use_cuda=False):
 
         yield (photo, sketch)        
 
-def sketchvariant_generator(imsize=256, use_cuda=False):
+def sketchspsc_generator(imsize=256, use_cuda=False):
     sketch_dir = '/home/jefan/full_sketchy_dataset/sketches'
     sketch_paths = list_files(sketch_dir, ext='png') 
-    ##This yields, for each sketch, a random other sketch of the SAME PHOTO.
+    ## This yields, for each sketch, a random other sketch of the SAME PHOTO.
+    ## "SPSC" = "same photo, same class"
     
     for i in range(len(sketch_paths)):
         sketch_path = sketch_paths[i]
@@ -410,11 +411,12 @@ def sketchvariant_generator(imsize=256, use_cuda=False):
         
         yield (sketch1, sketch2)                        
 
-def sketchdiff_generator(imsize=256, use_cuda=False):
+def sketchdpsc_generator(imsize=256, use_cuda=False):
     sketch_dir = '/home/jefan/full_sketchy_dataset/sketches'
     sketch_paths = list_files(sketch_dir, ext='png') 
     
-    ##This yields, for each sketch, a random other sketch of a photo from a DIFFERENT CLASS.
+    ## This yields, for each sketch, a random other sketch of a photo from the same CLASS.
+    ## "DPSC" = "different photo, same class"
     
     for i in range(len(sketch_paths)):
         sketch_path = sketch_paths[i]
@@ -432,10 +434,11 @@ def sketchdiff_generator(imsize=256, use_cuda=False):
         
         yield (sketch1, sketch2)
         
-def sketchother_generator(imsize=256, use_cuda=False):
+def sketchdpdc_generator(imsize=256, use_cuda=False):
     sketch_dir = '/home/jefan/full_sketchy_dataset/sketches'
     sketch_paths = list_files(sketch_dir, ext='png') 
-    ##This yields, for each sketch, a random other sketch of a DIFFERENT photo.
+    ## This yields, for each sketch, a random other sketch of a DIFFERENT photo from a DIFFERENT CLASS.
+    ## "DPDC" = "different photo, different class"
     
     for i in range(len(sketch_paths)):
         sketch_path = sketch_paths[i]
@@ -510,7 +513,7 @@ if __name__ == '__main__':
     parser.add_argument('--classifier', action='store_true', default=False)
     args = parser.parse_args()
 
-    assert args.datatype in ['data', 'noisy', 'swapped', 'perturbed', 'neighbor','sketchvariant','sketchdiff','sketchother']
+    assert args.datatype in ['data', 'noisy', 'swapped', 'perturbed', 'neighbor','sketchspsc','sketchdpsc','sketchdpdc']
 
     print('-------------------------')
     print('Layer Name: {}'.format(args.layer_name))
@@ -531,12 +534,12 @@ if __name__ == '__main__':
         generator = perturbed_generator(imsize=224, use_cuda=use_cuda)
     elif args.datatype == 'neighbor':
         generator = neighbor_generator(use_cuda=use_cuda)
-    elif args.datatype == 'sketchvariant':
-        generator = sketchvariant_generator(use_cuda=use_cuda)
-    elif args.datatype == 'sketchdiff':
-        generator = sketchdiff_generator(use_cuda=use_cuda)
-    elif args.datatype == 'sketchother':
-        generator = sketchother_generator(use_cuda=use_cuda)        
+    elif args.datatype == 'sketchspsc':
+        generator = sketchspsc_generator(use_cuda=use_cuda)
+    elif args.datatype == 'sketchdpsc':
+        generator = sketchdpsc_generator(use_cuda=use_cuda)
+    elif args.datatype == 'sketchdpdc':
+        generator = sketchdpdc_generator(use_cuda=use_cuda)        
 
     if args.classifier:
         layer_test = LinearLayerLossTest(args.layer_name, distance=args.distance, 
