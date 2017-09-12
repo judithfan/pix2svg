@@ -53,7 +53,7 @@ class BaseLossTest(object):
 
 
 def LinearLayerLossTest(BaseLossTest):
-     def __init__(self, layer_name, distance='euclidean', use_cuda=False):
+    def __init__(self, layer_name, distance='euclidean', use_cuda=False):
         super(LinearLayerLossTest, self).__init__()
         vgg19 = models.vgg19(pretrained=True)
         cnn = copy.deepcopy(vgg19.features)
@@ -120,7 +120,6 @@ class SingleLayerLossTest(BaseLossTest):
 
         if use_cuda:
             cnn = cnn.cuda()
-
         self.cnn = cnn
         self.layer_name = layer_name
         self.distance = distance
@@ -390,6 +389,72 @@ def neighbor_generator(imsize=256, use_cuda=False):
 
         yield (photo, sketch)        
 
+def sketchvariant_generator(imsize=256, use_cuda=False):
+    sketch_dir = '/home/jefan/full_sketchy_dataset/sketches'
+    sketch_paths = list_files(sketch_dir, ext='png') 
+    ##This yields, for each sketch, a random other sketch of the SAME PHOTO.
+    
+    for i in range(len(sketch_paths)):
+        sketch_path = sketch_paths[i]
+        sketch_filename = os.path.basename(sketch_path)
+        sketch_folder = os.path.dirname(sketch_path).split('/')[-1]   
+        
+        while True: 
+            other_sketches = [i for i in os.listdir(os.path.join(sketch_dir,sketch_folder)) if sketch_filename.split('-')[0] in i]
+            random_other_sketch = np.random.choice(other_sketches)
+            random_other_sketch_path = os.path.join(sketch_dir,sketch_folder,random_other_sketch)
+            if random_other_sketch != sketch_filename:
+                break 
+        sketch1 = load_image(sketch_path, imsize=imsize, use_cuda=use_cuda)
+        sketch2 = load_image(random_other_sketch_path, imsize=imsize, use_cuda=use_cuda)
+        
+        yield (sketch1, sketch2)                        
+
+def sketchdiff_generator(imsize=256, use_cuda=False):
+    sketch_dir = '/home/jefan/full_sketchy_dataset/sketches'
+    sketch_paths = list_files(sketch_dir, ext='png') 
+    
+    ##This yields, for each sketch, a random other sketch of a photo from a DIFFERENT CLASS.
+    
+    for i in range(len(sketch_paths)):
+        sketch_path = sketch_paths[i]
+        sketch_filename = os.path.basename(sketch_path)
+        sketch_folder = os.path.dirname(sketch_path).split('/')[-1]   
+        
+        while True: 
+            other_sketches = [i for i in os.listdir(os.path.join(sketch_dir,sketch_folder)) if sketch_filename.split('-')[0] not in i]
+            random_other_sketch = np.random.choice(other_sketches)
+            random_other_sketch_path = os.path.join(sketch_dir,sketch_folder,random_other_sketch)
+            if random_other_sketch != sketch_filename:
+                break 
+        sketch1 = load_image(sketch_path, imsize=imsize, use_cuda=use_cuda)
+        sketch2 = load_image(random_other_sketch_path, imsize=imsize, use_cuda=use_cuda)
+        
+        yield (sketch1, sketch2)
+        
+def sketchother_generator(imsize=256, use_cuda=False):
+    sketch_dir = '/home/jefan/full_sketchy_dataset/sketches'
+    sketch_paths = list_files(sketch_dir, ext='png') 
+    ##This yields, for each sketch, a random other sketch of a DIFFERENT photo.
+    
+    for i in range(len(sketch_paths)):
+        sketch_path = sketch_paths[i]
+        sketch_filename = os.path.basename(sketch_path)
+        sketch_folder = os.path.dirname(sketch_path).split('/')[-1]   
+        all_classes = np.unique([os.path.dirname(sp).split('/')[-1] for sp in sketch_paths])
+        other_classes = [i for i in all_classes if i not in sketch_folder]
+        
+        # select random other class, then random sketch within that class
+        random_other_class = np.random.choice(other_classes)
+        other_sketches = os.listdir(os.path.join(sketch_dir,random_other_class))
+        random_other_sketch = np.random.choice(other_sketches)
+        random_other_sketch_path = os.path.join(sketch_dir,random_other_class,random_other_sketch)
+  
+        sketch1 = load_image(sketch_path, imsize=imsize, use_cuda=use_cuda)
+        sketch2 = load_image(random_other_sketch_path, imsize=imsize, use_cuda=use_cuda)
+        
+        yield (sketch1, sketch2)                        
+                
 def perturbed_generator(imsize=256, use_cuda=False, n_perturbations_per_image=5):
     photo_dir = '/home/jefan/full_sketchy_dataset/photos'
     photo_paths = list_files(photo_dir, ext='jpg')
@@ -445,7 +510,7 @@ if __name__ == '__main__':
     parser.add_argument('--classifier', action='store_true', default=False)
     args = parser.parse_args()
 
-    assert args.datatype in ['data', 'noisy', 'swapped', 'perturbed', 'neighbor']
+    assert args.datatype in ['data', 'noisy', 'swapped', 'perturbed', 'neighbor','sketchvariant','sketchdiff','sketchother']
 
     print('-------------------------')
     print('Layer Name: {}'.format(args.layer_name))
@@ -466,7 +531,12 @@ if __name__ == '__main__':
         generator = perturbed_generator(use_cuda=use_cuda)
     elif args.datatype == 'neighbor':
         generator = neighbor_generator(use_cuda=use_cuda)
-       
+    elif args.datatype == 'sketchvariant':
+        generator = sketchvariant_generator(use_cuda=use_cuda)
+    elif args.datatype == 'sketchdiff':
+        generator = sketchdiff_generator(use_cuda=use_cuda)
+    elif args.datatype == 'sketchother':
+        generator = sketchother_generator(use_cuda=use_cuda)        
 
     if args.classifier:
         layer_test = LinearLayerLossTest(args.layer_name, distance=args.distance, 
