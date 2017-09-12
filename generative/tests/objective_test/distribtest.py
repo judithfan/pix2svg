@@ -457,7 +457,53 @@ def sketchdpdc_generator(imsize=256, use_cuda=False):
         sketch2 = load_image(random_other_sketch_path, imsize=imsize, use_cuda=use_cuda)
         
         yield (sketch1, sketch2)                        
-                
+
+def photodpsc_generator(imsize=256, use_cuda=False):
+    photo_dir = '/home/jefan/full_sketch_dataset/photos'
+    photo_paths = list_files(photo_dir, ext='jpg') 
+    ## This yields, for each photo, a random other photo from the same class.
+    ## "DPSC" = "different photo, same class"
+    
+    for i in range(len(photo_paths)):
+        photo_path = photo_paths[i]
+        photo_filename = os.path.basename(photo_path)
+        photo_folder = os.path.dirname(photo_path).split('/')[-1]   
+        
+        # get list of remaining photos in this directory
+        other_photos = [i for i in os.listdir(os.path.join(photo_dir,photo_folder)) if i != photo_filename]
+        random_other_photo = np.random.choice(other_photos)
+        random_other_photo_path = os.path.join(photo_dir,photo_folder,random_other_photo)
+            
+        photo1 = load_image(photo_path, imsize=imsize, use_cuda=use_cuda)
+        photo2 = load_image(random_other_photo_path, imsize=imsize, use_cuda=use_cuda)
+        
+        yield (photo1, photo2)   
+        
+def photodpdc_generator(imsize=256, use_cuda=False):
+    photo_dir = '/home/jefan/full_sketch_dataset/photos'
+    photo_paths = list_files(photo_dir, ext='jpg') 
+    ## This yields, for each photo, a photo from a random other class.
+    ## "DPDC" = "different photo, different class"
+    
+    all_classes = np.unique([os.path.dirname(sp).split('/')[-1] for sp in photo_paths])    
+    for i in range(len(photo_paths)):
+        photo_path = photo_paths[i]
+        photo_filename = os.path.basename(photo_path)
+        photo_folder = os.path.dirname(photo_path).split('/')[-1]   
+        other_classes = [i for i in all_classes if i not in photo_folder]  
+        assert len(other_classes)==len(all_classes)-1
+        
+        # get list of remaining photos in this directory
+        random_other_class = np.random.choice(other_classes)
+        other_photos = os.listdir(os.path.join(photo_dir,random_other_class))
+        random_other_photo = np.random.choice(other_photos)
+        random_other_photo_path = os.path.join(photo_dir,random_other_class,random_other_photo)
+            
+        photo1 = load_image(photo_path, imsize=imsize, use_cuda=use_cuda)
+        photo2 = load_image(random_other_photo_path, imsize=imsize, use_cuda=use_cuda)
+        
+        yield (photo1, photo2)         
+    
 def perturbed_generator(imsize=256, use_cuda=False, n_perturbations_per_image=5):
     photo_dir = '/home/jefan/full_sketchy_dataset/photos'
     photo_paths = list_files(photo_dir, ext='jpg')
@@ -513,7 +559,9 @@ if __name__ == '__main__':
     parser.add_argument('--classifier', action='store_true', default=False)
     args = parser.parse_args()
 
-    assert args.datatype in ['data', 'noisy', 'swapped', 'perturbed', 'neighbor','sketchspsc','sketchdpsc','sketchdpdc']
+    assert args.datatype in ['data', 'noisy', 'swapped', 'perturbed', \
+                             'neighbor','sketchspsc','sketchdpsc','sketchdpdc', \
+                            'photodpsc','photodpdc']
 
     print('-------------------------')
     print('Layer Name: {}'.format(args.layer_name))
@@ -525,21 +573,25 @@ if __name__ == '__main__':
 
     use_cuda = torch.cuda.is_available()
     if args.datatype == 'data':
-        generator = data_generator(imsize=224, use_cuda=use_cuda)
+        generator = data_generator(imsize=224, use_cuda=use_cuda) # distance between sketch and target photo
     elif args.datatype == 'noisy':
-        generator = noisy_generator(imsize=224, use_cuda=use_cuda)
+        generator = noisy_generator(imsize=224, use_cuda=use_cuda) 
     elif args.datatype == 'swapped':
-        generator = swapped_generator(imsize=224, use_cuda=use_cuda)
+        generator = swapped_generator(imsize=224, use_cuda=use_cuda) # distance between sketch and photo from different class
     elif args.datatype == 'perturbed':
         generator = perturbed_generator(imsize=224, use_cuda=use_cuda)
     elif args.datatype == 'neighbor':
-        generator = neighbor_generator(use_cuda=use_cuda)
+        generator = neighbor_generator(use_cuda=use_cuda) # distance between sketch and non-target photo from same class
     elif args.datatype == 'sketchspsc':
-        generator = sketchspsc_generator(use_cuda=use_cuda)
+        generator = sketchspsc_generator(use_cuda=use_cuda) # distance between two sketches of same photo
     elif args.datatype == 'sketchdpsc':
-        generator = sketchdpsc_generator(use_cuda=use_cuda)
+        generator = sketchdpsc_generator(use_cuda=use_cuda) # distance between two sketches of different photos from same class
     elif args.datatype == 'sketchdpdc':
-        generator = sketchdpdc_generator(use_cuda=use_cuda)        
+        generator = sketchdpdc_generator(use_cuda=use_cuda) # distance between two sketches of different photos from different classes
+    elif args.datatype == 'photodpsc':
+        generator = photodpsc_generator(use_cuda=use_cuda) # distance between two photos in same class
+    elif args.datatype == 'photodpdc':
+        generator = photodpdc_generator(use_cuda=use_cuda) # distance between two photos in different classes           
 
     if args.classifier:
         layer_test = LinearLayerLossTest(args.layer_name, distance=args.distance, 
