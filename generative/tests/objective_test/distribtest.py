@@ -158,7 +158,7 @@ class SingleLayerLossTest(BaseLossTest):
 class MultiLayerLossTest(BaseLossTest):
     def __init__(self, layer_name_list, distance='euclidean',
                  weight_list=None, use_cuda=False):
-        super(SingleLayerLossTest, self).__init__()
+        super(MultiLayerLossTest, self).__init__()
         assert len(layer_name_list) > 0
         cnn = copy.deepcopy(models.vgg19(pretrained=True))
         cnn.eval()
