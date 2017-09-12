@@ -4,7 +4,9 @@ from __future__ import absolute_import
 
 import os
 import random
+import numpy as np
 from copy import deepcopy
+from sklearn.metrics import accuracy_score
 
 import torch
 import torch.nn as nn
@@ -44,10 +46,14 @@ def gen_airplane_order(path):
     return [i for i in os.listdir(airplane_dir) if '.jpg' in i]
 
 
-def class_test_generator(imsize=256, use_cuda=False):
-    # todo -- split into train/validation/test set
+def class_generator(imsize=256, use_cuda=False, train=True):
     sketch_dir = '/home/jefan/full_sketchy_dataset/sketches'
     sketch_paths = list_files(sketch_dir, ext='png')
+    # for training, we will use sketches 1 --> 5
+    if train:
+        sketch_paths = [i for i in sketch_paths if int(i.split('.')[0].split('-')[-1]) <= 5]
+    else:  # test <-- this uses sketches after 5 
+        sketch_paths = [i for i in sketch_paths if int(i.split('.')[0].split('-')[-1]) > 5]
     random.shuffle(sketch_paths)
 
     class_order = gen_class_order()
@@ -65,13 +71,18 @@ def class_test_generator(imsize=256, use_cuda=False):
             label = label.cuda()
 
         sketch = load_image(sketch_path, imsize=imsize, use_cuda=use_cuda)
-        yield (sketch, label)
+        yield (sketch, label, sketch_path)
 
 
-def airplane_test_generator(imsize=256, use_cuda=False):
+def airplane_generator(imsize=256, use_cuda=False, train=True):
     # todo -- split into train/validation/test set
     sketch_dir = '/home/jefan/full_sketchy_dataset/sketches/airplane'
     sketch_paths = list_files(sketch_dir, ext='png')
+    # for training, we will use sketches 1 --> 5
+    if train:
+        sketch_paths = [i for i in sketch_paths if int(i.split('.')[0].split('-')[-1]) <= 5]
+    else:  # test <-- this uses sketches after 5 
+        sketch_paths = [i for i in sketch_paths if int(i.split('.')[0].split('-')[-1]) > 5]
     random.shuffle(sketch_paths)
 
     airplane_order = gen_airplane_order()
@@ -96,6 +107,24 @@ def deactivate(net):
     net.eval()
     for p in net.parameters():
         p.requires_grad = False
+
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
 
 
 if __name__ == '__main__':
@@ -131,9 +160,11 @@ if __name__ == '__main__':
         retriever.cuda()
 
     if args.experiment == 'class':
-        generator = class_test_generator(imsize=224, use_cuda=use_cuda)
+        train_generator = class_generator(imsize=224, use_cuda=use_cuda, train=True)
+        test_generator = class_generator(imsize=224, use_cuda=use_cuda, train=False)
     else:
-        generator = airplane_test_generator(imsize=224, use_cuda=use_cuda)
+        train_generator = airplane_generator(imsize=224, use_cuda=use_cuda, train=True)
+        test_generator = airplane_generator(imsize=224, use_cuda=use_cuda, train=False)
     optimizer = optim.Adam(retriever.parameters(), lr=args.lr)
 
 
@@ -143,7 +174,7 @@ if __name__ == '__main__':
         n = 0  # number of examples
         quit = False 
 
-        if generator:
+        if train_generator:
             while True:
                 sketch_batch = Variable(torch.zeros(args.batch, 3, 224, 224))
                 label_batch = Variable(torch.zeros(args.batch))
@@ -153,7 +184,7 @@ if __name__ == '__main__':
 
                 for b in range(args.batch):
                     try:
-                        sketch, label = generator.next()
+                        sketch, label, _ = train_generator.next()
                         sketch_batch[b] = sketch
                         label_batch[b] = label
                     except StopIteration:
@@ -183,7 +214,58 @@ if __name__ == '__main__':
                     break
 
 
+    def test(epoch):
+        retriever.eval()
+        b = 0  # number of batches
+        n = 0  # number of examples
+        quit = False 
+
+        acc_meter = AverageMeter()
+
+        if test_generator:
+            while True:
+                sketch_batch = Variable(torch.zeros(args.batch, 3, 224, 224))
+                label_batch = Variable(torch.zeros(args.batch))
+
+                if use_cuda:
+                    sketch_batch = sketch_batch.cuda()
+
+                for b in range(args.batch):
+                    try:
+                        sketch, label, _ = test_generator.next()
+                        sketch_batch[b] = sketch
+                        label_batch[b] = label
+                    except StopIteration:
+                        quit = True
+                        break
+
+                sketch_batch = sketch_batch[:b + 1]
+                label_batch = label_batch[:b + 1]  
+
+                sketch_batch = vgg19_features(sketch_batch) 
+                sketch_batch = vgg19_classifier(sketch_batch)
+
+                output_batch = retriever(sketch_batch)
+
+                output_batch_np = output_batch.cpu().data.numpy()
+                label_batch_np = label_batch.cpu().data.numpy()
+                output_batch_ix = np.argmax(output_batch_np, dim=1)
+                label_batch_ix = np.argmax(label_batch_np)
+
+                acc = accuracy_score(label_batch_ix, output_batch_ix)
+                acc_meter.update(acc, args.batch)
+                n += (b + 1)
+
+                if b % args.log_interval == 0:
+                    print('Test Epoch: {} [{}/{}]\tAcc: {:.6f}'.format(
+                        epoch, b * sketch_batch.size()[0], '--', acc_meter.avg))
+
+                if quit:
+                    break
+
+            print('Average Total Accuracy: {}'.format(acc_meter.avg))
+
+
     for epoch in range(1, args.epochs + 1):
         train(epoch)
-        # todo: add save checkpointing
-
+        test(epoch)
