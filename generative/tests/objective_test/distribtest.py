@@ -157,7 +157,7 @@ class SingleLayerLossTest(BaseLossTest):
 class MultiLayerLossTest(BaseLossTest):
     def __init__(self, layer_name_list, distance='euclidean',
                  weight_list=None, use_cuda=False):
-        super(MultiLayerLossTest, self).__init__()
+        super(SingleLayerLossTest, self).__init__()
         assert len(layer_name_list) > 0
         cnn = copy.deepcopy(models.vgg19(pretrained=True))
         cnn.eval()
@@ -215,7 +215,7 @@ class MultiLayerLossTest(BaseLossTest):
 
 
 def cosine_similarity(x1, x2, dim=1, eps=1e-8):
-    r"""Returns cosine similarity between x1 and x2, computed along dim.
+    """Returns cosine similarity between x1 and x2, computed along dim.
 
     .. math ::
         \text{similarity} = \dfrac{x_1 \cdot x_2}{\max(\Vert x_1 \Vert _2 \cdot \Vert x_2 \Vert _2, \epsilon)}
@@ -459,7 +459,7 @@ def sketchdpdc_generator(imsize=256, use_cuda=False):
         yield (sketch1, sketch2)                        
 
 def photodpsc_generator(imsize=256, use_cuda=False):
-    photo_dir = '/home/jefan/full_sketch_dataset/photos'
+    photo_dir = '/home/jefan/full_sketchy_dataset/photos'
     photo_paths = list_files(photo_dir, ext='jpg') 
     ## This yields, for each photo, a random other photo from the same class.
     ## "DPSC" = "different photo, same class"
@@ -480,7 +480,7 @@ def photodpsc_generator(imsize=256, use_cuda=False):
         yield (photo1, photo2)   
         
 def photodpdc_generator(imsize=256, use_cuda=False):
-    photo_dir = '/home/jefan/full_sketch_dataset/photos'
+    photo_dir = '/home/jefan/full_sketchy_dataset/photos'
     photo_paths = list_files(photo_dir, ext='jpg') 
     ## This yields, for each photo, a photo from a random other class.
     ## "DPDC" = "different photo, different class"
@@ -490,7 +490,7 @@ def photodpdc_generator(imsize=256, use_cuda=False):
         photo_path = photo_paths[i]
         photo_filename = os.path.basename(photo_path)
         photo_folder = os.path.dirname(photo_path).split('/')[-1]   
-        other_classes = [i for i in all_classes if i not in photo_folder]  
+        other_classes = [i for i in all_classes if i != photo_folder]  
         assert len(other_classes)==len(all_classes)-1
         
         # get list of remaining photos in this directory
@@ -560,8 +560,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     assert args.datatype in ['data', 'noisy', 'swapped', 'perturbed', \
-                             'neighbor','sketchspsc','sketchdpsc','sketchdpdc', \
-                            'photodpsc','photodpdc']
+                             'neighbor','sketchspsc','sketchdpsc','sketchdpdc','photodpsc','photodpdc']
 
     print('-------------------------')
     print('Layer Name: {}'.format(args.layer_name))
@@ -581,17 +580,17 @@ if __name__ == '__main__':
     elif args.datatype == 'perturbed':
         generator = perturbed_generator(imsize=224, use_cuda=use_cuda)
     elif args.datatype == 'neighbor':
-        generator = neighbor_generator(use_cuda=use_cuda) # distance between sketch and non-target photo from same class
+        generator = neighbor_generator(imsize=224, use_cuda=use_cuda) # distance between sketch and non-target photo from same class
     elif args.datatype == 'sketchspsc':
-        generator = sketchspsc_generator(use_cuda=use_cuda) # distance between two sketches of same photo
+        generator = sketchspsc_generator(imsize=224, use_cuda=use_cuda) # distance between two sketches of same photo
     elif args.datatype == 'sketchdpsc':
-        generator = sketchdpsc_generator(use_cuda=use_cuda) # distance between two sketches of different photos from same class
+        generator = sketchdpsc_generator(imsize=224, use_cuda=use_cuda) # distance between two sketches of different photos from same class
     elif args.datatype == 'sketchdpdc':
-        generator = sketchdpdc_generator(use_cuda=use_cuda) # distance between two sketches of different photos from different classes
+        generator = sketchdpdc_generator(imsize=224, use_cuda=use_cuda) # distance between two sketches of different photos from different classes
     elif args.datatype == 'photodpsc':
-        generator = photodpsc_generator(use_cuda=use_cuda) # distance between two photos in same class
+        generator = photodpsc_generator(imsize=224, use_cuda=use_cuda) # distance between two photos in same class
     elif args.datatype == 'photodpdc':
-        generator = photodpdc_generator(use_cuda=use_cuda) # distance between two photos in different classes           
+        generator = photodpdc_generator(imsize=224, use_cuda=use_cuda) # distance between two photos in different classes           
 
     if args.classifier:
         layer_test = LinearLayerLossTest(args.layer_name, distance=args.distance, 
