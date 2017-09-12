@@ -31,7 +31,7 @@ class BaseLossTest(object):
         of the (image, sketch).
 
         :param images: torch Variable
-        :param sketches: torch Variable
+        :param sketches: torch Variable 
         :return: torch Tensor of distances
         """
         n = images.size(0)
@@ -52,8 +52,8 @@ class BaseLossTest(object):
         return losses
 
 
-def LinearLayerLossTest(BaseLossTest):
-     def __init__(self, layer_name, distance='euclidean', use_cuda=False):
+class LinearLayerLossTest(BaseLossTest):
+    def __init__(self, layer_name, distance='euclidean', use_cuda=False):
         super(LinearLayerLossTest, self).__init__()
         vgg19 = models.vgg19(pretrained=True)
         cnn = copy.deepcopy(vgg19.features)
@@ -363,6 +363,32 @@ def swapped_generator(imsize=256, use_cuda=False):
 
         yield (photo, sketch)
 
+def neighbor_generator(imsize=256, use_cuda=False):
+    photo_dir = '/home/jefan/full_sketchy_dataset/photos'
+    sketch_dir = '/home/jefan/full_sketchy_dataset/sketches'
+
+#     photo_paths = list_files(photo_dir, ext='jpg')
+    sketch_paths = list_files(sketch_dir, ext='png')
+    
+    for i in range(len(sketch_paths)):
+        sketch_path = sketch_paths[i]
+        sketch_filename = os.path.basename(sketch_path)
+        sketch_folder = os.path.dirname(sketch_path).split('/')[-1]        
+    
+        ## sample a different photo from the same class 
+        matching_photo = sketch_filename.split('-')[0] + '.jpg'
+        matching_photo_path = os.path.join(photo_dir,sketch_folder,matching_photo)   
+        photo_class = os.path.join(photo_dir,sketch_folder)            
+        while True:                        
+            _random_photo_path = np.random.choice(os.listdir(photo_class))
+            random_photo_path = os.path.join(photo_class,_random_photo_path)
+            if _random_photo_path != sketch_filename:
+                break
+
+        photo = load_image(random_photo_path, imsize=imsize, use_cuda=use_cuda)
+        sketch = load_image(sketch_path, imsize=imsize, use_cuda=use_cuda)
+
+        yield (photo, sketch)        
 
 def perturbed_generator(imsize=256, use_cuda=False, n_perturbations_per_image=5):
     photo_dir = '/home/jefan/full_sketchy_dataset/photos'
@@ -419,7 +445,7 @@ if __name__ == '__main__':
     parser.add_argument('--classifier', action='store_true', default=False)
     args = parser.parse_args()
 
-    assert args.datatype in ['data', 'noisy', 'swapped', 'perturbed']
+    assert args.datatype in ['data', 'noisy', 'swapped', 'perturbed', 'neighbor']
 
     print('-------------------------')
     print('Layer Name: {}'.format(args.layer_name))
@@ -431,13 +457,16 @@ if __name__ == '__main__':
 
     use_cuda = torch.cuda.is_available()
     if args.datatype == 'data':
-        generator = data_generator(use_cuda=use_cuda)
+        generator = data_generator(imsize=224, use_cuda=use_cuda)
     elif args.datatype == 'noisy':
-        generator = noisy_generator(use_cuda=use_cuda)
+        generator = noisy_generator(imsize=224, use_cuda=use_cuda)
     elif args.datatype == 'swapped':
-        generator = swapped_generator(use_cuda=use_cuda)
+        generator = swapped_generator(imsize=224, use_cuda=use_cuda)
     elif args.datatype == 'perturbed':
-        generator = perturbed_generator(use_cuda=use_cuda)
+        generator = perturbed_generator(imsize=224, use_cuda=use_cuda)
+    elif args.datatype == 'neighbor':
+        generator = neighbor_generator(imsize=224, use_cuda=use_cuda)
+       
 
     if args.classifier:
         layer_test = LinearLayerLossTest(args.layer_name, distance=args.distance, 
@@ -453,8 +482,8 @@ if __name__ == '__main__':
 
     if generator:
         while True:
-            photo_batch = Variable(torch.zeros(args.batch, 3, 256, 256))
-            sketch_batch = Variable(torch.zeros(args.batch, 3, 256, 256))
+            photo_batch = Variable(torch.zeros(args.batch, 3, 224, 224))
+            sketch_batch = Variable(torch.zeros(args.batch, 3, 224, 224))
   
             if use_cuda:
                 photo_batch = photo_batch.cuda()
@@ -482,6 +511,8 @@ if __name__ == '__main__':
             if quit: 
                 break
 
+    if not os.path.exists(args.outdir):
+        os.makedirs(args.outdir)
     loss_list = np.array(loss_list)
-    filename = 'loss_{name}_{distance}.npy'.format(name=args.layer_name, distance=args.distance)
+    filename = 'loss_{name}_{distance}_{datatype}.npy'.format(name=args.layer_name, distance=args.distance,datatype=args.datatype)
     np.save(os.path.join(args.outdir, filename), loss_list)
