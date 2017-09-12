@@ -196,6 +196,8 @@ if __name__ == '__main__':
         n = 0  # number of examples
         quit = False 
 
+        loss_meter = AverageMeter()
+
         if train_generator:
             while True:
                 sketch_batch = Variable(torch.zeros(args.batch, 3, 224, 224))
@@ -218,22 +220,24 @@ if __name__ == '__main__':
                 label_batch = label_batch[:b + 1]  
 
                 sketch_batch = vgg19_features(sketch_batch) 
-                sketch_batch = sketch_batch.view(args.batch, -1)
+                sketch_batch = sketch_batch.view(sketch_batch.size(0), -1)
                 sketch_batch = vgg19_classifier(sketch_batch)
                 label_batch = label_batch.long()
     
                 optimizer.zero_grad()
-                output = retriever(sketch_batch)
+                output_batch = retriever(sketch_batch)
 
-                loss = F.nll_loss(output, label_batch)
+                loss = F.nll_loss(output_batch, label_batch)
                 loss.backward()
                 optimizer.step()
+
+                loss_meter.update(loss.data[0], sketch_batch.size(0))
 
                 n += (b + 1)
 
                 if b % args.log_interval == 0:
                     print('Train Epoch: {} [{}/{}]\tLoss: {:.6f}'.format(
-                        epoch, n, train_generator_size, loss.data[0]))
+                        epoch, n, train_generator_size, loss_meter.avg))
 
                 if quit:
                     break
@@ -268,8 +272,9 @@ if __name__ == '__main__':
                 label_batch = label_batch[:b + 1]  
 
                 sketch_batch = vgg19_features(sketch_batch) 
-                sketch_batch = sketch_batch.view(args.batch, -1)
+                sketch_batch = sketch_batch.view(sketch_batch.size(0), -1)
                 sketch_batch = vgg19_classifier(sketch_batch)
+                label_batch = label_batch.long()
 
                 output_batch = retriever(sketch_batch)
 
