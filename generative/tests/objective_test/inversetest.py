@@ -7,6 +7,8 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
+import os
+import copy
 import numpy as np
 from PIL import Image
 
@@ -23,12 +25,11 @@ from distribtest import SingleLayerLossTest
 
 
 beam_width = 2
-n_iters = 20
-n_samples = 1000
+n_iters = 40
+n_samples = 2000
 use_cuda = torch.cuda.is_available()
-dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 imsize = 224
-stdev = 25
+stdev = 10
 x0, y0 = imsize // 2, imsize // 2
 
 # for loss we will use the conv_4_2 layer
@@ -46,7 +47,7 @@ preprocessing = transforms.Compose([
                          [0.229, 0.224, 0.225])])
 
 photo = Variable(preprocessing(photo).unsqueeze(0))
-if args.cuda:
+if use_cuda:
     photo = photo.cuda()
 
 x_beam_queue = np.ones(beam_width) * x0
@@ -90,7 +91,7 @@ def train(epoch):
             sketch = Variable(sketch, volatile=True)
             if use_cuda:
                 sketch = sketch.cuda()
-            loss = evaluator.loss(model, sketch) 
+            loss = evaluator.loss(photo, sketch) 
             # make inverse
             loss = loss * -1.0
             losses[i] = float(loss.cpu().data.numpy()[0])
@@ -144,7 +145,7 @@ def save_sketch(sketch, epoch, outfolder='./'):
 print('training beam model...')
 for iter in range(n_iters):
     sketch = train(iter)
-    save_sketch(sketch, iter, outfolder='./outputs')
+    save_sketch(sketch, iter, outfolder='./outputs_inverse')
 
 print('saving final sketch...')
-save_sketch(sketch, 'final', outfolder='./outputs')
+save_sketch(sketch, 'final', outfolder='./outputs_inverse')
