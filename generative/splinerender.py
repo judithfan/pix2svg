@@ -5,11 +5,14 @@ from __future__ import absolute_import
 
 import sys
 import copy
+import math
 import numpy as np
 
 
 import torch
 import torch.nn as nn
+
+from linerender import gen_euclidean_distance
 
 
 class SplineRenderNet(nn.Module):
@@ -139,7 +142,7 @@ def draw_spline(x0, y0, x1, y1, x2, y2, imsize=224, fuzz=1.0, use_cuda=False):
     # unlike line, with splines we don't need to worry about x0 and x2
     # being along the same axis. we also don't need to worry about being
     # out of the splines range.
-    xp1, yp1 = find_closest_point_on_spline(x0, y0, x1, y1, xp0, yp0)
+    xp1, yp1 = find_closest_point_on_spline(x0, y0, x1, y1, x2, y2, xp0, yp0)
     d = gen_euclidean_distance(xp0, yp0, xp1, yp1)
     d = torch.pow(d, fuzz)  # scale the differences
     template = d.view(imsize, imsize)
@@ -203,29 +206,31 @@ def find_closest_point_on_spline(x0, y0, x1, y1, x2, y2, xp, yp):
                 break
 
             root = solution[:, i]
-            root_not_nan = root[ix_not_nan[:, i]]
-
-            ix_ge_0 = root_not_nan >= 0
-            ix_le_1 = root_not_nan <= 1
-            ix_ge_not_nan_gt_0_le_1 = ix_ge_0 + ix_le_1 + ix_not_nan[:, i]
-            ix_ge_not_nan_gt_0_le_1 = ix_ge_not_nan_gt_0_le_1 == 3
+            ix_ge_0 = root >= 0.  # |sum(ix_not_nan[:, i])|
+            ix_le_1 = root <= 1.  # |sum(ix_not_nan[:, i])| 
+            ix_ge_0_le_1 = ix_ge_0 + ix_le_1  # by default, this will be not nan
+            ix_ge_0_le_1 = ix_ge_0_le_1 == 2
             
-            if sum(ix_ge_not_nan_gt_0_le_1) > 0:
-                root_ge_not_nan_gt_0_le_1 = root[ix_ge_not_nan_gt_0_le_1]
-                pos_x, pos_y = get_position(x0, y0, x1, y1, x2, y2,
-                                            root_ge_not_nan_gt_0_le_1)
-                dist = euclidean_dist(xp, yp, pos_x, pos_y)
+            if sum(ix_ge_0_le_1) > 0:
+                root_ge_0_le_1 = root[ix_ge_0_le_1]
+                pos_x, pos_y = get_position(x0[ix_ge_0_le_1], y0[ix_ge_0_le_1], 
+                                            x1[ix_ge_0_le_1], y1[ix_ge_0_le_1], 
+                                            x2[ix_ge_0_le_1], y2[ix_ge_0_le_1],
+                                            root_ge_0_le_1)
+                # |pos_x| = |sum(ix_ge_0_le_1)|
+                # |pos_y| = |sum(ix_ge_0_le_1)|
+                dist = euclidean_dist(xp[ix_ge_0_le_1], yp[ix_ge_0_le_1], pos_x, pos_y)
+                # |dist| = |sum(ix_ge_0_le_1)|
                 
-                ix_best = dist < dist_min[ix_ge_not_nan_gt_0_le_1]
+                ix_best = dist < dist_min[ix_ge_0_le_1]
                 if sum(ix_best) > 0:
                     # ix_update is equiv. to ix_best but |ix_update| = |dist_min|
-                    # where |ix_best| = |ix_ge_not_nan_gt_0_le_1|
-                    ix_update = ix_ge_not_nan_gt_0_le_1
-                    ix_update[ix_best] = 1
-                    ix_update[1 - ix_best] = 0
+                    # where |ix_best| = |ix_ge_0_le_1|
+                    ix_update = copy.deepcopy(ix_ge_0_le_1)
+                    ix_update[ix_update == 1] = ix_best
 
                     dist_min[ix_update] = dist[ix_best]
-                    t_min[ix_update] = root_ge_not_nan_gt_0_le_1[ix_best]
+                    t_min[ix_update] = root_ge_0_le_1[ix_best]
                     pos_min_x[ix_update] = pos_x[ix_best]
                     pos_min_y[ix_update] = pos_y[ix_best]
         
@@ -350,9 +355,9 @@ def _solve_cubic_polynomial(a, b, c, d, eps=0.0000001):
     if sum(ix_D_lt_neps) > 0:
         u_D_lt_neps = 2 * torch.sqrt(-p[ix_D_lt_neps] / 3.)
         v_D_lt_neps = torch.acos(-torch.sqrt(-27. / p3[ix_D_lt_neps]) * q[ix_D_lt_neps] / 2.) / 3.
-        root1 = u * torch.cos(v_D_lt_neps) + offset[ix_D_lt_neps]
-        root2 = u * torch.cos(v_D_lt_neps + 2 * math.pi / 3.) + offset[ix_D_lt_neps]
-        root3 = u * torch.cos(v_D_lt_neps + 4 * math.pi / 3.) + offset[ix_D_lt_neps]
+        root1 = u_D_lt_neps * torch.cos(v_D_lt_neps) + offset[ix_D_lt_neps]
+        root2 = u_D_lt_neps * torch.cos(v_D_lt_neps + 2 * math.pi / 3.) + offset[ix_D_lt_neps]
+        root3 = u_D_lt_neps * torch.cos(v_D_lt_neps + 4 * math.pi / 3.) + offset[ix_D_lt_neps]
 
         roots[:, 0][ix_D_lt_neps] = root1
         roots[:, 1][ix_D_lt_neps] = root2
@@ -374,8 +379,8 @@ def _solve_cubic_polynomial(a, b, c, d, eps=0.0000001):
 
         root1 = 2 * u_D_near_0 + offset[ix_D_near_0]
         root2 = -u_D_near_0 + offset[ix_D_near_0]
-        roots[:, 0][ix_D_near_0] = roots1
-        roots[:, 1][ix_D_near_0] = roots2
+        roots[:, 0][ix_D_near_0] = root1
+        roots[:, 1][ix_D_near_0] = root2
 
     return roots
 
