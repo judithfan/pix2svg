@@ -32,10 +32,12 @@ class SplineRenderNet(nn.Module):
     :param fuzz: hyperparameter to scale differences; fuzz > 1 would
                  localize around the line; fuzz < 1 would make things
                  more uniform.
+    :param normalize: if True, the template will be scaled 0 and 1
     :param use_cuda: make variables using cuda
     :return template: imsize by imsize rendered sketch
     """
-    def __init__(self, x0, y0, x1, y1, x2, y2, imsize=224, fuzz=1, use_cuda=False):
+    def __init__(self, x0, y0, x1, y1, x2, y2, imsize=224, fuzz=1,
+                 normalize=True, use_cuda=False):
         super(SplineRenderNet, self).__init__()
         if use_cuda:
             self.x0 = Variable(torch.cuda.FloatTensor([x0]))
@@ -53,12 +55,17 @@ class SplineRenderNet(nn.Module):
             self.y1 = Parameter(torch.FloatTensor([y2]))
         self.imsize = imsize
         self.fuzz = fuzz
+        self.normalize = normalize
         self.use_cuda = use_cuda
 
     def forward(self):
         template = draw_spline(self.x0, self.y0, self.x1, self.y1, self.x2, self.y2,
                                imsize=self.imsize, fuzz=self.fuzz,
                                use_cuda=self.use_cuda)
+        if self.normalize:
+            template_min = torch.min(template)
+            template_max = torch.max(template)
+            template = (template - template_min) / (template_max - template_min)
         template = torch.unsqueeze(template, dim=0)
         template = torch.unsqueeze(template, dim=0)
 
