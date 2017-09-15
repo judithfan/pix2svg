@@ -6,8 +6,6 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
-from distribtest import data_generator
-
 import os
 import sys
 
@@ -17,8 +15,7 @@ import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 
 from torch.autograd import Variable
-from distribtest import data_generator
-from distribtest import list_files, load_image
+from generators import *
 
 
 class TranslationTransformNet(nn.Module):
@@ -97,36 +94,6 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def data_generator(imsize=256, train=True, use_cuda=False):
-    photo_dir = '/home/jefan/full_sketchy_dataset/photos'
-    sketch_dir = '/home/jefan/full_sketchy_dataset/sketches'
-
-    categories = os.listdir(sketch_dir)
-    n_categories = len(categories)
-    if train:
-        categories = categories[:int(n_categories * 0.8)]
-    else:
-        categories = categories[int(n_categories * 0.8):]
-
-    photo_paths = [path for path in list_files(photo_dir, ext='jpg') 
-                   if os.path.dirname(path).split('/')[-1] in categories]
-    sketch_paths = [path for path in list_files(sketch_dir, ext='png') 
-                   if os.path.dirname(path).split('/')[-1] in categories]
-
-    for i in range(len(sketch_paths)):
-        sketch_path = sketch_paths[i]
-        sketch_filename = os.path.basename(sketch_path)
-        sketch_folder = os.path.dirname(sketch_path).split('/')[-1]
-
-        photo_filename = sketch_filename.split('-')[0] + '.jpg'
-        photo_path = os.path.join(photo_dir, sketch_folder, photo_filename)
-
-        photo = load_image(photo_path, imsize=imsize, use_cuda=use_cuda)
-        sketch = load_image(sketch_path, imsize=imsize, use_cuda=use_cuda)
-
-        yield (photo, sketch)
-
-
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
     torch.save(state, filename)
     if is_best:
@@ -170,8 +137,8 @@ if __name__ == '__main__':
     args.cuda = args.cuda and torch.cuda.is_available()
     assert args.net in ['translation', 'affine', 'mlp']
 
-    train_generator = data_generator(imsize=224, train=True, use_cuda=use_cuda)
-    test_generator = data_generator(imsize=224, train=False, use_cuda=use_cuda)
+    train_generator = train_test_generator(imsize=224, train=True, use_cuda=use_cuda)
+    test_generator = train_test_generator(imsize=224, train=False, use_cuda=use_cuda)
     n_data = len(list_files('/home/jefan/full_sketchy_dataset/sketches', ext='png'))
 
     if args.net == 'translation':

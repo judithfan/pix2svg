@@ -22,17 +22,9 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import torchvision.models as models
 
-from distribtest import load_image
-from distribtest import (data_generator,
-                         noisy_generator,
-                         swapped_generator,
-                         perturbed_generator,
-                         neighbor_generator,
-                         sketchspsc_generator,
-                         sketchdpsc_generator,
-                         sketchdpdc_generator,
-                         photodpsc_generator,
-                         photodpdc_generator)
+from generators import *
+from distribtest import BaseLossTest
+from distribtest import gen_distance
 
 
 class StyleTransferLossTest(BaseLossTest):
@@ -55,10 +47,10 @@ class StyleTransferLossTest(BaseLossTest):
         self.use_cuda = use_cuda
 
     def loss(self, images, sketches, style_image):
-        layers = list(self.cnn):
+        layers = list(self.cnn)
         n_layers = len(layers)
         n = images.size(0)
-        conv_i = 1
+        conv_i, pool_i = 1, 1
 
         style_image = style_image.expand_as(images)
 
@@ -72,14 +64,16 @@ class StyleTransferLossTest(BaseLossTest):
             if isinstance(layers[i], nn.Conv2d):
                 name = 'conv_{group}_{index}'.format(group=pool_i, index=conv_i) 
                 conv_i += 1
+            elif isinstance(layers[i], nn.MaxPool2d):
+                pool_i += 1
 
             images = layers[i](images)
             sketches = layers[i](sketches)
             style_image = layers[i](style_image)
 
             if name in ['conv_1_1', 'conv_2_1', 'conv_3_1', 'conv_4_1', 'conv_5_1']:
-                sketches_g = gram(sketches.clone()) * self.style_weight
-                style_image_g = gram(style_image.clone()) * self.style_weight
+                sketches_g = self.gram(sketches.clone()) * self.style_weight
+                style_image_g = self.gram(style_image.clone()) * self.style_weight
                 losses = gen_distance(sketches_g.view(n, -1), style_image_g.view(n, -1), 
                                       metric='euclidean')
                 style_losses = torch.add(style_losses, losses)
@@ -96,6 +90,7 @@ class StyleTransferLossTest(BaseLossTest):
 
 class GramMatrix(nn.Module):
     def __init__(self, diagonal_only=False):
+        super(GramMatrix, self).__init__()
         self.diagonal_only = diagonal_only
 
     def forward(self, input):
@@ -124,6 +119,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('style_image_path', type=str, help='path to style image')
+    parser.add_argument('style_image_class', type=str, help='ignore all examples in dataset with same class')
     parser.add_argument('--batch', type=int, default=32)
     parser.add_argument('--style_weight', type=float, default=1000.0)
     parser.add_argument('--content_weight', type=float, default=1.0)
@@ -140,16 +136,18 @@ if __name__ == '__main__':
     print('Batch Size: {}'.format(args.batch))
     print('Output Directory: {}'.format(args.outdir))
     print('Data Type: {}'.format(args.datatype))
+    print('Style Image Path: {}'.format(args.style_image_path))
+    print('Style Image Class: {}'.format(args.style_image_class))
     print('-------------------------')
     print('')
 
     use_cuda = torch.cuda.is_available()
     if args.datatype == 'data':
-        generator = data_generator(imsize=224, use_cuda=use_cuda) # distance between sketch and target photo
+        generator = data_generator(imsize=224, ignore_class=args.style_image_class, use_cuda=use_cuda) # distance between sketch and target photo
     elif args.datatype == 'noisy':
-        generator = noisy_generator(imsize=224, use_cuda=use_cuda) 
+        generator = noisy_generator(imsize=224, ignore_class=args.style_image_class, use_cuda=use_cuda) # distance between sketch and randomly generatored lines 
     elif args.datatype == 'swapped':
-        generator = swapped_generator(imsize=224, use_cuda=use_cuda) # distance between sketch and photo from different class
+        generator = swapped_generator(imsize=224, ignore_class=args.style_image_class, use_cuda=use_cuda) # distance between sketch and photo from different class
     elif args.datatype == 'perturbed':
         generator = perturbed_generator(imsize=224, use_cuda=use_cuda)
     elif args.datatype == 'neighbor':
