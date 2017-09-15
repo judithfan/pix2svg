@@ -17,6 +17,7 @@ from torch.autograd import Variable
 
 import torchvision.models as models
 import torchvision.transforms as transforms
+from affinetest import load_checkpoint
 
 
 class BaseLossTest(object):
@@ -558,6 +559,8 @@ if __name__ == '__main__':
     parser.add_argument('--outdir', type=str, default='./outputs')
     parser.add_argument('--datatype', type=str, default='data')
     parser.add_argument('--classifier', action='store_true', default=False)
+    parser.add_argument('--translator', action='store_true', default=False)
+    parser.add_argument('--translator_path', type=str, default='./')
     args = parser.parse_args()
 
     assert args.datatype in ['data', 'noisy', 'swapped', 'perturbed', \
@@ -567,7 +570,12 @@ if __name__ == '__main__':
     print('Layer Name: {}'.format(args.layer_name))
     print('Distance: {}'.format(args.distance))
     print('Batch Size: {}'.format(args.batch))
+    print('Out Directory: {}'.format(args.outdir))
     print('Data Type: {}'.format(args.datatype))
+    print('Using Classifier: {}'.format(args.classifier))
+    print('Using Translator: {}'.format(args.translator))
+    if args.translator:
+        print('Translator Path: {}'.format(args.translator_path))
     print('-------------------------')
     print('')
 
@@ -600,6 +608,10 @@ if __name__ == '__main__':
         layer_test = SingleLayerLossTest(args.layer_name, distance=args.distance, 
                                          use_cuda=use_cuda)
 
+    if args.translator:
+        image2sketch = load_checkpoint(args.translator_path)
+        image2sketch.eval()
+
     b = 0  # number of batches
     n = 0  # number of examples
     quit = False
@@ -607,8 +619,8 @@ if __name__ == '__main__':
 
     if generator:
         while True:
-            photo_batch = Variable(torch.zeros(args.batch, 3, 224, 224))
-            sketch_batch = Variable(torch.zeros(args.batch, 3, 224, 224))
+            photo_batch = Variable(torch.zeros(args.batch, 3, 224, 224), volatile=True)
+            sketch_batch = Variable(torch.zeros(args.batch, 3, 224, 224), volatile=True)
   
             if use_cuda:
                 photo_batch = photo_batch.cuda()
@@ -626,6 +638,9 @@ if __name__ == '__main__':
 
             photo_batch = photo_batch[:b + 1]
             sketch_batch = sketch_batch[:b + 1]
+
+            # convert photo_batch to sketch_batch
+            photo_batch = image2sketch(photo_batch)
 
             losses = layer_test.loss(photo_batch, sketch_batch)
             losses = losses.cpu().data.numpy().flatten()

@@ -32,7 +32,7 @@ class TranslationTransformNet(nn.Module):
         return T
 
     def forward(self, x):
-        x = torch.cat((x, torch.Tensor([1])))
+        x = add_bias(x)
         return torch.mm(x, self.translation_matrix())
 
 
@@ -54,12 +54,13 @@ class AffineTransformNet(nn.Module):
         return D
 
     def rotation_matrix(self):
-        # TODO: how do set this up?
-        pass
+        pass  # TODO
 
     def forward(self, x):
-        x = torch.cat(x, torch.Tensor([1]))
-        return torch.mm(x, self.params)
+        x = add_bias(x)
+        x = torch.mm(x, self.translation_matrix())
+        x = torch.mm(x, self.dilation_matrix())
+        return x
 
 
 class MLPTransformNet(nn.Module):
@@ -130,6 +131,27 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
     torch.save(state, filename)
     if is_best:
         shutil.copyfile(filename, 'model_best.pth.tar')
+
+
+def load_checkpoint(file_path, use_cuda=False):
+    """Return EmbedNet instance"""
+    if use_cuda:
+        checkpoint = torch.load(file_path)
+    else:
+        checkpoint = torch.load(file_path,
+                                map_location=lambda storage, location: storage)
+    checkpoint = load_checkpoint(args.translator_path, use_cuda=use_cuda)
+    assert checkpoint in ['translation', 'affine', 'mlp']
+    if checkpoint['net'] == 'translation':
+        model = TranslationTransformNet(checkpoint['n_dims'])
+        model.load_state_dict(checkpoint['state_dict'])
+    elif checkpoint['net'] == 'affine':
+        model = AffineTransformNet(checkpoint['n_dims'])
+        model.load_state_dict(checkpoint['state_dict'])
+    elif checkpoint['net'] == 'mlp':
+        model = MLPTransformNet(checkpoint['n_dims'])
+        model.load_state_dict(checkpoint['state_dict'])
+    return model
 
 
 if __name__ == '__main__':
@@ -260,4 +282,6 @@ if __name__ == '__main__':
             'state_dict': model.state_dict(),
             'euclidean_distance': best_loss,
             'optimizer' : optimizer.state_dict(),
+            'net': args.net,
+            'in_dim': args.in_dim,
         }, is_best)
