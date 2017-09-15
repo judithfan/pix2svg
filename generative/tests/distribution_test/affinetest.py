@@ -1,5 +1,12 @@
-"""Trying to non a linear or nonlinear transformation from photo 
+"""Trying to non-linear or nonlinear transformation from photo 
 embeddings to sketch embeddings prior to the standard distribution test.
+
+- MLP
+- Linear + Relu
+- Affine (Ax + b)
+- Similarity (Rotation + Translation + Dilation)
+- Rigid Body (Rotation + Translation)
+- Translation
 """
 
 from __future__ import division
@@ -18,24 +25,38 @@ from torch.autograd import Variable
 from generators import *
 
 
-class TranslationTransformNet(nn.Module):
+class MLPTransformNet(nn.Module):
     def __init__(self, in_dim):
-        super(TranslationTransformNet, self).__init__()
-        self.params = Parameter(torch.normal(torch.zeros(in_dim), 1))
-
-    def translation_matrix(self):
-        T = torch.diag(torch.ones(self.in_dim + 1))
-        T[:, -1] = add_bias(self.t_params)
-        return T
+        super(MLPTransformNet, self).__init__()
+        self.fc1 = nn.Linear(in_dim, in_dim)
+        self.fc2 = nn.Linear(in_dim, in_dim)
 
     def forward(self, x):
-        x = add_bias(x)
-        return torch.mm(x, self.translation_matrix())
+        x = F.relu(self.fc1(x))
+        return self.fc2(x)
+
+
+class NonLinearTransformNet(nn.Module):
+    def __init__(self, in_dim):
+        super(NonLinearTransformNet, self).__init__()
+        self.fc1 = nn.Linear(in_dim, in_dim)
+
+    def forward(self, x):
+        return F.relu(self.fc1(x))
 
 
 class AffineTransformNet(nn.Module):
     def __init__(self, in_dim):
         super(AffineTransformNet, self).__init__()
+        self.fc1 = nn.Linear(in_dim, in_dim)
+
+    def forward(self, x):
+        return self.fc1(x)
+
+
+class SimilarityTransformNet(nn.Module):
+    def __init__(self, in_dim):
+        super(SimilarityTransformNet, self).__init__()
         self.t_params = Parameter(torch.normal(torch.zeros(in_dim), 1))
         self.d_params = Parameter(torch.normal(torch.zeros(1), 1))
         self.in_dim = in_dim
@@ -57,19 +78,44 @@ class AffineTransformNet(nn.Module):
         x = add_bias(x)
         x = torch.mm(x, self.translation_matrix())
         x = torch.mm(x, self.dilation_matrix())
+        # TODO -- add rotation here
         return x
 
 
-class MLPTransformNet(nn.Module):
+class RigidBodyTransformNet(nn.Module):
     def __init__(self, in_dim):
-        super(MLPTransformNet, self).__init__()
-        self.fc1 = nn.Linear(in_dim, in_dim)
-        self.fc2 = nn.Linear(in_dim, in_dim)
+        super(SimilarityTransformNet, self).__init__()
+        self.t_params = Parameter(torch.normal(torch.zeros(in_dim), 1))
+        self.in_dim = in_dim
+
+    def translation_matrix(self):
+        T = torch.diag(torch.ones(self.in_dim + 1))
+        T[:, -1] = add_bias(self.t_params)
+        return T
+
+    def rotation_matrix(self):
+        pass  # TODO
 
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+        x = add_bias(x)
+        x = torch.mm(x, self.translation_matrix())
+        # TODO -- add rotation here
         return x
+
+
+class TranslationTransformNet(nn.Module):
+    def __init__(self, in_dim):
+        super(TranslationTransformNet, self).__init__()
+        self.params = Parameter(torch.normal(torch.zeros(in_dim), 1))
+
+    def translation_matrix(self):
+        T = torch.diag(torch.ones(self.in_dim + 1))
+        T[:, -1] = add_bias(self.t_params)
+        return T
+
+    def forward(self, x):
+        x = add_bias(x)
+        return torch.mm(x, self.translation_matrix())
 
 
 def add_bias(x):
@@ -108,7 +154,7 @@ def load_checkpoint(file_path, use_cuda=False):
         checkpoint = torch.load(file_path,
                                 map_location=lambda storage, location: storage)
     checkpoint = load_checkpoint(args.translator_path, use_cuda=use_cuda)
-    assert checkpoint in ['translation', 'affine', 'mlp']
+    assert checkpoint in ['translation', 'affine', 'nonlinear', 'mlp']
     if checkpoint['net'] == 'translation':
         model = TranslationTransformNet(checkpoint['n_dims'])
         model.load_state_dict(checkpoint['state_dict'])
@@ -124,7 +170,7 @@ def load_checkpoint(file_path, use_cuda=False):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('net', type=str, help='translation|affine|mlp')
+    parser.add_argument('net', type=str, help='translation|rigidbody|similarity|affine|nonlinear|mlp')
     parser.add_argument('embedding_size', type=int)
     parser.add_argument('--layer_name', type=str, default='conv_4_2')
     parser.add_argument('--distance', type=str, default='euclidean')
@@ -135,7 +181,7 @@ if __name__ == '__main__':
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
-    assert args.net in ['translation', 'affine', 'mlp']
+    assert args.net in ['translation', 'rigidbody', 'similarity', 'affine', 'nonlinear', 'mlp']
 
     train_generator = train_test_generator(imsize=224, train=True, use_cuda=use_cuda)
     test_generator = train_test_generator(imsize=224, train=False, use_cuda=use_cuda)
@@ -143,8 +189,14 @@ if __name__ == '__main__':
 
     if args.net == 'translation':
         model = TranslationTransformNet(args.embedding_size)
+    elif args.net == 'rigidbody':
+        model = RigidBodyTransformNet(args.embedding_size)
+    elif args.net == 'similarity':
+        model = SimilarityTransformNet(args.embedding_size)
     elif args.net == 'affine':
         model = AffineTransformNet(args.embedding_size)
+    elif args.net == 'nonlinear':
+        model = NonLinearTransformNet(args.embedding_size)
     elif args.net == 'mlp':
         model = MLPTransformNet(args.embedding_size)
 
