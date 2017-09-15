@@ -53,7 +53,6 @@ class StyleTransferLossTest(BaseLossTest):
         conv_i, pool_i = 1, 1
 
         style_image = style_image.expand_as(images)
-
         content_losses = Variable(torch.zeros(n))
         style_losses = Variable(torch.zeros(n))
         if self.use_cuda:
@@ -66,15 +65,16 @@ class StyleTransferLossTest(BaseLossTest):
                 conv_i += 1
             elif isinstance(layers[i], nn.MaxPool2d):
                 pool_i += 1
+                conv_i = 1
 
             images = layers[i](images)
             sketches = layers[i](sketches)
             style_image = layers[i](style_image)
 
             if name in ['conv_1_1', 'conv_2_1', 'conv_3_1', 'conv_4_1', 'conv_5_1']:
-                sketches_g = self.gram(sketches.clone()) * self.style_weight
-                style_image_g = self.gram(style_image.clone()) * self.style_weight
-                losses = gen_distance(sketches_g.view(n, -1), style_image_g.view(n, -1), 
+                sketches_gram = self.gram(sketches) * self.style_weight
+                style_image_gram = self.gram(style_image) * self.style_weight
+                losses = gen_distance(sketches_gram.view(n, -1), style_image_gram.view(n, -1), 
                                       metric='euclidean')
                 style_losses = torch.add(style_losses, losses)
             elif name == 'conv_4_2':
@@ -83,7 +83,7 @@ class StyleTransferLossTest(BaseLossTest):
                 losses = gen_distance(images_c.view(n, -1), sketches_c.view(n, -1), 
                                       metric='euclidean')
                 content_losses = torch.add(content_losses, losses)
-
+       
         losses = content_losses + style_losses
         return losses
 
@@ -126,6 +126,7 @@ if __name__ == '__main__':
     parser.add_argument('--diagonal_only', action='store_true', default=False)
     parser.add_argument('--outdir', type=str, default='./outputs')
     parser.add_argument('--datatype', type=str, default='data')
+    parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
 
     assert args.datatype in ['data', 'noisy', 'swapped', 'perturbed', \
@@ -141,7 +142,7 @@ if __name__ == '__main__':
     print('-------------------------')
     print('')
 
-    use_cuda = torch.cuda.is_available()
+    use_cuda = torch.cuda.is_available() and args.cuda
     if args.datatype == 'data':
         generator = data_generator(imsize=224, ignore_class=args.style_image_class, use_cuda=use_cuda) # distance between sketch and target photo
     elif args.datatype == 'noisy':
