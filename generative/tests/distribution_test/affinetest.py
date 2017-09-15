@@ -9,6 +9,7 @@ from __future__ import absolute_import
 from distribtest import data_generator
 
 import os
+import sys
 
 import torch
 import torch.nn as nn
@@ -125,6 +126,12 @@ def data_generator(imsize=256, train=True, use_cuda=False):
         yield (photo, sketch)
 
 
+def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
+    torch.save(state, filename)
+    if is_best:
+        shutil.copyfile(filename, 'model_best.pth.tar')
+
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
@@ -199,6 +206,8 @@ if __name__ == '__main__':
             if quit: 
                 break
 
+        return losses.avg
+
 
     def test(epoch):
         losses = AverageMeter()
@@ -234,9 +243,21 @@ if __name__ == '__main__':
                 break
 
         print('Test Epoch: {}\tAverage Distance: {:.6f}'.format(epoch, loss.avg))
+        return losses.avg
 
+
+    best_loss = sys.maxint
 
     for epoch in range(1, args.epochs + 1):
-        train(epoch)
-        test(epoch)
+        train_loss = train(epoch)
+        test_loss = test(epoch)
 
+        is_best = test_loss > best_loss
+        best_loss = max(test_loss, best_loss)
+
+        save_checkpoint({
+            'epoch': epoch + 1,
+            'state_dict': model.state_dict(),
+            'euclidean_distance': best_loss,
+            'optimizer' : optimizer.state_dict(),
+        }, is_best)
