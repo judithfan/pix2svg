@@ -65,6 +65,19 @@ def train_test_generator(imsize=256, train=True, use_cuda=False):
         yield (photo, sketch)
 
 
+def train_test_size():
+    sketch_dir = '/home/jefan/full_sketchy_dataset/sketches'
+    categories = os.listdir(sketch_dir)
+    n_categories = len(categories)
+    train_categories = categories[:int(n_categories * 0.8)]
+    test_categories = categories[int(n_categories * 0.8):]
+    train_paths = [path for path in list_files(sketch_dir, ext='png')
+                   if os.path.dirname(path).split('/')[-1] in train_categories]
+    test_paths = [path for path in list_files(sketch_dir, ext='png')
+                  if os.path.dirname(path).split('/')[-1] in test_categories]
+    return len(train_paths), len(test_paths)
+
+
 def data_generator(imsize=256, use_cuda=False, ignore_class=None):
     photo_dir = '/home/jefan/full_sketchy_dataset/photos'
     sketch_dir = '/home/jefan/full_sketchy_dataset/sketches'

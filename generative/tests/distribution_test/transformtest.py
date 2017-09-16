@@ -37,6 +37,7 @@ class MLPNet(nn.Module):
         super(MLPNet, self).__init__()
         self.fc1 = nn.Linear(in_dim, in_dim)
         self.fc2 = nn.Linear(in_dim, in_dim)
+        self.in_dim = in_dim
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -47,6 +48,7 @@ class NonLinearNet(nn.Module):
     def __init__(self, in_dim):
         super(NonLinearNet, self).__init__()
         self.fc1 = nn.Linear(in_dim, in_dim)
+        self.in_dim = in_dim
 
     def forward(self, x):
         return F.tanh(self.fc1(x))
@@ -56,6 +58,7 @@ class AffineNet(nn.Module):
     def __init__(self, in_dim):
         super(AffineNet, self).__init__()
         self.fc1 = nn.Linear(in_dim, in_dim)
+        self.in_dim = in_dim
 
     def forward(self, x):
         return self.fc1(x)
@@ -318,7 +321,7 @@ if __name__ == '__main__':
         return train_generator, test_generator
 
     train_generator, test_generator = reset_generators()
-    n_data = len(list_files('/home/jefan/full_sketchy_dataset/sketches', ext='png'))
+    n_train, n_test = train_test_size() 
 
     cnn = models.vgg19()
     cnn.eval()
@@ -390,8 +393,8 @@ if __name__ == '__main__':
 
             if batch_idx % args.log_interval == 0:
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tAverage Distance: {:.6f}\tAverage Constraint: {:.6f}'.format(
-                    epoch, batch_idx * args.batch_size + (b + 1), n_data, 
-                    100 * (batch_idx * args.batch_size + (b + 1)) / n_data, losses.avg, constraints.avg))
+                    epoch, batch_idx * args.batch_size + (b + 1), n_train, 
+                    100 * (batch_idx * args.batch_size + (b + 1)) / n_train, losses.avg, constraints.avg))
 
             batch_idx += 1
 
@@ -459,7 +462,6 @@ if __name__ == '__main__':
             'euclidean_distance': best_loss,
             'optimizer' : optimizer.state_dict(),
             'net': args.net,
-            'in_dim': args.in_dim,
         }
 
         save_checkpoint(checkpoint, is_best, args.outdir)
