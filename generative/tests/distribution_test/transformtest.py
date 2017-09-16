@@ -6,6 +6,7 @@ embeddings to sketch embeddings prior to the standard distribution test.
 - Affine (Ax + b)
 - Similarity (Rotation + Translation + Dilation)
 - Rigid Body (Rotation + Translation)
+- Rotation
 - Translation
 
 See rotationtest.py for rest of models
@@ -65,11 +66,11 @@ class TranslationNet(nn.Module):
 
     def translation_matrix(self):
         T = torch.diag(torch.ones(self.in_dim + 1))
-        T[:, -1] = add_bias(self.t_params)
+        T[:, -1] = add_bias_1d(self.t_params)
         return T
 
     def forward(self, x):
-        x = add_bias(x)
+        x = add_bias_2d(x)
         return torch.mm(x, self.translation_matrix())
 
 
@@ -78,12 +79,13 @@ class SimilarityNet(nn.Module):
         super(SimilarityNet, self).__init__()
         self.t_params = Parameter(torch.normal(torch.zeros(in_dim), 1))
         self.d_params = Parameter(torch.normal(torch.zeros(1), 1))
-        self.rotation_matrix = None
+        r_params = torch.normal(torch.zeros((in_dim + 1)**2))
+        self.r_params = Parameter(r_params.view(in_dim + 1, in_dim + 1))  # rotation params
         self.in_dim = in_dim
 
     def translation_matrix(self):
         T = torch.diag(torch.ones(self.in_dim + 1))
-        T[:, -1] = add_bias(self.t_params)
+        T[:, -1] = add_bias_1d(self.t_params)
         return T
 
     def dilation_matrix(self):
@@ -91,37 +93,50 @@ class SimilarityNet(nn.Module):
         D = D * self.d_params.expand_as(D)
         return D
 
-    def update_rotation(self, rot_mat):
-        self.rotation_matrix = rot_mat
+    def rotation_matrix(self):
+        R = self.r_params
+        return R
 
     def forward(self, x):
-        x = add_bias(x)
+        x = add_bias_2d(x)
         x = torch.mm(self.translation_matrix(), x)
         x = torch.mm(self.dilation_matrix(), x)
-        x = torch.mm(self.rotation_matrix, x)
+        x = torch.mm(self.rotation_matrix(), x)
         return x
+
+    def constraint(self):
+        RtR = torch.mm(torch.t(self.r_params), self.r_params)
+        det = torch.potrf(RtR).diag().prod()
+        return det - 1
 
 
 class RigidBodyNet(nn.Module):
     def __init__(self, in_dim):
         super(RigidBodyNet, self).__init__() 
         self.t_params = Parameter(torch.normal(torch.zeros(in_dim), 1))  # translation params
-        self.rotation_matrix = None
+        r_params = torch.normal(torch.zeros((in_dim + 1)**2))
+        self.r_params = Parameter(r_params.view(in_dim + 1, in_dim + 1))  # rotation params
         self.in_dim = in_dim
 
     def translation_matrix(self):
         T = torch.diag(torch.ones(self.in_dim + 1))
-        T[:, -1] = add_bias(self.t_params)
+        T[:, -1] = add_bias_1d(self.t_params)
         return T
 
-    def update_rotation(self, rot_mat):
-        self.rotation_matrix = rot_mat
+    def rotation_matrix(self):
+        R = self.r_params
+        return R
 
     def forward(self, x):
-        x = add_bias(x)
+        x = add_bias_2d(x)
         x = torch.mm(self.translation_matrix(), x)
-        x = torch.mm(self.rotation_matrix, x)
+        x = torch.mm(self.rotation_matrix(), x)
         return x
+
+    def constraint(self):
+        RtR = torch.mm(torch.t(self.r_params), self.r_params)
+        det = torch.potrf(RtR).diag().prod()
+        return det - 1
 
 
 class RotationNet(nn.Module):
@@ -132,9 +147,10 @@ class RotationNet(nn.Module):
     that parallel lines remain parallel.
     """
     def __init__(self, in_dim):
-        super(VolumnPreservingRotationNet, self).__init__()
-        params = torch.normal(torch.zeros((in_dim + 1)**2), 1)
-        self.params = Parameter(r_params.view(in_dim + 1, in_dim + 1))
+        super(RotationNet, self).__init__()
+        params = torch.normal(torch.zeros((in_dim + 1)**2))
+        self.params = Parameter(params.view(in_dim + 1, in_dim + 1))  # rotation params
+        self.in_dim = in_dim
 
     def forward(self, x):
         x = add_bias(x)
@@ -146,8 +162,13 @@ class RotationNet(nn.Module):
         return det - 1
 
 
-def add_bias(x):
+def add_bias_1d(x):
     return torch.cat((x, torch.Tensor([1.])))
+
+
+def add_bias_2d(x):
+    bias = torch.ones(x.size())
+    return torch.cat((x, bias), dim=1)
 
 
 def wahba_rotation(X, Y):
@@ -187,10 +208,10 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
-    torch.save(state, filename)
+def save_checkpoint(state, is_best, outdir, filename='checkpoint.pth.tar'):
+    torch.save(state, os.path.join(outdir, filename))
     if is_best:
-        shutil.copyfile(filename, 'model_best.pth.tar')
+        shutil.copyfile(filename, os.path.join(outdir, 'model_best.pth.tar'))
 
 
 def load_checkpoint(file_path, use_cuda=False):
@@ -203,6 +224,9 @@ def load_checkpoint(file_path, use_cuda=False):
     assert checkpoint in ['translation', 'rotation', 'rigidbody', 'similarity', 'affine', 'nonlinear', 'mlp']
     if checkpoint['net'] == 'translation':
         model = TranslationNet(checkpoint['n_dims'])
+        model.load_state_dict(checkpoint['state_dict'])
+    if checkpoint['net'] == 'rotation':
+        model = RotationNet(checkpoint['n_dims'])
         model.load_state_dict(checkpoint['state_dict'])
     elif checkpoint['net'] == 'rigidbody':
         model = RigidBodyNet(checkpoint['n_dims'])
@@ -237,15 +261,16 @@ def cnn_predict(x):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('net', type=str, help='translation|affine|nonlinear|mlp')
+    parser.add_argument('net', type=str, help='translation|rotation|rigidbody|similarity|affine|nonlinear|mlp')
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--log_interval', type=int, default=10)
     parser.add_argument('--outdir', type=str, default='./outputs')
     parser.add_argument('--cuda', action='store_true', default=False)
+    parser.add_argument('--rotation_lambda', type=float, default=100.0)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
-    assert args.net in ['translation', 'affine', 'nonlinear', 'mlp']
+    assert args.net in ['translation', 'rotation', 'rigidbody', 'similarity', 'affine', 'nonlinear', 'mlp']
 
     def reset_generators():
         train_generator = train_test_generator(imsize=224, train=True, use_cuda=use_cuda)
@@ -257,9 +282,19 @@ if __name__ == '__main__':
 
     cnn = models.vgg19()
     cnn.eval()
+    has_constraint = False
 
     if args.net == 'translation':
         model = TranslationNet(4096)
+    elif args.net == 'rotation':
+        model = RotationNet(4096)
+        has_constraint = True
+    elif args.net == 'rigidbody':
+        model = RigidBodyNet(4096)
+        has_constraint = True
+    elif args.net == 'similarity':
+        model = SimilarityNet(4096)
+        has_constraint = True
     elif args.net == 'affine':
         model = AffineNet(4096)
     elif args.net == 'nonlinear':
@@ -275,6 +310,8 @@ if __name__ == '__main__':
 
     def train(epoch):
         losses = AverageMeter()
+        constraints = AverageMeter()
+
         model.train()
 
         batch_idx = 0
@@ -302,13 +339,19 @@ if __name__ == '__main__':
 
             optimizer.zero_grad()
             loss = torch.norm(photo_emb - sketch_emb, p=2)
+
+            if has_constraint:
+                constraint = args.rotation_lambda * model.constraint()
+                constraints.update(constraint.data[0], b)
+                loss = loss + constraint
+
             losses.update(loss.data[0], b)
             loss.backward()
             optimizer.step()
 
             if batch_idx % args.log_interval == 0:
-                print('Train Epoch: {} [{}/{} ({:.0f}%]\tAverage Distance: {:.6f}'.format(
-                    epoch, batch_idx * b, n_data, 100 * batch_idx * b / n_data, loss.avg))
+                print('Train Epoch: {} [{}/{} ({:.0f}%]\tAverage Distance: {:.6f}\tAverage Constraint: {:.6f}'.format(
+                    epoch, batch_idx * b, n_data, 100 * batch_idx * b / n_data, losses.avg, constraints.avg))
 
             if quit: 
                 break
@@ -318,6 +361,7 @@ if __name__ == '__main__':
 
     def test(epoch):
         losses = AverageMeter()
+        constraints = AverageMeter()
         model.eval()
 
         batch_idx = 0
@@ -344,12 +388,18 @@ if __name__ == '__main__':
             photo_emb = model(photo_emb)
             
             loss = torch.norm(photo_emb - sketch_emb, p=2)
+            if has_constraint:
+                constraint = args.rotation_lambda * model.constraint()
+                constraints.update(constraint.data[0], b)
+                loss = loss + constraint
+
             losses.update(loss.data[0], b)
 
             if quit: 
                 break
 
-        print('Test Epoch: {}\tAverage Distance: {:.6f}'.format(epoch, loss.avg))
+        print('Test Epoch: {}\tAverage Distance: {:.6f}\tAverage Constraint: {:.6f}'.format(
+            epoch, losses.avg, constraints.avg))
         return losses.avg
 
     best_loss = sys.maxint
@@ -372,4 +422,4 @@ if __name__ == '__main__':
             'in_dim': args.in_dim,
         }
 
-        save_checkpoint(checkpoint, is_best)
+        save_checkpoint(checkpoint, is_best, args.outdir)
