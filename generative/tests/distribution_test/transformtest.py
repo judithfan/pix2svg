@@ -116,7 +116,7 @@ class SimilarityNet(nn.Module):
 
     def constraint(self):
         RtR = torch.mm(torch.t(self.r_params), self.r_params)
-        det = torch.potrf(RtR).diag().prod()
+        det = Cholesky.apply(RtR).diag().prod()
         return det - 1
 
 
@@ -148,7 +148,7 @@ class RigidBodyNet(nn.Module):
 
     def constraint(self):
         RtR = torch.mm(torch.t(self.r_params), self.r_params)
-        det = torch.potrf(RtR).diag().prod()
+        det = Cholesky.apply(RtR).diag().prod()
         return det - 1
 
 
@@ -172,7 +172,7 @@ class RotationNet(nn.Module):
 
     def constraint(self):
         RtR = torch.mm(torch.t(self.params), self.params)
-        det = torch.potrf(RtR).diag().prod()
+        det = Cholesky.apply(RtR).diag().prod()
         return det - 1
 
 
@@ -207,6 +207,27 @@ def wahba_rotation(X, Y):
     U, S, V = torch.svd(B)
     R = torch.mm(X, torch.mm(M, torch.t(Y)))
     return R
+
+
+class Cholesky(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, a):
+        l = torch.potrf(a, False)
+        ctx.save_for_backward(l)
+        return l
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        l, = ctx.saved_variables
+        # Gradient is l^{-H} @ ((l^{H} @ grad) * (tril(ones)-1/2*eye)) @ l^{-1}
+        # TODO: ideally, this should use some form of solve triangular instead of inverse...
+        linv =  l.inverse()
+        
+        inner = torch.tril(torch.mm(l.t(),grad_output))*torch.tril(1.0-Variable(l.data.new(l.size(1)).fill_(0.5).diag()))
+        s = torch.mm(linv.t(), torch.mm(inner, linv))
+        # could re-symmetrise 
+        #s = (s+s.t())/2.0
+        return s
 
 
 class AverageMeter(object):
