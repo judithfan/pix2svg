@@ -49,7 +49,7 @@ class NonLinearNet(nn.Module):
         self.fc1 = nn.Linear(in_dim, in_dim)
 
     def forward(self, x):
-        return F.relu(self.fc1(x))
+        return F.tanh(self.fc1(x))
 
 
 class AffineNet(nn.Module):
