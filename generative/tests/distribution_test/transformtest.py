@@ -166,7 +166,7 @@ class RotationNet(nn.Module):
         self.in_dim = in_dim
 
     def forward(self, x):
-        x = add_bias_1d(x)
+        x = add_bias_2d(x)
         x = torch.mm(x, self.params)
         return x[:, :-1]
 
