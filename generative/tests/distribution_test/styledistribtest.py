@@ -84,7 +84,8 @@ class StyleTransferLossTest(BaseLossTest):
                                       metric='euclidean')
                 content_losses = torch.add(content_losses, losses)
        
-        losses = content_losses + style_losses
+        # losses = content_losses + style_losses
+        losses = style_losses
         return losses
 
 

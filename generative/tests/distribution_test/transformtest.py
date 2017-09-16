@@ -21,8 +21,10 @@ import sys
 
 import torch
 import torch.nn as nn
+import torch.optim as optim
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
+
 
 from torch.autograd import Variable
 from generators import *
@@ -63,15 +65,20 @@ class TranslationNet(nn.Module):
     def __init__(self, in_dim):
         super(TranslationNet, self).__init__()
         self.params = Parameter(torch.normal(torch.zeros(in_dim), 1))
+        self.in_dim = in_dim
 
     def translation_matrix(self):
-        T = torch.diag(torch.ones(self.in_dim + 1))
-        T[:, -1] = add_bias_1d(self.t_params)
-        return T
+        T = Variable(torch.diag(torch.ones(self.in_dim + 1)).view(-1))
+        V = add_bias_1d(self.params)
+        if V.is_cuda:
+            T = T.cuda()
+        T = torch.cat((T[:(-self.in_dim - 1)], V))
+        return T.view(self.in_dim + 1, self.in_dim + 1)
 
     def forward(self, x):
         x = add_bias_2d(x)
-        return torch.mm(x, self.translation_matrix())
+        x = torch.mm(x, self.translation_matrix())
+        return x[:, :-1]
 
 
 class SimilarityNet(nn.Module):
@@ -84,9 +91,12 @@ class SimilarityNet(nn.Module):
         self.in_dim = in_dim
 
     def translation_matrix(self):
-        T = torch.diag(torch.ones(self.in_dim + 1))
-        T[:, -1] = add_bias_1d(self.t_params)
-        return T
+        T = Variable(torch.diag(torch.ones(self.in_dim + 1)).view(-1))
+        V = add_bias_1d(self.params)
+        if V.is_cuda:
+            T = T.cuda()
+        T = torch.cat((T[:(-self.in_dim - 1)], V))
+        return T.view(self.in_dim + 1, self.in_dim + 1)
 
     def dilation_matrix(self):
         D = torch.diag(torch.ones(self.in_dim + 1))
@@ -102,7 +112,7 @@ class SimilarityNet(nn.Module):
         x = torch.mm(self.translation_matrix(), x)
         x = torch.mm(self.dilation_matrix(), x)
         x = torch.mm(self.rotation_matrix(), x)
-        return x
+        return x[:, :-1]
 
     def constraint(self):
         RtR = torch.mm(torch.t(self.r_params), self.r_params)
@@ -119,9 +129,12 @@ class RigidBodyNet(nn.Module):
         self.in_dim = in_dim
 
     def translation_matrix(self):
-        T = torch.diag(torch.ones(self.in_dim + 1))
-        T[:, -1] = add_bias_1d(self.t_params)
-        return T
+        T = Variable(torch.diag(torch.ones(self.in_dim + 1)).view(-1))
+        V = add_bias_1d(self.params)
+        if V.is_cuda:
+            T = T.cuda()
+        T = torch.cat((T[:(-self.in_dim - 1)], V))
+        return T.view(self.in_dim + 1, self.in_dim + 1)
 
     def rotation_matrix(self):
         R = self.r_params
@@ -131,7 +144,7 @@ class RigidBodyNet(nn.Module):
         x = add_bias_2d(x)
         x = torch.mm(self.translation_matrix(), x)
         x = torch.mm(self.rotation_matrix(), x)
-        return x
+        return x[:, :-1]
 
     def constraint(self):
         RtR = torch.mm(torch.t(self.r_params), self.r_params)
@@ -153,8 +166,9 @@ class RotationNet(nn.Module):
         self.in_dim = in_dim
 
     def forward(self, x):
-        x = add_bias(x)
-        return torch.mm(x, self.params)
+        x = add_bias_1d(x)
+        x = torch.mm(x, self.params)
+        return x[:, :-1]
 
     def constraint(self):
         RtR = torch.mm(torch.t(self.params), self.params)
@@ -163,12 +177,17 @@ class RotationNet(nn.Module):
 
 
 def add_bias_1d(x):
-    return torch.cat((x, torch.Tensor([1.])))
+    bias = Variable(torch.Tensor([1.]))
+    if x.is_cuda:
+        bias = bias.cuda()
+    return torch.cat((x, bias))
 
 
-def add_bias_2d(x):
-    bias = torch.ones(x.size())
-    return torch.cat((x, bias), dim=1)
+def add_bias_2d(x, use_cuda=False):
+    bias = Variable(torch.ones(x.size(0)).unsqueeze(1))
+    if x.is_cuda:
+        bias = bias.cuda()
+    return torch.cat((x, bias), 1)
 
 
 def wahba_rotation(X, Y):
@@ -246,8 +265,7 @@ def load_checkpoint(file_path, use_cuda=False):
     return model
 
 
-def cnn_predict(x):
-    cnn = models.vgg19()
+def cnn_predict(x, cnn):
     x = cnn.features(x)
     x = x.view(x.size(0), -1)
 
@@ -263,6 +281,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('net', type=str, help='translation|rotation|rigidbody|similarity|affine|nonlinear|mlp')
     parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--log_interval', type=int, default=10)
     parser.add_argument('--outdir', type=str, default='./outputs')
@@ -273,8 +292,8 @@ if __name__ == '__main__':
     assert args.net in ['translation', 'rotation', 'rigidbody', 'similarity', 'affine', 'nonlinear', 'mlp']
 
     def reset_generators():
-        train_generator = train_test_generator(imsize=224, train=True, use_cuda=use_cuda)
-        test_generator = train_test_generator(imsize=224, train=False, use_cuda=use_cuda)        
+        train_generator = train_test_generator(imsize=224, train=True, use_cuda=args.cuda)
+        test_generator = train_test_generator(imsize=224, train=False, use_cuda=args.cuda)        
         return train_generator, test_generator
 
     train_generator, test_generator = reset_generators()
@@ -321,7 +340,7 @@ if __name__ == '__main__':
             photo = Variable(torch.zeros(args.batch_size, 3, 224, 224))
             sketch = Variable(torch.zeros(args.batch_size, 3, 224, 224))
   
-            if use_cuda:
+            if args.cuda:
                 photo, sketch = photo.cuda(), sketch.cuda() 
 
             for b in range(args.batch_size):
@@ -334,9 +353,8 @@ if __name__ == '__main__':
                     break
 
             photo, sketch = photo[:b + 1], sketch[:b + 1]
-            photo_emb, sketch_emb = cnn_predict(photo), cnn_predict(sketch)
+            photo_emb, sketch_emb = cnn_predict(photo, cnn), cnn_predict(sketch, cnn)
             photo_emb = model(photo_emb)
-
             optimizer.zero_grad()
             loss = torch.norm(photo_emb - sketch_emb, p=2)
 
@@ -350,8 +368,11 @@ if __name__ == '__main__':
             optimizer.step()
 
             if batch_idx % args.log_interval == 0:
-                print('Train Epoch: {} [{}/{} ({:.0f}%]\tAverage Distance: {:.6f}\tAverage Constraint: {:.6f}'.format(
-                    epoch, batch_idx * b, n_data, 100 * batch_idx * b / n_data, losses.avg, constraints.avg))
+                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tAverage Distance: {:.6f}\tAverage Constraint: {:.6f}'.format(
+                    epoch, batch_idx * args.batch_size + (b + 1), n_data, 
+                    100 * (batch_idx * args.batch_size + (b + 1)) / n_data, losses.avg, constraints.avg))
+
+            batch_idx += 1
 
             if quit: 
                 break
@@ -363,15 +384,13 @@ if __name__ == '__main__':
         losses = AverageMeter()
         constraints = AverageMeter()
         model.eval()
-
-        batch_idx = 0
         quit = False
 
         while True:
             photo = Variable(torch.zeros(args.batch_size, 3, 224, 224))
             sketch = Variable(torch.zeros(args.batch_size, 3, 224, 224))
   
-            if use_cuda:
+            if args.cuda:
                 photo, sketch = photo.cuda(), sketch.cuda() 
 
             for b in range(args.batch_size):
@@ -384,7 +403,7 @@ if __name__ == '__main__':
                     break
 
             photo, sketch = photo[:b + 1], sketch[:b + 1]
-            photo_emb, sketch_emb = cnn_predict(photo), cnn_predict(sketch)
+            photo_emb, sketch_emb = cnn_predict(photo, cnn), cnn_predict(sketch, cnn)
             photo_emb = model(photo_emb)
             
             loss = torch.norm(photo_emb - sketch_emb, p=2)
