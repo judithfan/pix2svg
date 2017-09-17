@@ -26,7 +26,6 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 
-
 from torch.autograd import Variable
 from generators import *
 
@@ -464,6 +463,8 @@ if __name__ == '__main__':
             'euclidean_distance': best_loss,
             'optimizer' : optimizer.state_dict(),
             'net': args.net,
+            'batch_size': args.batch_size,
+            'lr': args.lr,
         }
 
         save_checkpoint(checkpoint, is_best, args.outdir, 
