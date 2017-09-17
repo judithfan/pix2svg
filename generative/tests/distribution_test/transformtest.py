@@ -18,6 +18,7 @@ from __future__ import absolute_import
 
 import os
 import sys
+import shutil
 
 import torch
 import torch.nn as nn
@@ -251,10 +252,11 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def save_checkpoint(state, is_best, outdir, filename='checkpoint.pth.tar'):
-    torch.save(state, os.path.join(outdir, filename))
+def save_checkpoint(state, is_best, outdir, filename='checkpoint'):
+    checkpoint_path = os.path.join(outdir, '{}.pth.tar'.format(filename))
+    torch.save(state, checkpoint_path)
     if is_best:
-        shutil.copyfile(filename, os.path.join(outdir, 'model_best.pth.tar'))
+        shutil.copyfile(checkpoint_path, os.path.join(outdir, '{}.best.pth.tar'.format(filename)))
 
 
 def load_checkpoint(file_path, use_cuda=False):
@@ -453,7 +455,7 @@ if __name__ == '__main__':
 
         train_generator, test_generator = reset_generators()
 
-        is_best = test_loss > best_loss
+        is_best = test_loss <= best_loss
         best_loss = max(test_loss, best_loss)
 
         checkpoint = {
@@ -464,4 +466,5 @@ if __name__ == '__main__':
             'net': args.net,
         }
 
-        save_checkpoint(checkpoint, is_best, args.outdir)
+        save_checkpoint(checkpoint, is_best, args.outdir, 
+                        filename='model.{}'.format(args.net))
