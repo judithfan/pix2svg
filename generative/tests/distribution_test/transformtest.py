@@ -265,28 +265,28 @@ def load_checkpoint(file_path, use_cuda=False):
         checkpoint = torch.load(file_path)
     else:
         checkpoint = torch.load(file_path, map_location=lambda storage, location: storage)
-    checkpoint = load_checkpoint(args.translator_path, use_cuda=use_cuda)
-    assert checkpoint in ['translation', 'rotation', 'rigidbody', 'similarity', 'affine', 'nonlinear', 'mlp']
+    assert checkpoint['net'] in ['translation', 'rotation', 'rigidbody', 
+                                 'similarity', 'affine', 'nonlinear', 'mlp']
     if checkpoint['net'] == 'translation':
-        model = TranslationNet(checkpoint['n_dims'])
+        model = TranslationNet(4096)
         model.load_state_dict(checkpoint['state_dict'])
     if checkpoint['net'] == 'rotation':
-        model = RotationNet(checkpoint['n_dims'])
+        model = RotationNet(4096)
         model.load_state_dict(checkpoint['state_dict'])
     elif checkpoint['net'] == 'rigidbody':
-        model = RigidBodyNet(checkpoint['n_dims'])
+        model = RigidBodyNet(4096)
         model.load_state_dict(checkpoint['state_dict'])
     elif checkpoint['net'] == 'similarity':
-        model = SimilarityNet(checkpoint['n_dims'])
+        model = SimilarityNet(4096)
         model.load_state_dict(checkpoint['state_dict'])
     elif checkpoint['net'] == 'affine':
-        model = AffineNet(checkpoint['n_dims'])
+        model = AffineNet(4096)
         model.load_state_dict(checkpoint['state_dict'])
     elif checkpoint['net'] == 'nonlinear':
-        model = NonLinearNet(checkpoint['n_dims'])
+        model = NonLinearNet(4096)
         model.load_state_dict(checkpoint['state_dict'])
     elif checkpoint['net'] == 'mlp':
-        model = MLPNet(checkpoint['n_dims'])
+        model = MLPNet(4096)
         model.load_state_dict(checkpoint['state_dict'])
     return model
 
@@ -456,7 +456,7 @@ if __name__ == '__main__':
         train_generator, test_generator = reset_generators()
 
         is_best = test_loss <= best_loss
-        best_loss = max(test_loss, best_loss)
+        best_loss = min(test_loss, best_loss)
 
         checkpoint = {
             'epoch': epoch + 1,
