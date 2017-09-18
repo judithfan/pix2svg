@@ -324,7 +324,7 @@ if __name__ == '__main__':
     train_generator, test_generator = reset_generators()
     n_train, n_test = train_test_size() 
 
-    cnn = models.vgg19()
+    cnn = models.vgg19(pretrained=True)
     cnn.eval()
     has_constraint = False
 
