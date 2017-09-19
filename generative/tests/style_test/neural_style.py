@@ -186,29 +186,26 @@ def run_style_transfer(cnn, content_img, style_img, input_img, num_steps=300,
         def closure():
             # correct the values of updated input image
             input_param.data.clamp_(0, 1)
-
             optimizer.zero_grad()
-            import pdb; pdb.set_trace()
+            #import pdb; pdb.set_trace()
             model(input_param)
             style_score = 0
             content_score = 0
-
             for sl in style_losses:
                 style_score += sl.backward()
             for cl in content_losses:
                 content_score += cl.backward()
-
             run[0] += 1
             if run[0] % 50 == 0:
                 print("run {}:".format(run))
                 print('Style Loss : {:4f} Content Loss: {:4f}'.format(
                     style_score.data[0], content_score.data[0]))
                 print()
-
             return style_score + content_score
-
-	adjust_learning_rate(optimizer, run[0])
+        
         optimizer.step(closure)
+        
+    adjust_learning_rate(optimizer, run[0])
 
     # a last correction...
     input_param.data.clamp_(0, 1)
@@ -244,6 +241,9 @@ if __name__ == '__main__':
     parser.add_argument('--save_path', type=str, default='./outputs/output.pt')
     parser.add_argument('--init_lr', type=float, default=1)
     parser.add_argument('--anneal_freq', type=int, default=100)
+    parser.add_argument('--cuda_device', type=int, default=0)
+    parser.add_argument('--style_img', type=str, default = "./images/sketch.jpg")
+    parser.add_argument('--content_img', type=str, default = "./images/dancing.jpg")    
     args = parser.parse_args()
 
     use_cuda = torch.cuda.is_available()
@@ -256,8 +256,8 @@ if __name__ == '__main__':
         transforms.Scale(imsize),  # scale imported image
         transforms.ToTensor()])  # transform it into a torch tensor
 
-    style_img = image_loader("./images/sketch.jpg").type(dtype)
-    content_img = image_loader("./images/dancing.jpg").type(dtype)
+    style_img = image_loader(args.style_img).type(dtype)
+    content_img = image_loader(args.content_img).type(dtype)
 
     assert style_img.size() == content_img.size(), \
         "we need to import style and content images of the same size"
@@ -266,7 +266,7 @@ if __name__ == '__main__':
 
     # move it to the GPU if possible:
     if use_cuda:
-        cnn = cnn.cuda()
+        cnn = cnn.cuda(args.cuda_device)
 
     # input_img = content_img.clone()
     input_img = Variable(torch.rand(style_img.size())).type(dtype)
