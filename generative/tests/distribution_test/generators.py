@@ -162,8 +162,6 @@ def swapped_generator(imsize=256, use_cuda=False, ignore_class=None):
 def neighbor_generator(imsize=256, use_cuda=False):
     photo_dir = '/home/jefan/full_sketchy_dataset/photos'
     sketch_dir = '/home/jefan/full_sketchy_dataset/sketches'
-
-#     photo_paths = list_files(photo_dir, ext='jpg')
     sketch_paths = list_files(sketch_dir, ext='png')
     
     for i in range(len(sketch_paths)):
@@ -171,14 +169,14 @@ def neighbor_generator(imsize=256, use_cuda=False):
         sketch_filename = os.path.basename(sketch_path)
         sketch_folder = os.path.dirname(sketch_path).split('/')[-1]        
     
-        ## sample a different photo from the same class 
+        # sample a different photo from the same class 
         matching_photo = sketch_filename.split('-')[0] + '.jpg'
-        matching_photo_path = os.path.join(photo_dir,sketch_folder,matching_photo)   
-        photo_class = os.path.join(photo_dir,sketch_folder)            
+        matching_photo_path = os.path.join(photo_dir, sketch_folder, matching_photo)   
+        photo_class = os.path.join(photo_dir, sketch_folder)            
         while True:                        
             _random_photo_path = np.random.choice(os.listdir(photo_class))
             random_photo_path = os.path.join(photo_class,_random_photo_path)
-            if _random_photo_path != sketch_filename:
+            if _random_photo_path != matching_photo:
                 break
 
         photo = load_image(random_photo_path, imsize=imsize, use_cuda=use_cuda)
@@ -204,6 +202,7 @@ def sketchspsc_generator(imsize=256, use_cuda=False):
             random_other_sketch_path = os.path.join(sketch_dir,sketch_folder,random_other_sketch)
             if random_other_sketch != sketch_filename:
                 break 
+        
         sketch1 = load_image(sketch_path, imsize=imsize, use_cuda=use_cuda)
         sketch2 = load_image(random_other_sketch_path, imsize=imsize, use_cuda=use_cuda)
         
@@ -228,6 +227,7 @@ def sketchdpsc_generator(imsize=256, use_cuda=False):
             random_other_sketch_path = os.path.join(sketch_dir,sketch_folder,random_other_sketch)
             if random_other_sketch != sketch_filename:
                 break 
+        
         sketch1 = load_image(sketch_path, imsize=imsize, use_cuda=use_cuda)
         sketch2 = load_image(random_other_sketch_path, imsize=imsize, use_cuda=use_cuda)
         
