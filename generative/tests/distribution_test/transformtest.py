@@ -1,4 +1,4 @@
-"""Trying to non-linear or nonlinear transformation from photo 
+"""Trying to learn a non-linear or nonlinear transformation from photo 
 embeddings to sketch embeddings prior to the standard distribution test.
 
 - MLP
