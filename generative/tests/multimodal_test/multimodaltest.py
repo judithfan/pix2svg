@@ -9,9 +9,11 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
-import sys
-sys.path.append('../distribution_test')
+import os
+import copy
 import random
+import shutil
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -20,12 +22,14 @@ import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 
 from torch.autograd import Variable
-from generators import *
 
 import torchvision.models as models
 from sklearn.metrics import accuracy_score
 from precompute_vgg import list_files
 
+import sys
+sys.path.append('../distribution_test')
+from distribtest import cosine_similarity
 
 class EmbedNet(nn.Module):
     def __init__(self, adaptive_size):
@@ -112,8 +116,13 @@ def embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256,
     np.random.seed(random_seed)
     random.seed(random_seed)
 
-    random.shuffle(photo_paths)
-    random.shuffle(sketch_paths)
+    sketch_paths_0 = copy.deepcopy(sketch_paths)
+    sketch_paths_1 = copy.deepcopy(sketch_paths)
+    sketch_paths_2 = copy.deepcopy(sketch_paths)
+
+    random.shuffle(sketch_paths_0)
+    random.shuffle(sketch_paths_1)
+    random.shuffle(sketch_paths_2)
 
     n_paths = len(sketch_paths) * 2
     class_samples = np.random.choice(range(3), size=n_paths, p=[0.5, 0.25, 0.25])
@@ -128,14 +137,14 @@ def embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256,
 
     for i in range(n_paths):
         if class_samples[i] == 0:
-            sketch_path = sketch_paths[class_0_i]
+            sketch_path = sketch_paths_0[class_0_i]
             sketch_filename = os.path.basename(sketch_path)
             sketch_folder = os.path.dirname(sketch_path).split('/')[-1]
             photo_filename = sketch_filename.split('-')[0] + '.npy'
             photo_path = os.path.join(photo_emb_dir, sketch_folder, photo_filename)
             class_0_i += 1
         elif class_samples[i] == 1:
-            sketch_path = sketch_paths[class_1_i]
+            sketch_path = sketch_paths_1[class_1_i]
             sketch_filename = os.path.basename(sketch_path)
             sketch_folder = os.path.dirname(sketch_path).split('/')[-1]
             while True:
@@ -145,7 +154,7 @@ def embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256,
                     break
             class_1_i += 1
         else:
-            sketch_path = sketch_paths[class_2_i]
+            sketch_path = sketch_paths_2[class_2_i]
             sketch_filename = os.path.basename(sketch_path)
             sketch_folder = os.path.dirname(sketch_path).split('/')[-1]
             matching_photo_filename = sketch_filename.split('-')[0] + '.npy'
@@ -163,7 +172,7 @@ def embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256,
         sketch = np.load(sketch_path)
         label = int(class_samples[i] == 0)
 
-        if not photo_batch and not sketch_batch:
+        if photo_batch is None and sketch_batch is None:
             photo_batch = photo
             sketch_batch = sketch
             label_batch = [label]
@@ -198,7 +207,7 @@ def embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256,
             label_batch = None
 
     # return any remaining data
-    if photo_batch and sketch_batch:
+    if photo_batch is not None and sketch_batch is not None:
         photo_batch = torch.from_numpy(photo_batch)
         sketch_batch = torch.from_numpy(sketch_batch)
         label_batch = np.array(label_batch)
@@ -271,14 +280,16 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    photo_emb_dir = '/home/jefan/full_sketchy_dataset/photos'
-    sketch_emb_dir = '/home/jefan/full_sketchy_dataset/sketches'
+    photo_emb_dir = '/home/wumike/full_sketchy_embeddings/photos'
+    sketch_emb_dir = '/home/wumike/full_sketchy_embeddings/sketches'
 
     def reset_generators():
         train_generator = embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256, 
-                                              batch_size=args.batch_size, train=True, use_cuda=args.cuda)
+                                              batch_size=args.batch_size, train=True, 
+                                              use_cuda=args.cuda)
         test_generator = embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256, 
-                                             batch_size=args.batch_size, train=True, use_cuda=args.cuda)
+                                             batch_size=args.batch_size, train=True, 
+                                             use_cuda=args.cuda)
         return train_generator, test_generator
 
     train_generator, test_generator = reset_generators()
@@ -307,7 +318,7 @@ if __name__ == '__main__':
 
             optimizer.zero_grad()
             outputs = model(photos, sketches)
-            loss = F.binary_cross_entropy(outputs.squeeze(1), labels)
+            loss = F.binary_cross_entropy(outputs.squeeze(1), labels.float())
             loss_meter.update(loss.data[0], photos.size(0)) 
             
             if args.cuda:
@@ -340,9 +351,9 @@ if __name__ == '__main__':
                 batch_idx += 1
             except StopIteration:
                 break
-
+            
             outputs = model(photos, sketches)
-            loss = F.binary_cross_entropy(outputs.squeeze(1), labels)
+            loss = F.binary_cross_entropy(outputs.squeeze(1), labels.float())
             
             if args.cuda:
                 acc = accuracy_score(labels.cpu().data.numpy(),
