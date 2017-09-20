@@ -79,7 +79,8 @@ def generator_size(sketch_emb_dir, train=True):
 
 
 def embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256, 
-                        batch_size=32, train=True, use_cuda=False):
+                        batch_size=32, train=True, use_cuda=False, 
+                        random_seed=42):
     """This data generator returns (photo, sketch, label) where label
     is one of 3 classes: same photo, same class + diff photo, 
     diff class + diff photo. We provide 50% class 0, 25% class 1, and
@@ -91,6 +92,7 @@ def embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256,
     :param train: if True, return 80% of data; else return 20%.
     :param batch_size: number to return at a time
     :param use_cuda: if True, make CUDA compatible objects
+    :param random_seed: so that random shuffle is the same everytime
     """
     categories = os.listdir(sketch_emb_dir)
     n_categories = len(categories)
@@ -105,6 +107,9 @@ def embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256,
     sketch_paths = [path for path in list_files(sketch_emb_dir, ext='npy') 
                    if os.path.dirname(path).split('/')[-1] in categories]
     
+    np.random.seed(random_seed)
+    random.seed(random_seed)
+
     random.shuffle(photo_paths)
     random.shuffle(sketch_paths)
 
@@ -358,6 +363,9 @@ if __name__ == '__main__':
     for epoch in range(1, args.epochs + 1):
         train(epoch)
         acc = test(epoch)
+
+        train_generator, test_generator = reset_generators()
+
         is_best = acc > best_acc
         best_acc = max(acc, best_acc)
 
