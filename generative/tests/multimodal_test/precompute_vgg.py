@@ -53,6 +53,7 @@ if __name__ == '__main__':
     all_folders = [x[0] for x in os.walk(args.outfolder)]
     for folder in all_folders:
         new_folder = folder.replace(args.imgfolder, args.outfolder)
+        import pdb; pdb.set_trace()
         if not os.path.exists(new_folder):
             os.makedirs(new_folder)
 
@@ -112,7 +113,7 @@ if __name__ == '__main__':
 
     image_embs = torch.cat(image_emb_batches, dim=0)
     image_embs = image_embs.cpu().data.numpy()
-    assert(image_embs.shape[0] == len(image_ids))
+    assert(image_embs.shape[0] == n_images)
 
     for i in range(n_images):
         print('Saving numpy object [{}/{}]'.format(i + 1, n_images))
