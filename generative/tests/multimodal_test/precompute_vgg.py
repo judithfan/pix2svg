@@ -45,15 +45,15 @@ if __name__ == '__main__':
     # a/, b/, and c/, then outfolder/ will also have the same subfolders.
     parser.add_argument('imgfolder', type=str, help='path to where images are stored')
     parser.add_argument('outfolder', type=str, help='path to save text embeddings to')
+    parser.add_argument('extension', type=str, help='jpg|png')
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
 
     # check and create all sub-directories
-    all_folders = [x[0] for x in os.walk(args.outfolder)]
+    all_folders = [x[0] for x in os.walk(args.imgfolder)]
     for folder in all_folders:
         new_folder = folder.replace(args.imgfolder, args.outfolder)
-        import pdb; pdb.set_trace()
         if not os.path.exists(new_folder):
             os.makedirs(new_folder)
 
@@ -74,7 +74,7 @@ if __name__ == '__main__':
             transforms.Normalize([0.485, 0.456, 0.406],
                                  [0.229, 0.224, 0.225])])
 
-    image_paths = list_files(args.imgfolder)
+    image_paths = list_files(args.imgfolder, args.extension)
     n_images = len(image_paths)
 
     # store raw images in a batch so we can evaluate them using vgg
