@@ -118,4 +118,5 @@ if __name__ == '__main__':
     for i in range(n_images):
         print('Saving numpy object [{}/{}]'.format(i + 1, n_images))
         path_name = image_paths[i].replace(args.imgfolder, args.outfolder)
+        path_name = path_name.replace(args.extension, 'npy')
         np.save(path_name, image_embs[i])
