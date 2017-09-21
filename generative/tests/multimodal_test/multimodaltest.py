@@ -239,6 +239,8 @@ def embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256,
 
 
 def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
+    if not os.path.exists(folder):
+        os.makedirs(folder)
     torch.save(state, os.path.join(folder, filename))
     if is_best:
         shutil.copyfile(os.path.join(folder, filename),
