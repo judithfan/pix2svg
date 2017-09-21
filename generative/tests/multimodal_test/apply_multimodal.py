@@ -25,10 +25,11 @@ from torch.autograd import Variable
 
 import torchvision.models as models
 import torchvision.transforms as transforms
-from transformtest import load_checkpoint
 
-from distribtest import gen_distance
-from embedding_generator import generator
+from distribtest import cosine_similarity
+from distribtest import BaseLossTest
+from embedding_generators import generator
+from multimodaltest import EmbedNet
 
 
 class MultiModalLayerLossTest(BaseLossTest):
@@ -38,22 +39,32 @@ class MultiModalLayerLossTest(BaseLossTest):
     on the saved embeddings.
     """
 
-    def __init__(self, model_path, metric='euclidean', use_cuda=False):
+    def __init__(self, model_path, use_cuda=False):
         super(MultiModalLayerLossTest, self).__init__()
         model = load_checkpoint(model_path, use_cuda=use_cuda)
-        mode.eval()
+        model.eval()
 
         if use_cuda:
             model.cuda()
         
         self.model = model
-        self.metric = metric
         self.use_cuda = use_cuda
 
     def loss(self, image_embs, sketch_embs):
         image_embs = self.model.photo_adaptor(image_embs)
         sketch_embs = self.model.sketch_adaptor(sketch_embs)
-        return gen_distance(images_emb, sketches_emb, metric=self.metric)
+        return cosine_similarity(image_embs, sketch_embs, dim=1)
+
+
+def load_checkpoint(file_path, use_cuda=False):
+    """Return EmbedNet"""
+    if use_cuda:
+        checkpoint = torch.load(file_path)
+    else:
+        checkpoint = torch.load(file_path, map_location=lambda storage, location: storage)
+    model = EmbedNet(1000)
+    model.load_state_dict(checkpoint['state_dict'])
+    return model
 
 
 if __name__ == '__main__':
@@ -73,6 +84,7 @@ if __name__ == '__main__':
 
     batch_idx = 0
     example_cnt = 0
+    loss_list = []
 
     while True:
         try:
@@ -86,7 +98,7 @@ if __name__ == '__main__':
         losses = losses.cpu().data.numpy().flatten()
         loss_list += losses.tolist()
 
-        print('Batch {} | Examples {}'.format(batch_index, example_cnt))
+        print('Batch {} | Examples {}'.format(batch_idx, example_cnt))
 
     if not os.path.exists(args.out_folder):
         os.makedirs(args.out_folder)
@@ -94,3 +106,5 @@ if __name__ == '__main__':
     loss_list = np.array(loss_list)
     filename = 'loss_multimodal_{datatype}.npy'.format(datatype=args.data_type)
     np.save(os.path.join(args.out_folder, filename), loss_list)
+    print('Saved losses to file')
+
