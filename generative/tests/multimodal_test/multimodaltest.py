@@ -132,7 +132,9 @@ def embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256,
 
     n_paths = len(sketch_paths) * 2
     # if the probability is 0 then we will not include same class diff photo as negatives
-    class_proba = [0.5, 0.25, 0.25] if strict [0.5, 0.5, 0.0]
+    class_proba = [0.5, 0.25, 0.25] 
+    if strict:
+        class_proba = [0.5, 0.5, 0.0]
     class_samples = np.random.choice(range(3), size=n_paths, p=class_proba)
 
     class_0_i = 0
