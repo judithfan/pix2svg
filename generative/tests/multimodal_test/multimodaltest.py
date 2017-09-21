@@ -86,7 +86,7 @@ def generator_size(sketch_emb_dir, train=True):
 
 def embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256, 
                         batch_size=32, train=True, use_cuda=False, 
-                        random_seed=42):
+                        strict=False, random_seed=42):
     """This data generator returns (photo, sketch, label) where label
     is one of 3 classes: same photo, same class + diff photo, 
     diff class + diff photo. We provide 50% class 0, 25% class 1, and
@@ -98,6 +98,12 @@ def embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256,
     :param train: if True, return 80% of data; else return 20%.
     :param batch_size: number to return at a time
     :param use_cuda: if True, make CUDA compatible objects
+    :param strict: if True, sketches of the same class but different photo are
+                   treated as negatives. The good part of doing this is to really
+                   pull apart exact photo sketch matches. The bad part is that
+                   noise and diff photo same class are about the same. Ideally, 
+                   we want to have noise + diff class be about the same, and have
+                   same class diff photo and same class same photo near each other.
     :param random_seed: so that random shuffle is the same everytime
     """
     categories = os.listdir(sketch_emb_dir)
@@ -125,7 +131,9 @@ def embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256,
     random.shuffle(sketch_paths_2)
 
     n_paths = len(sketch_paths) * 2
-    class_samples = np.random.choice(range(3), size=n_paths, p=[0.5, 0.25, 0.25])
+    # if the probability is 0 then we will not include same class diff photo as negatives
+    class_proba = [0.5, 0.25, 0.25] if strict [0.5, 0.5, 0.0]
+    class_samples = np.random.choice(range(3), size=n_paths, p=class_proba)
 
     class_0_i = 0
     class_1_i = 0
@@ -276,6 +284,8 @@ if __name__ == '__main__':
     parser.add_argument('--log_interval', type=int, default=10)
     parser.add_argument('--adaptive_size', type=int, default=1000,
                         help='size to of shared vector space for images and text [default: 1000]')
+    parser.add_argument('--strict', action='store_true', default=False,
+                        help='if True, then consider a sketch of the same class but different photo as negative.')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
@@ -286,10 +296,10 @@ if __name__ == '__main__':
     def reset_generators():
         train_generator = embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256, 
                                               batch_size=args.batch_size, train=True, 
-                                              use_cuda=args.cuda)
+                                              strict=args.strict, use_cuda=args.cuda)
         test_generator = embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256, 
                                              batch_size=args.batch_size, train=True, 
-                                             use_cuda=args.cuda)
+                                             strict=args.strict, use_cuda=args.cuda)
         return train_generator, test_generator
 
     train_generator, test_generator = reset_generators()
