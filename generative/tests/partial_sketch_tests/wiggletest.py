@@ -41,8 +41,23 @@ photo_preprocessing = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406],
                          [0.229, 0.224, 0.225])])
 
+# sketches are already size 224 and tensors
 sketch_preprocessing = transforms.Normalize([0.485, 0.456, 0.406],
                                             [0.229, 0.224, 0.225])
+
+
+def gen_endpoints_from_csv(photo_name, sketch_id):
+    csv_path = '/home/wumike/pix2svg/preprocessing/tiny/stroke_dataframe.csv'
+    sketch_points = []
+    with open(csv_path, 'rb') as fp:
+        reader = csv.reader(fp)
+        for row in reader:
+            if row[-1] == photo_name and row[-2] == sketch_id:
+                # we are going to ignore pen type (lifting for now)
+                sketch_points.append([float(row[1]), float(row[2]), int(row[3]), int(row[4])])
+
+    sketch_points = np.array(sketch_points)
+    return sketch_points
 
 
 if __name__ == "__main__":
@@ -78,7 +93,7 @@ if __name__ == "__main__":
     photo_filename = photo_name + '.jpg'
 
     # get photo image
-    photo_path = os.path.join('/home/jefan/full_sketchy_dataset/photos', 
+    photo_path = os.path.join('/home/jefan/full_sketchy_dataset/photos/airplane', 
                               photo_filename)
     # convert to torch object
     photo = photo = Image.open(photo_path)
@@ -91,23 +106,10 @@ if __name__ == "__main__":
     photo = net.photo_adaptor(photo)
 
     # load sketch endpoints
-    csv_path = '/home/wumike/pix2svg/preprocessing/tiny/stroke_dataframe.csv'
-    sketch_points = []
-    with open(csv_path, 'rb') as fp:
-        reader = csv.reader(fp)
-        for row in reader:
-            if row[-1] == photo_name and row[-2] == sketch_id:
-                # we are going to ignore pen type (lifting for now)
-                sketch_points.append([float(row[1]), float(row[2]), int(row[3]), int(row[4])])
+    sketch_endpoints = gen_endpoints_from_csv(photo_name, sketch_id)
 
-    sketch_points = np.array(sketch_points)
-    point_order = np.argsort(sketch_points[:, 3])
-    sketch_x_list = sketch_points[:, 0][point_order]
-    sketch_y_list = sketch_points[:, 1][point_order]
-    sketch_pen_list = sketch_points[:, 2][point_order]
-
-    renderer = SketchRenderNet(sketch_x_list, sketch_y_list, sketch_pen_list,
-                               imsize=224, fuzz=args.fuzz)
+    renderer = SketchRenderNet(sketch_endpoints[:, 0], sketch_endpoints[:, 1], 
+                               sketch_endpoints[:, 2], imsize=224, fuzz=args.fuzz)
     optimizer = optim.Adam(renderer.parameters(), lr=args.lr)
 
 
@@ -127,7 +129,6 @@ if __name__ == "__main__":
 
     for i in range(args.epochs):
         train(i)
-
 
     sketch = renderer()
     plt.matshow(sketch[0][0].data.numpy())

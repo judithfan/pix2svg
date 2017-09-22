@@ -41,7 +41,6 @@ class SketchRenderNet(nn.Module):
             self.x_list = Parameter(torch.Tensor(x_list))
             self.y_list = Parameter(torch.Tensor(y_list))
         if pen_list is None:
-            # TODO: why is len(pen_list) == len(x_list); shouldn't it be one less?
             # if none is provided, draw everything.
             pen_list = [2 for i in xrange(self.n_points)]
         self.pen_list = pen_list
@@ -52,7 +51,7 @@ class SketchRenderNet(nn.Module):
     def forward(self):
         template = Variable(torch.zeros(self.imsize, self.imsize))
         for i in range(1, self.n_points):
-            if self.pen_list[i] == 2:  # TODO: confirm with Jefan
+            if self.pen_list[i] == 2:
                 _template = draw_line(self.x_list[i - 1], self.y_list[i - 1],
                                       self.x_list[i], self.y_list[i],
                                       imsize=self.imsize, fuzz=self.fuzz,
@@ -111,12 +110,18 @@ class BresenhamRenderNet(object):
     we should use this to render the final image so that it will
     look cleaner.
     """
-    def __init__(self, x_list, y_list, imsize=224, linewidth=1):
+    def __init__(self, x_list, y_list, pen_list=None, 
+                 imsize=224, linewidth=1):
         super(BresenhamRenderNet, self).__init__()
         assert len(x_list) == len(y_list)
+        assert len(x_list) == len(pen_list)
         self.n_points = len(x_list)
         self.x_list = x_list
         self.y_list = y_list
+        if pen_list is None:
+            # if none is provided, draw everything.
+            pen_list = [2 for i in xrange(self.n_points)]
+        self.pen_list = pen_list
         self.imsize = imsize
         if linewidth % 2 == 0:
             linewidth += 1
@@ -125,9 +130,10 @@ class BresenhamRenderNet(object):
     def forward(self):
         template = torch.zeros(self.imsize, self.imsize)
         for i in range(1, self.n_points):
-            _template = draw_binary_line(int(round(self.x_list[i - 1])), int(round(self.y_list[i - 1])),
-                                         int(round(self.x_list[i])), int(round(self.y_list[i])),
-                                         imsize=self.imsize, width=self.linewidth)
+            if self.pen_list[i] == 2:
+                _template = draw_binary_line(int(round(self.x_list[i - 1])), int(round(self.y_list[i - 1])),
+                                             int(round(self.x_list[i])), int(round(self.y_list[i])),
+                                             imsize=self.imsize, width=self.linewidth)
             template += _template
         template = torch.clamp(template, 0, 1)
         template = torch.unsqueeze(template, dim=0)
