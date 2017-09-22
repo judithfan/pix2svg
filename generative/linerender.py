@@ -21,6 +21,7 @@ class SketchRenderNet(nn.Module):
 
     :param x_list: path of x coordinates (x0, x1, ..., xn)
     :param y_list: path of y coordinates (y0, y1, ..., yn)
+    :param pen_list: path of pen types (p0, p1, ..., pn)
     :param imsize: image size to generate
     :param fuzz: hyperparameter to scale differences; fuzz > 1 would
                  localize around the line; fuzz < 1 would make things
@@ -28,7 +29,8 @@ class SketchRenderNet(nn.Module):
     :param use_cuda: boolean to gen cuda variables
     :return template: imsize by imsize rendered sketch
     """
-    def __init__(self, x_list, y_list, imsize=224, fuzz=1, use_cuda=False):
+    def __init__(self, x_list, y_list, pen_list=None, imsize=224, 
+                 fuzz=1, use_cuda=False):
         super(SketchRenderNet, self).__init__()
         assert len(x_list) == len(y_list)
         self.n_points = len(x_list)
@@ -38,6 +40,11 @@ class SketchRenderNet(nn.Module):
         else:
             self.x_list = Parameter(torch.Tensor(x_list))
             self.y_list = Parameter(torch.Tensor(y_list))
+        if pen_list is None:
+            # TODO: why is len(pen_list) == len(x_list); shouldn't it be one less?
+            # if none is provided, draw everything.
+            pen_list = [2 for i in xrange(self.n_points)]
+        self.pen_list = pen_list
         self.imsize = imsize
         self.fuzz = fuzz
         self.use_cuda = use_cuda
@@ -45,10 +52,11 @@ class SketchRenderNet(nn.Module):
     def forward(self):
         template = Variable(torch.zeros(self.imsize, self.imsize))
         for i in range(1, self.n_points):
-            _template = draw_line(self.x_list[i - 1], self.y_list[i - 1],
-                                  self.x_list[i], self.y_list[i],
-                                  imsize=self.imsize, fuzz=self.fuzz,
-                                  use_cuda=self.use_cuda)
+            if self.pen_list[i] == 2:  # TODO: confirm with Jefan
+                _template = draw_line(self.x_list[i - 1], self.y_list[i - 1],
+                                      self.x_list[i], self.y_list[i],
+                                      imsize=self.imsize, fuzz=self.fuzz,
+                                      use_cuda=self.use_cuda)
             template += _template
         template = torch.unsqueeze(template, dim=0)
         template = torch.unsqueeze(template, dim=0)
