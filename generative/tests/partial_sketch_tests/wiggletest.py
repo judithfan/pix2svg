@@ -13,6 +13,7 @@ import os
 import sys
 import csv
 
+import numpy as np
 from PIL import Image
 
 import torch
@@ -29,6 +30,7 @@ sys.path.append('../..')
 sys.path.append('../distribution_test')
 sys.path.append('../multimodal_test')
 from linerender import SketchRenderNet
+from linerender import BresenhamRenderNet
 from distribtest import cosine_similarity
 from multimodaltest import load_checkpoint
 from precompute_vgg import cnn_predict
@@ -41,10 +43,6 @@ photo_preprocessing = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406],
                          [0.229, 0.224, 0.225])])
 
-# sketches are already size 224 and tensors
-sketch_preprocessing = transforms.Normalize([0.485, 0.456, 0.406],
-                                            [0.229, 0.224, 0.225])
-
 
 def gen_endpoints_from_csv(photo_name, sketch_id):
     csv_path = '/home/wumike/pix2svg/preprocessing/tiny/stroke_dataframe.csv'
@@ -54,7 +52,7 @@ def gen_endpoints_from_csv(photo_name, sketch_id):
         for row in reader:
             if row[-1] == photo_name and row[-2] == sketch_id:
                 # we are going to ignore pen type (lifting for now)
-                sketch_points.append([float(row[1]), float(row[2]), int(row[3]), int(row[4])])
+                sketch_points.append([float(row[1]), float(row[2]), int(row[3])])
 
     sketch_points = np.array(sketch_points)
     return sketch_points
@@ -63,22 +61,18 @@ def gen_endpoints_from_csv(photo_name, sketch_id):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('sketch_filename', type=str, 
-                        help='must be a file inside full_sketchy_dataset/sketches/airplanes/*')
     parser.add_argument('model_path', type=str,
                         help='path to the trained model file')
     parser.add_argument('out_folder', type=str,
                         help='where to save sketch')
     parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--lr', type=float, default=0.01)
-    parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--log_interval', type=int, default=1)
-    parser.add_argument('--fuzz', type=float, default=1.0)
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    net = load_checkpoint(args.model_path)
+    net = load_checkpoint(args.model_path, use_cuda=args.cuda)
     cnn = models.vgg19(pretrained=True)
     cnn.eval()
     net.eval()
@@ -87,7 +81,9 @@ if __name__ == "__main__":
         cnn.cuda()
         net.cuda()
 
-    sketch_name, sketch_ext = os.path.splitext(args.sketch_filename)
+    # TODO: make this not hardcoded.
+    sketch_filename = '/home/jefan/full_sketchy_dataset/sketches/airplane/n02691156_10168-3.png'
+    sketch_name, sketch_ext = os.path.splitext(sketch_filename)
     photo_name = sketch_name.split('-')[0]
     sketch_id = str(sketch_name.split('-')[1])
     photo_filename = photo_name + '.jpg'
@@ -105,11 +101,15 @@ if __name__ == "__main__":
     photo = cnn_predict(photo, cnn)
     photo = net.photo_adaptor(photo)
 
-    # load sketch endpoints
-    sketch_endpoints = gen_endpoints_from_csv(photo_name, sketch_id)
+    # HACK: 0-indexing for sketch_id inside CSV but 1-indexing for sketch_id in filename
+    sketch_endpoints = gen_endpoints_from_csv(photo_name, sketch_id - 1)
+    # HACK: coordinates are current in 640 by 480; reshape to 256
+    #       AKA: transforms.Scale(256)
+    sketch_endpoints[:, 0] = sketch_endpoints[:, 0] / 640 * 256
+    sketch_endpoints[:, 1] = sketch_endpoints[:, 1] / 480 * 256
 
     renderer = SketchRenderNet(sketch_endpoints[:, 0], sketch_endpoints[:, 1], 
-                               sketch_endpoints[:, 2], imsize=224, fuzz=args.fuzz)
+                               sketch_endpoints[:, 2], imsize=256, fuzz=0.0001)
     optimizer = optim.Adam(renderer.parameters(), lr=args.lr)
 
 
@@ -117,12 +117,33 @@ if __name__ == "__main__":
         renderer.train()
         optimizer.zero_grad()
         sketch = renderer()
-        sketch = sketch_preprocessing(sketch)
+        # HACK: manually center crop to 224 by 224 from 256 by 256
+        #       AKA transforms.CenterCrop(224)
+        sketch = sketch[:, :, 16:240, 16:240]
+        # HACK: normalize sketch to 0 --> 1 (this is like ToTensor)
+        #       AKA transforms.ToTensor()
+        sketch_min = torch.min(sketch)
+        sketch_max = torch.max(sketch)
+        sketch = (sketch - sketch_min) / (sketch_max - sketch_min)
+        sketch = 1 - sketch
+        # HACK: given sketch 3 channels: RGB
+        sketch = torch.cat((sketch, sketch, sketch), dim=1)
+        # HACK: manually normalize each dimension
+        #       AKA transforms.Normalize([0.485, 0.456, 0.406],
+        #                                [0.229, 0.224, 0.225])
+        sketch[:, 0] = (sketch[:, 0] - 0.485) / 0.229
+        sketch[:, 1] = (sketch[:, 1] - 0.456) / 0.224
+        sketch[:, 2] = (sketch[:, 2] - 0.406) / 0.225
+
         sketch = cnn_predict(sketch, cnn)
         sketch = net.sketch_adaptor(sketch)
+        
+        # we want to optimize 1 - cosine since all the best images were
+        # near 1.0. See quip.
         loss = 1 - cosine_similarity(photo, sketch, dim=1)
         loss.backward()
         optimizer.step()
+        
         if epoch % args.log_interval == 0:
             print('Train Epoch: {} \tCosine Distance: {:.6f}'.format(epoch, loss.data[0]))
 
@@ -130,6 +151,28 @@ if __name__ == "__main__":
     for i in range(args.epochs):
         train(i)
 
-    sketch = renderer()
-    plt.matshow(sketch[0][0].data.numpy())
-    plt.savefig(os.path.join(args.out_folder, 'output.png'))
+
+    parameters = list(renderer.parameters())
+    x_parameters = parameters[0].data.numpy()
+    y_parameters = parameters[1].data.numpy()
+    pen_parameters = renderer.pen_list
+
+    # TODO: BresenhamRenderNet flips x and y; fix this.
+    tracer = BresenhamRenderNet(y_parameters, x_parameters,
+                                pen_list=pen_parameters, imsize=256)
+    sketch = tracer.forward()
+    # Do some of preprocessing hacks to make it look lke a real image
+    sketch_min = torch.min(sketch)
+    sketch_max = torch.max(sketch)
+    sketch = (sketch - sketch_min) / (sketch_max - sketch_min)
+    sketch = (1 - sketch) * 255
+    sketch = torch.cat((sketch, sketch, sketch), dim=1)
+
+    # convert to numpy
+    sketch = sketch[0].data.numpy()
+    sketch = np.rollaxis(sketch, 0, 3)
+    sketch = np.round(sketch, 0).astype(np.uint8)
+
+    # visualize and save
+    sketch = Image.fromarray(sketch)
+    sketch.save(os.path.join(args.out_folder, 'output.png'))

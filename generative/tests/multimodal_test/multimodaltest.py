@@ -31,6 +31,7 @@ import sys
 sys.path.append('../distribution_test')
 from distribtest import cosine_similarity
 
+
 class EmbedNet(nn.Module):
     def __init__(self, adaptive_size):
         super(EmbedNet, self).__init__()
