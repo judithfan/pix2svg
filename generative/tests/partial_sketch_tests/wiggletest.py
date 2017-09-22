@@ -50,7 +50,7 @@ def gen_endpoints_from_csv(photo_name, sketch_id):
     with open(csv_path, 'rb') as fp:
         reader = csv.reader(fp)
         for row in reader:
-            if row[-1] == photo_name and row[-2] == sketch_id:
+            if row[-1] == photo_name and int(row[-2]) == int(sketch_id):
                 # we are going to ignore pen type (lifting for now)
                 sketch_points.append([float(row[1]), float(row[2]), int(row[3])])
 
@@ -78,31 +78,25 @@ if __name__ == "__main__":
     net.eval()
 
     if args.cuda:
-        cnn.cuda()
-        net.cuda()
+        cnn = cnn.cuda()
+        net = net.cuda()
 
     # TODO: make this not hardcoded.
-    sketch_filename = '/home/jefan/full_sketchy_dataset/sketches/airplane/n02691156_10168-3.png'
-    sketch_name, sketch_ext = os.path.splitext(sketch_filename)
-    photo_name = sketch_name.split('-')[0]
-    sketch_id = str(sketch_name.split('-')[1])
-    photo_filename = photo_name + '.jpg'
+    photo_path = '/home/jefan/full_sketchy_dataset/photos/airplane/n02691156_10168.jpg'
 
-    # get photo image
-    photo_path = os.path.join('/home/jefan/full_sketchy_dataset/photos/airplane', 
-                              photo_filename)
     # convert to torch object
-    photo = photo = Image.open(photo_path)
+    photo = Image.open(photo_path)
     photo = photo.convert('RGB')
     photo = photo_preprocessing(photo).unsqueeze(0)
     photo = Variable(photo, volatile=True)
     if args.cuda:
-        photo.cuda()
+        photo = photo.cuda()
     photo = cnn_predict(photo, cnn)
     photo = net.photo_adaptor(photo)
 
     # HACK: 0-indexing for sketch_id inside CSV but 1-indexing for sketch_id in filename
-    sketch_endpoints = gen_endpoints_from_csv(photo_name, sketch_id - 1)
+    photo_csv_name = os.path.splitext(os.path.basename(photo_path))[0]
+    sketch_endpoints = gen_endpoints_from_csv(photo_csv_name, 2)  # HARDCODED ID
     # HACK: coordinates are current in 640 by 480; reshape to 256
     #       AKA: transforms.Scale(256)
     sketch_endpoints[:, 0] = sketch_endpoints[:, 0] / 640 * 256
@@ -122,10 +116,9 @@ if __name__ == "__main__":
         sketch = sketch[:, :, 16:240, 16:240]
         # HACK: normalize sketch to 0 --> 1 (this is like ToTensor)
         #       AKA transforms.ToTensor()
-        sketch_min = torch.min(sketch)
-        sketch_max = torch.max(sketch)
+        sketch_min = torch.min(sketch).expand_as(sketch)
+        sketch_max = torch.max(sketch).expand_as(sketch)
         sketch = (sketch - sketch_min) / (sketch_max - sketch_min)
-        sketch = 1 - sketch
         # HACK: given sketch 3 channels: RGB
         sketch = torch.cat((sketch, sketch, sketch), dim=1)
         # HACK: manually normalize each dimension
