@@ -49,14 +49,17 @@ class SketchRenderNet(nn.Module):
         self.use_cuda = use_cuda
 
     def forward(self):
-        template = Variable(torch.zeros(self.imsize, self.imsize))
         for i in range(1, self.n_points):
             if self.pen_list[i] == 2:
                 _template = draw_line(self.x_list[i - 1], self.y_list[i - 1],
                                       self.x_list[i], self.y_list[i],
                                       imsize=self.imsize, fuzz=self.fuzz,
                                       use_cuda=self.use_cuda)
-            template += _template
+                if i == 1:
+                    template = _template
+                else:
+                    ix = _template < template
+                    template[ix] = _template[ix]
         template = torch.unsqueeze(template, dim=0)
         template = torch.unsqueeze(template, dim=0)
 
