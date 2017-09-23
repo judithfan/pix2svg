@@ -26,12 +26,12 @@ class DataBuilder():
                 for ex in os.listdir("%s/%s" % (filepath, p)):
                     if ex == ".DS_Store" or ex == "checked.txt" or ex == "invalid.txt": continue
                     if ex[:-4] in invalid:
-                        print ("this one's bs bruh")
                         total -= 1
                         continue
-                    print ("%s/%s/%s" % (filepath, p, ex))
-                    strokes = helpers.svg_to_stroke5("%s/%s/%s" % (filepath, p, ex))
-                    if strokes == None:
+                    print ("%s/%s/%s" % (filepath, p, ex))                    
+                    strokes = svg.svg_to_stroke5("%s/%s/%s" % (filepath, p, ex))
+                    # print len(strokes)
+                    if len(strokes) == 0:
                         total -= 1
                         print ("Invalid")
                         continue
@@ -44,14 +44,13 @@ class DataBuilder():
                 all_classes[p] = (all_ex, lookup_dict)
                 break
             print (all_classes)
-            np.save('all_sketches.npy', all_classes)
+            np.save('sketch_coords.npy', all_classes)
             print (max(all_strokes))
             return all_classes, max(all_strokes)
 
-
-        self.sketches = parseSketches("%s/svgraw" % (path))
+        self.sketches = parseSketches(path)
 
 if __name__ == '__main__':
-    build = DataBuilder('tiny')
+    build = DataBuilder('svgraw')
 
 

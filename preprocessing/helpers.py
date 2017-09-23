@@ -85,8 +85,9 @@ def svg_to_stroke3(filename):
     for path in paths:
         line_segs = []
         for point in path:
-            start = [np.real(point.start)[()], np.imag(point.start)[()]]
-            end = [np.real(point.end)[()], np.imag(point.end)[()]]
+            # print point.start
+            start = [np.real(point.start), np.imag(point.start)]
+            end = [np.real(point.end), np.imag(point.end)]
             line_segs.append(end)
             line_segs.append(start)
         rdp_lines.append(rdp(line_segs, epsilon=2.8))
