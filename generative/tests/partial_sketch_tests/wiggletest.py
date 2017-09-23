@@ -81,6 +81,12 @@ if __name__ == "__main__":
         cnn = cnn.cuda()
         net = net.cuda()
 
+    for p in cnn.parameters():
+        p.requires_grad = False
+
+    for p in net.parameters():
+        p.requires_grad = False
+
     # TODO: make this not hardcoded.
     photo_path = '/home/jefan/full_sketchy_dataset/photos/airplane/n02691156_10168.jpg'
 
@@ -94,17 +100,23 @@ if __name__ == "__main__":
     photo = cnn_predict(photo, cnn)
     photo = net.photo_adaptor(photo)
 
+    # here we are going to rip photo from its tape and recast it as a variable
+    photo = Variable(photo.data)
+
     # HACK: 0-indexing for sketch_id inside CSV but 1-indexing for sketch_id in filename
     photo_csv_name = os.path.splitext(os.path.basename(photo_path))[0]
     sketch_endpoints = gen_endpoints_from_csv(photo_csv_name, 2)  # HARDCODED ID
     # HACK: coordinates are current in 640 by 480; reshape to 256
     #       AKA: transforms.Scale(256)
     sketch_endpoints[:, 0] = sketch_endpoints[:, 0] / 640 * 256
-    sketch_endpoints[:, 1] = sketch_endpoints[:, 1] / 480 * 256
+    sketch_endpoints[:, 1] = sketch_endpoints[:, 1] / 480 * 256 
 
     renderer = SketchRenderNet(sketch_endpoints[:, 0], sketch_endpoints[:, 1], 
-                               sketch_endpoints[:, 2], imsize=256, fuzz=0.0001)
+                               sketch_endpoints[:, 2], imsize=256, fuzz=0.0001,
+                               use_cuda=args.cuda)
     optimizer = optim.Adam(renderer.parameters(), lr=args.lr)
+    if args.cuda:
+        renderer = renderer.cuda()
 
 
     def train(epoch):
