@@ -45,7 +45,7 @@ photo_preprocessing = transforms.Compose([
 
 
 def gen_endpoints_from_csv(photo_name, sketch_id):
-    csv_path = '/home/wumike/pix2svg/preprocessing/tiny/stroke_dataframe.csv'
+    csv_path = './data/stroke_dataframe.csv'
     sketch_points = []
     with open(csv_path, 'rb') as fp:
         reader = csv.reader(fp)
@@ -88,7 +88,7 @@ if __name__ == "__main__":
         p.requires_grad = False
 
     # TODO: make this not hardcoded.
-    photo_path = '/home/jefan/full_sketchy_dataset/photos/airplane/n02691156_10168.jpg'
+    photo_path = './data/n02691156_10168.jpg'
 
     # convert to torch object
     photo = Image.open(photo_path)
@@ -147,8 +147,7 @@ if __name__ == "__main__":
         # near 1.0. See quip.
         loss = 1 - cosine_similarity(photo, sketch, dim=1)
         loss.backward()
-        optimizer.step()
-        
+
         if epoch % args.log_interval == 0:
             print('Train Epoch: {} \tCosine Distance: {:.6f}'.format(epoch, loss.data[0]))
 

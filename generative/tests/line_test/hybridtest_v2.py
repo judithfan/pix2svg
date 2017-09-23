@@ -17,12 +17,12 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     gt_sketch = gen_ground_truth()
-    # beamer = PixelBeamSearch(5, 5, 11, beam_width=1, n_samples=10000,
-    #                          n_iters=1, stdev=4, fuzz=0.1)
-    # sketch = beamer.train(0, gt_sketch)
-    # x_paths, y_paths = beamer.gen_paths()
-    # plt.matshow(sketch[0].data.numpy())
-    # plt.savefig('./sketch_beam.png')
+    beamer = PixelBeamSearch(5, 5, 11, beam_width=1, n_samples=10000,
+                             n_iters=1, stdev=4, fuzz=0.1)
+    sketch = beamer.train(0, gt_sketch)
+    x_paths, y_paths = beamer.gen_paths()
+    plt.matshow(sketch[0].data.numpy())
+    plt.savefig('./sketch_beam.png')
     x_paths = [2, 8]
     y_paths = [2, 8]
     renderer = SketchRenderNet(x_paths, y_paths, imsize=11, fuzz=1.0)
