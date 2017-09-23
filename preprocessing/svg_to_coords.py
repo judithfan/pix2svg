@@ -14,6 +14,8 @@ class DataBuilder():
             all_classes = {}
             all_strokes = []
             for p in os.listdir(filepath):
+                curr_class = {}
+                curr_strokes = []
                 if p == ".DS_Store": continue
                 all_ex = []
                 lookup_dict = {}
@@ -37,20 +39,26 @@ class DataBuilder():
                         continue
                     if (strokes.shape[0] > 200): continue
                     all_strokes.append(strokes.shape[0])
+                    curr_strokes.append(strokes.shape[0])
                     all_ex.append(strokes)
-                    lookup_dict[counter] = ex[:ex.find("-")]
+                    lookup_dict[counter] = ex
                     print ("%d / %d" % (counter, total))
                     counter += 1
                 all_classes[p] = (all_ex, lookup_dict)
+                curr_class[p] = (all_ex, lookup_dict)
+                if not os.path.exists('coords'):
+                    os.makedirs('coords')
+                np.save('coords/sketch_coords_{}.npy'.format(p), curr_class)
                 break
             print (all_classes)
-            np.save('sketch_coords.npy', all_classes)
+            np.save('coords/sketch_coords_all.npy', all_classes)
             print (max(all_strokes))
             return all_classes, max(all_strokes)
 
         self.sketches = parseSketches(path)
 
 if __name__ == '__main__':
+
     build = DataBuilder('svgraw')
 
 
