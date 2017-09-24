@@ -65,6 +65,7 @@ if __name__ == "__main__":
                         help='path to the trained model file')
     parser.add_argument('out_folder', type=str,
                         help='where to save sketch')
+    parser.add_argument('n_wiggle', type=int, help='number of segments to wiggle (from the end)')
     parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--log_interval', type=int, default=1)
@@ -113,7 +114,7 @@ if __name__ == "__main__":
 
     renderer = SketchRenderNet(sketch_endpoints[:, 0], sketch_endpoints[:, 1], 
                                sketch_endpoints[:, 2], imsize=256, fuzz=0.0001,
-                               use_cuda=args.cuda)
+                               n_params=args.n_wiggle, use_cuda=args.cuda)
     optimizer = optim.Adam(renderer.parameters(), lr=args.lr)
     if args.cuda:
         renderer = renderer.cuda()
@@ -123,6 +124,7 @@ if __name__ == "__main__":
         renderer.train()
         optimizer.zero_grad()
         sketch = renderer()
+
         # HACK: manually center crop to 224 by 224 from 256 by 256
         #       AKA transforms.CenterCrop(224)
         sketch = sketch[:, :, 16:240, 16:240]
@@ -147,6 +149,7 @@ if __name__ == "__main__":
         # near 1.0. See quip.
         loss = 1 - cosine_similarity(photo, sketch, dim=1)
         loss.backward()
+        optimizer.step()
 
         if epoch % args.log_interval == 0:
             print('Train Epoch: {} \tCosine Distance: {:.6f}'.format(epoch, loss.data[0]))
@@ -154,7 +157,6 @@ if __name__ == "__main__":
 
     for i in range(args.epochs):
         train(i)
-
 
     parameters = list(renderer.parameters())
     x_parameters = parameters[0].data.numpy()
