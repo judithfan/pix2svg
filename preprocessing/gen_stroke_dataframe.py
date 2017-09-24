@@ -55,7 +55,8 @@ class SketchDataset():
         photo = io.imread(photo_path)
         photo = photo.astype(float)
         strokes = self.strokes[self.class_name][0][idx]
-        sample = {'photo': photo, 'strokes': strokes,'name': photo_filename}
+        sketch_filename = filelist[idx].split('/')[-1].split('.')[0] + '.png'
+        sample = {'photo': photo, 'strokes': strokes,'name': photo_filename, 'sketch_filename': sketch_filename}          
         
         if self.transform:
             sample = self.transform(sample)
@@ -174,9 +175,11 @@ if __name__ == '__main__':
         ## loop through Class and save photos and sketchID's indexed in same way as full_sketchy_dataset is organized
         photos = []
         sketchID = []
+        sketchFN = []
         counter = 1
         for i in range(len(Class)):
             photos.append(Class[i]['name'].split('.')[0])
+            sketchFN.append(Class[i]['sketch_filename'])
             if i==0:
                 sketchID.append(1)
             elif Class[i]['name'].split('.')[0] == Class[i-1]['name'].split('.')[0]: # current matches previous
@@ -187,7 +190,7 @@ if __name__ == '__main__':
                 sketchID.append(counter)
 
         unique_photos = np.unique(photos)
-        zipped = zip(photos,sketchID)    
+        zipped = zip(photos,sketchID,sketchFN)    
 
         ##### save out full stroke matrix (55855,5): columns are: [x,y,pen_state,sketch_id,photo_id]
         Verts = []
@@ -195,9 +198,11 @@ if __name__ == '__main__':
         PhotoID = [] # object-level
         SketchID = [] # sketch-level
         StrokeID = [] # stroke-level
+        SketchFN = [] # sketch png filename
 
         for idx in range(len(Class)):
             sample = Class[idx]
+            this_sketchFN = zipped[idx][2]
             this_sketchID = zipped[idx][1]
             this_photoID = zipped[idx][0]
             lines = strokes_to_lines(to_normal_strokes(sample['strokes']))
@@ -206,26 +211,21 @@ if __name__ == '__main__':
             Codes.append(codes)
             SketchID.append([this_sketchID]*len(verts))
             PhotoID.append([this_photoID]*len(verts))
+            SketchFN.append([this_sketchFN]*len(verts))
             strokeID = []
             for i,l in enumerate(lines):
                 strokeID.append([i]*len(l))
             StrokeID.append(flatten(strokeID))
 
 
-        Verts,Codes,SketchID,PhotoID,StrokeID = map(flatten,[Verts,Codes,SketchID,PhotoID,StrokeID]) 
+        Verts,Codes,SketchID,PhotoID,StrokeID,SketchFN = map(flatten,[Verts,Codes,SketchID,PhotoID,StrokeID,SketchFN]) 
         x,y = zip(*Verts) # unzip x,y segments 
         print str(len(Verts)) + ' vertices to predict.'
 
-        data = np.array([x,y,Codes,StrokeID, SketchID,PhotoID]).T
-        S = pd.DataFrame(data,columns=['x','y','pen','strokeID','sketchID','photoID'])
+        data = np.array([x,y,Codes,StrokeID,SketchID,PhotoID, SketchFN]).T
+        S = pd.DataFrame(data,columns=['x','y','pen','strokeID','sketchID','photoID','sketchFN'])
         print 'Saving out stroke_dataframe for ' + cname
-        if cname == 'car_(sedan)':
-            _cname = 'car'
-        else:
-            _cname = cname
-        save_path = os.path.join(args.save_dir,_cname + '.csv')
-        S.to_csv(save_path)  
-
-    
+        save_path = os.path.join(args.save_dir,cname + '.csv')
+        S.to_csv(save_path) 
     
     
