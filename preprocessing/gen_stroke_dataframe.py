@@ -219,7 +219,11 @@ if __name__ == '__main__':
         data = np.array([x,y,Codes,StrokeID, SketchID,PhotoID]).T
         S = pd.DataFrame(data,columns=['x','y','pen','strokeID','sketchID','photoID'])
         print 'Saving out stroke_dataframe for ' + cname
-        save_path = os.path.join(args.save_dir,cname + '.csv')
+        if cname == 'car_(sedan)':
+            _cname = 'car'
+        else:
+            _cname = cname
+        save_path = os.path.join(args.save_dir,_cname + '.csv')
         S.to_csv(save_path)  
 
     
