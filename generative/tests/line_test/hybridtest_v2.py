@@ -23,7 +23,8 @@ if __name__ == "__main__":
     x_paths, y_paths = beamer.gen_paths()
     plt.matshow(sketch[0].data.numpy())
     plt.savefig('./sketch_beam.png')
-
+    x_paths = [2, 8]
+    y_paths = [2, 8]
     renderer = SketchRenderNet(x_paths, y_paths, imsize=11, fuzz=1.0)
     optimizer = optim.SGD(renderer.parameters(), lr=1e-3, momentum=0.5)
 
