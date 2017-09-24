@@ -47,7 +47,11 @@ class SketchDataset():
         X = self.strokes
         filelist = X[self.class_name][1]
         photo_filename = filelist[idx].split('/')[-1].split('.')[0].split('-')[0] + '.jpg'
-        photo_path = os.path.join(self.photo_dir,self.class_name,photo_filename)                               
+        if self.class_name=='car_(sedan)':
+            _cname = 'car'
+        else:
+            _cname = self.class_name        
+        photo_path = os.path.join(self.photo_dir,_cname,photo_filename)                               
         photo = io.imread(photo_path)
         photo = photo.astype(float)
         strokes = self.strokes[self.class_name][0][idx]
@@ -162,10 +166,6 @@ if __name__ == '__main__':
     
     for c in all_classes:
         cname = c.split('.')[0][7:]
-
-        # catch car exception
-        if cname=='car_(sedan)':
-            cname = 'car'
         
         ## load in each dataset
         Class = SketchDataset(npy_file=os.path.join(args.root_dir,c), \
