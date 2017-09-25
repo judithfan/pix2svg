@@ -67,6 +67,7 @@ if __name__ == "__main__":
     parser.add_argument('out_folder', type=str,
                         help='where to save sketch')
     parser.add_argument('n_wiggle', type=int, help='number of segments to wiggle (from the end)')
+    parser.add_argument('--fuzz', type=float, default=0.1)
     parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--log_interval', type=int, default=1)
@@ -115,7 +116,7 @@ if __name__ == "__main__":
 
     renderer = SketchRenderNet(sketch_endpoints[:, 0], sketch_endpoints[:, 1], 
                                # seems most visually appealing
-                               sketch_endpoints[:, 2], imsize=256, fuzz=0.1,
+                               sketch_endpoints[:, 2], imsize=256, fuzz=args.fuzz,
                                n_params=args.n_wiggle, use_cuda=args.cuda)
     
     optimizer = optim.Adam(renderer.parameters(), lr=args.lr)
@@ -185,8 +186,14 @@ if __name__ == "__main__":
         y_list = np.concatenate((y_fixed, y_list * 256))
         pen_list = np.concatenate((pen_fixed, pen_list))
 
+    # make sure no parameters went over imsize or under 0
+    x_list[x_list < 0] = 0
+    x_list[x_list > 255] = 255
+    y_list[y_list < 0] = 0
+    y_list[y_list > 255] = 255
+
     # TODO: BresenhamRenderNet flips x and y; fix this.
-    tracer = BresenhamRenderNet(y_list, x_list, pen_list=pen_list, imsize=256)
+    tracer = BresenhamRenderNet(y_list, x_list, pen_list=pen_list, linewidth=5, imsize=256)
     sketch = tracer.forward()
     
     # Do some of preprocessing hacks to make it look lke a real image
