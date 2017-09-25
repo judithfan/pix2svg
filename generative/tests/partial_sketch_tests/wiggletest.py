@@ -160,19 +160,27 @@ if __name__ == "__main__":
         train(i)
 
     parameters = list(renderer.parameters())
-    x_parameters = parameters[0].data.numpy()
-    y_parameters = parameters[1].data.numpy()
-    pen_parameters = renderer.pen_list
+    x_list = parameters[0].cpu().data.numpy()
+    y_list = parameters[1].cpu().data.numpy()
+    pen_list = np.array(renderer.pen_params)
+
+    if args.n_wiggle != -1:
+        x_fixed = sketch_endpoints[:-args.n_wiggle, 0]
+        y_fixed = sketch_endpoints[:-args.n_wiggle, 1]
+        pen_fixed = sketch_endpoints[:-args.n_wiggle, 2]
+
+        x_list = np.concatenate((x_fixed, x_list))
+        y_list = np.concatenate((y_fixed, y_list))
+        pen_list = np.concatenate((pen_fixed, pen_list))
 
     # TODO: BresenhamRenderNet flips x and y; fix this.
-    tracer = BresenhamRenderNet(y_parameters, x_parameters,
-                                pen_list=pen_parameters, imsize=256)
+    tracer = BresenhamRenderNet(y_list, x_list, pen_list=pen_list, imsize=256)
     sketch = tracer.forward()
+    
     # Do some of preprocessing hacks to make it look lke a real image
     sketch_min = torch.min(sketch)
     sketch_max = torch.max(sketch)
     sketch = (sketch - sketch_min) / (sketch_max - sketch_min)
-    sketch = (1 - sketch) * 255
     sketch = torch.cat((sketch, sketch, sketch), dim=1)
 
     # convert to numpy
