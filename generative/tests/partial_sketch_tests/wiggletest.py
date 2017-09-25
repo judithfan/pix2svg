@@ -157,10 +157,16 @@ if __name__ == "__main__":
 
         if epoch % args.log_interval == 0:
             print('Train Epoch: {} \tCosine Distance: {:.6f}'.format(epoch, loss.data[0]))
+        
+        return loss.data[0]
+    
 
+    best_x_list = None
+    best_y_list = None
+    best_loss = sys.maxint
 
     for i in range(args.epochs):
-        train(i)
+        loss = train(i)
 
         parameters = list(renderer.parameters())
         x_list = parameters[0].cpu().data.numpy()
@@ -177,13 +183,18 @@ if __name__ == "__main__":
         old_x_list_norm = x_list_norm
         old_y_list_norm = y_list_norm
 
+        if loss < best_loss:
+            best_x_list = x_list
+            best_y_list = y_list
+            best_loss = loss
+
     if args.n_wiggle != -1:
         x_fixed = sketch_endpoints[:-args.n_wiggle, 0]
         y_fixed = sketch_endpoints[:-args.n_wiggle, 1]
         pen_fixed = sketch_endpoints[:-args.n_wiggle, 2]
 
-        x_list = np.concatenate((x_fixed, x_list * 256))
-        y_list = np.concatenate((y_fixed, y_list * 256))
+        x_list = np.concatenate((x_fixed, best_x_list * 256))
+        y_list = np.concatenate((y_fixed, best_y_list * 256))
         pen_list = np.concatenate((pen_fixed, pen_list))
 
     # make sure no parameters went over imsize or under 0
