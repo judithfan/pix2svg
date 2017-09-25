@@ -113,7 +113,8 @@ if __name__ == "__main__":
     sketch_endpoints[:, 1] = sketch_endpoints[:, 1] / 480 * 256 
 
     renderer = SketchRenderNet(sketch_endpoints[:, 0], sketch_endpoints[:, 1], 
-                               sketch_endpoints[:, 2], imsize=256, fuzz=0.0001,
+                               # seems most visually appealing
+                               sketch_endpoints[:, 2], imsize=256, fuzz=0.1,
                                n_params=args.n_wiggle, use_cuda=args.cuda)
     optimizer = optim.Adam(renderer.parameters(), lr=args.lr)
     if args.cuda:
