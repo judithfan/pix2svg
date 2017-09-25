@@ -113,7 +113,7 @@ if __name__ == "__main__":
     sketch_endpoints[:, 1] = sketch_endpoints[:, 1] / 480 * 256 
 
     renderer = SketchRenderNet(sketch_endpoints[:, 0], sketch_endpoints[:, 1], 
-                               sketch_endpoints[:, 2], imsize=256, fuzz=0.0001,
+                               sketch_endpoints[:, 2], imsize=256, fuzz=0.3,
                                n_params=args.n_wiggle, use_cuda=args.cuda)
     optimizer = optim.Adam(renderer.parameters(), lr=args.lr)
     if args.cuda:
@@ -159,8 +159,8 @@ if __name__ == "__main__":
         train(i)
 
     parameters = list(renderer.parameters())
-    x_parameters = parameters[0].data.numpy()
-    y_parameters = parameters[1].data.numpy()
+    x_parameters = parameters[0].cpu().data.numpy()
+    y_parameters = parameters[1].cpu().data.numpy()
     pen_parameters = renderer.pen_list
 
     # TODO: BresenhamRenderNet flips x and y; fix this.
