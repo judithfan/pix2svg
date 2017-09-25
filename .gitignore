@@ -104,6 +104,10 @@ generative/notebooks
 generative/sketch
 generative/save_states
 ipynb/
+**save_states/
+**outputs**/
+**data/
+**trained_models**/
 generative/tests/style_test/outputs/*
 generative/tests/objective_test/features*
 generative/tests/objective_test/outputs/*
