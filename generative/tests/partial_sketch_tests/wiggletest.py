@@ -13,6 +13,7 @@ import os
 import sys
 import csv
 
+from copy import deepcopy
 import numpy as np
 from PIL import Image
 
@@ -116,6 +117,7 @@ if __name__ == "__main__":
                                # seems most visually appealing
                                sketch_endpoints[:, 2], imsize=256, fuzz=0.1,
                                n_params=args.n_wiggle, use_cuda=args.cuda)
+    
     optimizer = optim.Adam(renderer.parameters(), lr=args.lr)
     if args.cuda:
         renderer = renderer.cuda()
@@ -159,18 +161,28 @@ if __name__ == "__main__":
     for i in range(args.epochs):
         train(i)
 
-    parameters = list(renderer.parameters())
-    x_list = parameters[0].cpu().data.numpy()
-    y_list = parameters[1].cpu().data.numpy()
-    pen_list = np.array(renderer.pen_params)
+        parameters = list(renderer.parameters())
+        x_list = parameters[0].cpu().data.numpy()
+        y_list = parameters[1].cpu().data.numpy()
+        pen_list = np.array(renderer.pen_params)
+
+        x_list_norm = np.linalg.norm(x_list)
+        y_list_norm = np.linalg.norm(y_list)
+
+        if i > 0:
+            print("\tX Param Delta: {}".format(x_list_norm - old_x_list_norm))
+            print("\tY Param Delta: {}".format(y_list_norm - old_y_list_norm))
+
+        old_x_list_norm = x_list_norm
+        old_y_list_norm = y_list_norm
 
     if args.n_wiggle != -1:
         x_fixed = sketch_endpoints[:-args.n_wiggle, 0]
         y_fixed = sketch_endpoints[:-args.n_wiggle, 1]
         pen_fixed = sketch_endpoints[:-args.n_wiggle, 2]
 
-        x_list = np.concatenate((x_fixed, x_list))
-        y_list = np.concatenate((y_fixed, y_list))
+        x_list = np.concatenate((x_fixed, x_list * 256))
+        y_list = np.concatenate((y_fixed, y_list * 256))
         pen_list = np.concatenate((pen_fixed, pen_list))
 
     # TODO: BresenhamRenderNet flips x and y; fix this.
@@ -184,7 +196,7 @@ if __name__ == "__main__":
     sketch = torch.cat((sketch, sketch, sketch), dim=1)
 
     # convert to numpy
-    sketch = sketch[0].data.numpy()
+    sketch = (1 - sketch[0].numpy()) * 255
     sketch = np.rollaxis(sketch, 0, 3)
     sketch = np.round(sketch, 0).astype(np.uint8)
 

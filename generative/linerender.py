@@ -44,8 +44,13 @@ class SketchRenderNet(nn.Module):
             # if none is provided, draw everything.
             pen_list = [2 for i in xrange(n_points)]
 
-        self.x_params = Parameter(torch.Tensor(x_list[-n_params:]).type(dtype))
-        self.y_params = Parameter(torch.Tensor(y_list[-n_params:]).type(dtype))
+        # we normalize the params to be between 0 and 1 so that its an 
+        # easier optimization problem
+        x_params = torch.Tensor(x_list[-n_params:]) / imsize
+        y_params = torch.Tensor(y_list[-n_params:]) / imsize
+
+        self.x_params = Parameter(x_params.type(dtype))
+        self.y_params = Parameter(y_params.type(dtype))
         self.pen_params = pen_list[-n_params:]
 
         self.imsize = imsize
@@ -83,8 +88,12 @@ class SketchRenderNet(nn.Module):
     def forward(self):        
         for i in range(1, self.n_params):
             if self.pen_params[i] == 2:
-                _template = draw_line(self.x_params[i - 1], self.y_params[i - 1],
-                                      self.x_params[i], self.y_params[i],
+                # b/c our params are scaled to 0 --> 1, we need to resize them
+                # back to 0 --> imsize
+                _template = draw_line(self.x_params[i - 1] * self.imsize, 
+                                      self.y_params[i - 1] * self.imsize,
+                                      self.x_params[i] * self.imsize, 
+                                      self.y_params[i] * self.imsize,
                                       imsize=self.imsize, fuzz=self.fuzz,
                                       use_cuda=self.use_cuda)
                 if i == 1:
