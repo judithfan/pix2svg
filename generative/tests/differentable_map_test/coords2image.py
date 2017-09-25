@@ -22,7 +22,7 @@ def coords_to_sketch(endpoints, out_path):
     endpoints[:, 1] = endpoints[:, 1] / 480 * 256
 
     renderer = SketchRenderNet(endpoints[:, 0], endpoints[:, 1], 
-                               endpoints[:, 2], imsize=256, fuzz=0.0001)
+                               endpoints[:, 2], imsize=256, fuzz=0.3)
 
     sketch = renderer()
 
@@ -32,8 +32,12 @@ def coords_to_sketch(endpoints, out_path):
     sketch = (sketch - sketch_min) / (sketch_max - sketch_min)
     sketch = torch.cat((sketch, sketch, sketch), dim=1)
 
+
     sketch_np = sketch[0].data.numpy() * 255
     sketch_np = np.rollaxis(sketch_np, 0, 3)
+
+    # I am rounding here, which I need to remember to 
+    # also do in the wiggle test to make things congruent.
     sketch_np = np.round(sketch_np, 0).astype(np.uint8)
     
     # save image to random path.
@@ -72,16 +76,22 @@ if __name__ == "__main__":
     from glob import glob
     parser = argparse.ArgumentParser()
     parser.add_argument('csv_folder', type=str)
+    # /home/jefan/pix2svg/preprocessing/stroke_dataframes/*.csv
     parser.add_argument('out_folder', type=str)
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     use_cuda = torch.cuda.is_available() and args.cuda
 
-    csv_files = glob(os.path.append(args.csv_folder, '*.csv'))
+    csv_files = glob(os.path.join(args.csv_folder, '*.csv'))
+    print('Found {} CSV files.'.format(len(csv_files)))
 
-    for csv_path in csv_files:
-        class_name = os.path.basename(csv_path)
+    for i, csv_path in enumerate(csv_files):
+        class_name = os.path.splitext(os.path.basename(csv_path))[0]
         folder_path = os.path.join(args.out_folder, class_name)
         if not os.path.isdir(folder_path):
             os.makedirs(folder_path)
+            print('Created folder: {}'.format(folder_path))
         csv_to_sketch(csv_path, folder_path)
+
+        print('Processed CSV file [{}/{}]: {}'.format(
+              i + 1, len(csv_files), csv_path))
