@@ -61,7 +61,9 @@ def csv_to_sketch(csv_path, out_folder):
 
     # loop through each sketch by filename
     # grab all the coordinates and generate a sketch
-    for filename in filenames:
+    print('- Found {} Sketches in CSV File.'.format(len(filenames)))
+    for i, filename in enumerate(filenames):
+        print('- Rendering sketch [{}/{}]'.format(i + 1, len(filenames)))
         cur_data = data[data[:, -1] == filename]
         cur_data = cur_data[:, 1:4]
         cur_data = cur_data.astype(np.float64)
@@ -86,12 +88,11 @@ if __name__ == "__main__":
     print('Found {} CSV files.'.format(len(csv_files)))
 
     for i, csv_path in enumerate(csv_files):
+        print('\nProcessing CSV file [{}/{}]: {}'.format(
+              i + 1, len(csv_files), csv_path))
         class_name = os.path.splitext(os.path.basename(csv_path))[0]
         folder_path = os.path.join(args.out_folder, class_name)
         if not os.path.isdir(folder_path):
             os.makedirs(folder_path)
             print('Created folder: {}'.format(folder_path))
         csv_to_sketch(csv_path, folder_path)
-
-        print('Processed CSV file [{}/{}]: {}'.format(
-              i + 1, len(csv_files), csv_path))
