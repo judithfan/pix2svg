@@ -193,8 +193,8 @@ if __name__ == "__main__":
         loss = train(i)
 
         parameters = list(renderer.parameters())
-        x_list = parameters[0].cpu().data.numpy()
-        y_list = parameters[1].cpu().data.numpy()
+        x_list = parameters[0].cpu().data.numpy() * 256
+        y_list = parameters[1].cpu().data.numpy() * 256
         pen_list = np.array(renderer.pen_params)
 
         x_list_norm = np.linalg.norm(x_list)
@@ -213,18 +213,19 @@ if __name__ == "__main__":
             best_loss = loss
 
         if args.n_wiggle != -1:
-            x_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 0], x_list * 256))
-            y_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 1], y_list * 256))
+            x_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 0], x_list))
+            y_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 1], y_list))
             pen_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 2], pen_list))
 
         sketch = gen_bresenham_sketch(x_list, y_list, pen_list)
         sketch = Image.fromarray(sketch)
         sketch.save(os.path.join(args.out_folder, 'output_epoch_{}.png'.format(i)))
 
+        import pdb; pdb.set_trace()
 
     if args.n_wiggle != -1:
-        x_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 0], best_x_list * 256))
-        y_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 1], best_y_list * 256))
+        x_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 0], best_x_list))
+        y_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 1], best_y_list))
         pen_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 2], pen_list))
 
     sketch = gen_bresenham_sketch(x_list, y_list, pen_list)
