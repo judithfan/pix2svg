@@ -10,6 +10,7 @@ from __future__ import absolute_import
 import os
 import sys
 import csv
+import copy
 import numpy as np
 from PIL import Image
 
@@ -113,12 +114,12 @@ if __name__ == "__main__":
     x0 = endpoints[-1, 0]
     y0 = endpoints[-1, 1]
 
-    x_beam_queue = np.ones(beam_width) * x0
-    y_beam_queue = np.ones(beam_width) * y0
+    x_beam_queue = np.ones(args.beam_width) * x0
+    y_beam_queue = np.ones(args.beam_width) * y0
 
-    x_beam_paths = np.zeros((beam_width, n_iters + 1))
-    y_beam_paths = np.zeros((beam_width, n_iters + 1))
-    pen_beam_paths = np.ones(beam_width, n_endpoints + args.n_segments) * 2
+    x_beam_paths = np.zeros((args.beam_width, n_endpoints + args.n_segments))
+    y_beam_paths = np.zeros((args.beam_width, n_endpoints + args.n_segments))
+    pen_beam_paths = np.ones((args.beam_width, n_endpoints + args.n_segments)) * 2
 
     x_beam_paths[:, :n_endpoints] = endpoints[:, 0]
     y_beam_paths[:, :n_endpoints] = endpoints[:, 1]
@@ -134,18 +135,18 @@ if __name__ == "__main__":
 
         print('epoch [{}/{}]'.format(iter + 1, args.n_segments))
 
-        for b in range(beam_width):
+        for b in range(args.beam_width):
             print('- beam [{}/{}]'.format(b + 1, args.beam_width))
             # sample endpoints
             samples = sample_endpoint_gaussian2d(x_beam_queue[b], y_beam_queue[b],
                                                  std=args.stdev, size=args.n_samples,
                                                  min_x=0, max_x=256, min_y=0, max_y=256)
             x_samples, y_samples = samples[:, 0], samples[:, 1]
-            print('-- sampled {} points'.format(n_samples))
-            losses = torch.zeros((n_samples))
+            print('-- sampled {} points'.format(args.n_samples))
+            losses = torch.zeros((args.n_samples))
 
             # for each sample & render image
-            for i in range(n_samples):
+            for i in range(args.n_samples):
                 x_list = copy.deepcopy(x_beam_paths[b])
                 y_list = copy.deepcopy(y_beam_paths[b])
                 pen_list = copy.deepcopy(pen_beam_paths[b])
@@ -159,7 +160,7 @@ if __name__ == "__main__":
                 sketch = renderer.forward()
                 sketch = 1 - sketch  # only for bresenhams
                 sketch = Variable(sketch, volatile=True)
-                if use_cuda:
+                if args.cuda:
                     sketch = sketch.cuda()
 
                 # HACK: manually center crop to 224 by 224 from 256 by 256
@@ -181,7 +182,7 @@ if __name__ == "__main__":
                 losses[i] = float(loss.cpu().data.numpy()[0])
                 
                 if (i + 1) % 25 == 0:
-                    print('--- calc loss for [{}/{}] samples'.format(i + 1, n_samples))
+                    print('--- calc loss for [{}/{}] samples'.format(i + 1, args.n_samples))
 
             if b == 0:
                 beam_losses = losses.numpy()
@@ -192,21 +193,21 @@ if __name__ == "__main__":
                 x_beam_samples = np.concatenate((x_beam_samples, x_samples))
                 y_beam_samples = np.concatenate((y_beam_samples, y_samples))
 
-        top_ii = np.argsort(beam_losses)[:beam_width]
+        top_ii = np.argsort(beam_losses)[:args.beam_width]
         _x_beam_paths = copy.deepcopy(x_beam_paths)
         _y_beam_paths = copy.deepcopy(y_beam_paths)
 
-        for b in range(beam_width):
-            parent = top_ii[b] // n_samples
+        for b in range(args.beam_width):
+            parent = top_ii[b] // args.n_samples
             _x_beam_paths[b][n_endpoints + epoch] = x_beam_samples[top_ii[b]]
             _y_beam_paths[b][n_endpoints + epoch] = y_beam_samples[top_ii[b]]
 
         x_beam_paths = _x_beam_paths
         y_beam_paths = _y_beam_paths
-        x_beam_queue = np.array([x_beam_samples[top_ii[b]] for b in range(beam_width)])
-        y_beam_queue = np.array([y_beam_samples[top_ii[b]] for b in range(beam_width)])
+        x_beam_queue = np.array([x_beam_samples[top_ii[b]] for b in range(args.beam_width)])
+        y_beam_queue = np.array([y_beam_samples[top_ii[b]] for b in range(args.beam_width)])
 
-        best_ii = top_ii[0] // n_samples
+        best_ii = top_ii[0] // args.n_samples
         x_list = x_beam_paths[best_ii][:n_endpoints + epoch + 1]
         y_list = y_beam_paths[best_ii][:n_endpoints + epoch + 1]
         pen_list = pen_beam_paths[best_ii][:n_endpoints + epoch + 1]
