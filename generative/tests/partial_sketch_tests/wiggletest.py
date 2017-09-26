@@ -67,7 +67,8 @@ if __name__ == "__main__":
     parser.add_argument('out_folder', type=str,
                         help='where to save sketch')
     parser.add_argument('n_wiggle', type=int, help='number of segments to wiggle (from the end)')
-    parser.add_argument('--fuzz', type=float, default=0.1)
+    parser.add_argument('smoothness', type=int, help='parameter in softmin')
+    parser.add_argument('fuzz', type=float, help='fuzziness of the rendered sketch')
     parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--log_interval', type=int, default=1)
@@ -117,7 +118,8 @@ if __name__ == "__main__":
     renderer = SketchRenderNet(sketch_endpoints[:, 0], sketch_endpoints[:, 1], 
                                # seems most visually appealing
                                sketch_endpoints[:, 2], imsize=256, fuzz=args.fuzz,
-                               n_params=args.n_wiggle, use_cuda=args.cuda)
+                               smoothness=args.smoothness, n_params=args.n_wiggle, 
+                               use_cuda=args.cuda)
     
     optimizer = optim.Adam(renderer.parameters(), lr=args.lr)
     if args.cuda:
