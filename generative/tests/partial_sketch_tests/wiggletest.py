@@ -217,7 +217,7 @@ if __name__ == "__main__":
             y_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 1], y_list * 256))
             pen_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 2], pen_list))
 
-        gen_bresenham_sketch(x_list, y_list, pen_list)
+        sketch = gen_bresenham_sketch(x_list, y_list, pen_list)
         sketch = Image.fromarray(sketch)
         sketch.save(os.path.join(args.out_folder, 'output_epoch_{}.png'.format(i)))
 
@@ -227,6 +227,6 @@ if __name__ == "__main__":
         y_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 1], best_y_list * 256))
         pen_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 2], pen_list))
 
-    gen_bresenham_sketch(x_list, y_list, pen_list)
+    sketch = gen_bresenham_sketch(x_list, y_list, pen_list)
     sketch = Image.fromarray(sketch)
     sketch.save(os.path.join(args.out_folder, 'output_best.png'.format(i)))
