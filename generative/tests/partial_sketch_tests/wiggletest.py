@@ -159,7 +159,31 @@ if __name__ == "__main__":
             print('Train Epoch: {} \tCosine Distance: {:.6f}'.format(epoch, loss.data[0]))
         
         return loss.data[0]
-    
+
+
+    def gen_bresenham_sketch(x_list, y_list, pen_list):
+        # make sure no parameters went over imsize or under 0
+        x_list[x_list < 0] = 0
+        x_list[x_list > 255] = 255
+        y_list[y_list < 0] = 0
+        y_list[y_list > 255] = 255
+
+        # TODO: BresenhamRenderNet flips x and y; fix this.
+        tracer = BresenhamRenderNet(y_list, x_list, pen_list=pen_list, linewidth=3, imsize=256)
+        sketch = tracer.forward()
+        
+        # Do some of preprocessing hacks to make it look lke a real image
+        sketch_min = torch.min(sketch)
+        sketch_max = torch.max(sketch)
+        sketch = (sketch - sketch_min) / (sketch_max - sketch_min)
+        sketch = torch.cat((sketch, sketch, sketch), dim=1)
+
+        # convert to numpy
+        sketch = (1 - sketch[0].numpy()) * 255
+        sketch = np.rollaxis(sketch, 0, 3)
+        sketch = np.round(sketch, 0).astype(np.uint8)
+        return sketch
+
 
     best_x_list = None
     best_y_list = None
@@ -188,36 +212,21 @@ if __name__ == "__main__":
             best_y_list = y_list
             best_loss = loss
 
+        if args.n_wiggle != -1:
+            x_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 0], x_list * 256))
+            y_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 1], y_list * 256))
+            pen_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 2], pen_list))
+
+        gen_bresenham_sketch(x_list, y_list, pen_list)
+        sketch = Image.fromarray(sketch)
+        sketch.save(os.path.join(args.out_folder, 'output_epoch_{}.png'.format(i)))
+
+
     if args.n_wiggle != -1:
-        x_fixed = sketch_endpoints[:-args.n_wiggle, 0]
-        y_fixed = sketch_endpoints[:-args.n_wiggle, 1]
-        pen_fixed = sketch_endpoints[:-args.n_wiggle, 2]
+        x_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 0], best_x_list * 256))
+        y_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 1], best_y_list * 256))
+        pen_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 2], pen_list))
 
-        x_list = np.concatenate((x_fixed, best_x_list * 256))
-        y_list = np.concatenate((y_fixed, best_y_list * 256))
-        pen_list = np.concatenate((pen_fixed, pen_list))
-
-    # make sure no parameters went over imsize or under 0
-    x_list[x_list < 0] = 0
-    x_list[x_list > 255] = 255
-    y_list[y_list < 0] = 0
-    y_list[y_list > 255] = 255
-
-    # TODO: BresenhamRenderNet flips x and y; fix this.
-    tracer = BresenhamRenderNet(y_list, x_list, pen_list=pen_list, linewidth=5, imsize=256)
-    sketch = tracer.forward()
-    
-    # Do some of preprocessing hacks to make it look lke a real image
-    sketch_min = torch.min(sketch)
-    sketch_max = torch.max(sketch)
-    sketch = (sketch - sketch_min) / (sketch_max - sketch_min)
-    sketch = torch.cat((sketch, sketch, sketch), dim=1)
-
-    # convert to numpy
-    sketch = (1 - sketch[0].numpy()) * 255
-    sketch = np.rollaxis(sketch, 0, 3)
-    sketch = np.round(sketch, 0).astype(np.uint8)
-
-    # visualize and save
+    gen_bresenham_sketch(x_list, y_list, pen_list)
     sketch = Image.fromarray(sketch)
-    sketch.save(os.path.join(args.out_folder, 'output.png'))
+    sketch.save(os.path.join(args.out_folder, 'output_best.png'.format(i)))
