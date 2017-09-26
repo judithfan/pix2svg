@@ -221,8 +221,6 @@ if __name__ == "__main__":
         sketch = Image.fromarray(sketch)
         sketch.save(os.path.join(args.out_folder, 'output_epoch_{}.png'.format(i)))
 
-        import pdb; pdb.set_trace()
-
     if args.n_wiggle != -1:
         x_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 0], best_x_list))
         y_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 1], best_y_list))
