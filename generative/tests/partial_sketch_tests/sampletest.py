@@ -27,6 +27,7 @@ sys.path.append('../multimodal_test')
 from linerender import BresenhamRenderNet
 from beamsearch import sample_endpoint_gaussian2d
 from wiggletest import photo_preprocessing
+from wiggletest import gen_endpoints_from_csv
 from distribtest import cosine_similarity
 from multimodaltest import load_checkpoint
 from precompute_vgg import cnn_predict
@@ -50,11 +51,12 @@ if __name__ == "__main__":
                         help='where to save sketch')
     parser.add_argument('n_wiggle', type=int, 
                         help='number of segments to wiggle (from the end)')
-    parser.add_argument('--beam_width', type=int, help='size of beam traversal.')
+    parser.add_argument('--beam_width', type=int, default=2, help='size of beam traversal.')
     # we may know the number of strokes left but we can't guarantee
     # that beam search will find something similar in efficiency.
-    parser.add_argument('--n_segments', type=int, help='number of segments to draw')
-    parser.add_argument('--n_samples', type=int, help='number of points to draw at each iter')
+    parser.add_argument('--n_segments', type=int, default=20, help='number of segments to draw')
+    parser.add_argument('--n_samples', type=int, default=1000, help='number of points to draw at each iter')
+    parser.add_argument('--stdev', type=float, default=40.0, help='standard deviation')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
