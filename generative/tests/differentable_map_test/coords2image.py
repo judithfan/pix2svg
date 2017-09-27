@@ -17,12 +17,12 @@ sys.path.append('../..')
 from linerender import SketchRenderNet
 
 
-def coords_to_sketch(endpoints, out_path):
+def coords_to_sketch(endpoints, out_path, use_cuda=False):
     endpoints[:, 0] = endpoints[:, 0] / 640 * 256
     endpoints[:, 1] = endpoints[:, 1] / 480 * 256
 
-    renderer = SketchRenderNet(endpoints[:, 0], endpoints[:, 1], 
-                               endpoints[:, 2], imsize=256, fuzz=0.3)
+    renderer = SketchRenderNet(endpoints[:, 0], endpoints[:, 1], endpoints[:, 2], 
+                               imsize=256, fuzz=0.3, smoothness=8, use_cuda=use_cuda)
 
     sketch = renderer()
 
@@ -31,7 +31,6 @@ def coords_to_sketch(endpoints, out_path):
     sketch_max = torch.max(sketch)
     sketch = (sketch - sketch_min) / (sketch_max - sketch_min)
     sketch = torch.cat((sketch, sketch, sketch), dim=1)
-
 
     sketch_np = sketch[0].data.numpy() * 255
     sketch_np = np.rollaxis(sketch_np, 0, 3)
@@ -45,7 +44,7 @@ def coords_to_sketch(endpoints, out_path):
     im.save(out_path)
 
 
-def csv_to_sketch(csv_path, out_folder):
+def csv_to_sketch(csv_path, out_folder, use_cuda=False):
     """A single csv file is for a number of sketches in a particular 
     class. We should split it up per sketch and save each to a folder
     similar to full_sketch_dataset.
@@ -69,7 +68,7 @@ def csv_to_sketch(csv_path, out_folder):
         cur_data = cur_data.astype(np.float64)
 
         out_path = os.path.join(out_folder, filename)
-        coords_to_sketch(cur_data, out_path)
+        coords_to_sketch(cur_data, out_path, use_cuda=use_cuda)
 
 
 if __name__ == "__main__":
@@ -95,4 +94,4 @@ if __name__ == "__main__":
         if not os.path.isdir(folder_path):
             os.makedirs(folder_path)
             print('Created folder: {}'.format(folder_path))
-        csv_to_sketch(csv_path, folder_path)
+        csv_to_sketch(csv_path, folder_path, use_cuda=args.cuda)
