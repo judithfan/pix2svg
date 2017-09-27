@@ -32,7 +32,7 @@ def coords_to_sketch(endpoints, out_path, use_cuda=False):
     sketch = (sketch - sketch_min) / (sketch_max - sketch_min)
     sketch = torch.cat((sketch, sketch, sketch), dim=1)
 
-    sketch_np = sketch[0].data.numpy() * 255
+    sketch_np = sketch[0].cpu().data.numpy() * 255
     sketch_np = np.rollaxis(sketch_np, 0, 3)
 
     # I am rounding here, which I need to remember to 
