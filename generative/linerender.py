@@ -181,9 +181,12 @@ class BresenhamRenderNet(object):
         return template
 
 
-def exponential_smooth_min(A, dim=0, k=10):
-    res = torch.sum(torch.exp(-k * A), dim=dim)
-    return -torch.log(res / len(A)) / k
+def exponential_smooth_min(A, dim=0, k=32):
+    A_max = torch.max(A, dim=dim)[0]
+    B = torch.sum(torch.exp(-k * (A - A_max)), dim=dim)
+    N = k * A_max
+    C = -torch.log(B) + N
+    return C / k
 
 
 def draw_line(x0, y0, x1, y1, imsize=224, fuzz=1.0, use_cuda=False):
