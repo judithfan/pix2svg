@@ -21,9 +21,11 @@ class Sketch2SketchNet(nn.Module):
     def __init__(self, in_dim):
         self.fc1 = nn.Linear(in_dim, in_dim)
         self.fc2 = nn.Linear(in_dim, in_dim)
+        self.drop1 = nn.Dropout(p=0.5)
 
     def forward(self, x):
         x = F.elu(self.fc1(x))
+        x = self.drop1(x)
         return self.fc2(x)
 
 
@@ -79,14 +81,14 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    gt_sketch_emb_dir = '/home/wumike/full_sketchy_embeddings/sketches'
-    diff_sketch_emb_dir = '/home/wumike/full_sketchy_embeddings/diff_sketches'
+    gt_sketch_emb_dir = '/home/wumike/partial_sketch_embeddings'
+    diff_sketch_emb_dir = '/home/wumike/partial_sketch_diff_embeddings'
 
     def reset_generators():
         train_generator = embedding_generator(gt_sketch_emb_dir, diff_sketch_emb_dir, imsize=256, 
                                               batch_size=args.batch_size, train=True, use_cuda=args.cuda)
         test_generator = embedding_generator(gt_sketch_emb_dir, diff_sketch_emb_dir, imsize=256, 
-                                             batch_size=args.batch_size, train=True, use_cuda=args.cuda)
+                                             batch_size=args.batch_size, train=False, use_cuda=args.cuda)
         return train_generator, test_generator
 
     train_generator, test_generator = reset_generators()
@@ -134,7 +136,7 @@ if __name__ == '__main__':
         
         while True:
             try:
-                gt_sketches, diff_sketches, labels = train_generator.next()
+                gt_sketches, diff_sketches, labels = test_generator.next()
                 batch_idx += 1
             except StopIteration:
                 break

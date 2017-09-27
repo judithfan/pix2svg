@@ -12,6 +12,7 @@ import csv
 import torch
 import numpy as np
 from PIL import Image
+from glob import glob
 
 sys.path.append('../..')
 from linerender import SketchRenderNet
@@ -69,6 +70,21 @@ def csv_to_sketch(csv_path, out_folder, use_cuda=False):
 
         out_path = os.path.join(out_folder, filename)
         coords_to_sketch(cur_data, out_path, use_cuda=use_cuda)
+
+
+def match_folder_content(primary_folder, secondary_folder, ext='npy'):
+    """Delete any files present in secondary_folder but not in primary_folder so that
+    the structures of the two folders are exactly the same"""
+    primary_paths = glob(os.path.join(primary_folder, '*', '*.{ext}'.format(ext=ext)))
+    secondary_paths = glob(os.path.join(secondary_folder, '*', '*.{ext}'.format(ext=ext)))
+    n_removed = 0
+
+    for path in secondary_paths:
+        _path = path.replace(secondary_folder, primary_folder)
+        if _path not in primary_paths:
+            os.remove(path)
+            n_removed += 1
+            print('Removed {} files.'.format(n_removed))
 
 
 if __name__ == "__main__":
