@@ -56,13 +56,13 @@ class SketchRenderNet(nn.Module):
         # we will store distances from points to each segment 
         n_draws = sum(1 for i in pen_list if i == 2)
         draw_ix = 0  # stores index of draw
-        template = Variable(torch.zeros(n_draws, imsize, imsize))
+        template = torch.zeros(n_draws, imsize, imsize).type(dtype)
         
         # computed fixed parts if they exist
         if n_params < n_points:
             n_seeds = n_points - n_params
-            x_fixed = Variable(torch.Tensor(x_list[:n_seeds]).type(dtype))
-            y_fixed = Variable(torch.Tensor(y_list[:n_seeds]).type(dtype))
+            x_fixed = torch.Tensor(x_list[:n_seeds]).type(dtype)
+            y_fixed = torch.Tensor(y_list[:n_seeds]).type(dtype)
             pen_fixed = pen_list[:n_seeds]
 
             for i in range(1, n_seeds):
@@ -80,8 +80,9 @@ class SketchRenderNet(nn.Module):
         self.draw_ix = draw_ix
         self.smoothness = smoothness
 
-    def forward(self):  
-        template = self.template
+    def forward(self): 
+        draw_ix = self.draw_ix
+        template = Variable(self.template)
         for i in range(1, self.n_params):
             if self.pen_params[i] == 2:
                 # b/c our params are scaled to 0 --> 1, we need to resize them
@@ -92,13 +93,14 @@ class SketchRenderNet(nn.Module):
                                       self.y_params[i] * self.imsize,
                                       imsize=self.imsize, fuzz=self.fuzz,
                                       use_cuda=self.use_cuda)
-                template[self.draw_ix] = _template
-                self.draw_ix += 1
+                template[draw_ix] = _template
+                draw_ix += 1
         
         template = exponential_smooth_min(template, dim=0, k=self.smoothness)
         # add a dimension for batches and a dimension for channels
         template = torch.unsqueeze(template, dim=0)
         template = torch.unsqueeze(template, dim=0)
+        
         return template
 
 
