@@ -189,6 +189,7 @@ if __name__ == "__main__":
 
     best_x_list = None
     best_y_list = None
+    best_pen_list = None
     best_loss = sys.maxint
 
     for i in range(args.epochs):
@@ -212,6 +213,7 @@ if __name__ == "__main__":
         if loss < best_loss:
             best_x_list = x_list
             best_y_list = y_list
+            best_pen_list = pen_list
             best_loss = loss
 
         if args.n_wiggle != -1:
@@ -226,8 +228,9 @@ if __name__ == "__main__":
     if args.n_wiggle != -1:
         x_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 0], best_x_list))
         y_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 1], best_y_list))
-        pen_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 2], pen_list))
+        pen_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 2], best_pen_list))
 
+    print('\nBest Loss: {}'.format(best_loss))
     sketch = gen_bresenham_sketch(x_list, y_list, pen_list)
     sketch = Image.fromarray(sketch)
     sketch.save(os.path.join(args.out_folder, 'output_best.png'.format(i)))

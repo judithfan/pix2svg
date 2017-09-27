@@ -56,13 +56,13 @@ class SketchRenderNet(nn.Module):
         # we will store distances from points to each segment 
         n_draws = sum(1 for i in pen_list if i == 2)
         draw_ix = 0  # stores index of draw
-        template = torch.zeros(n_draws, imsize, imsize).type(dtype)
+        template = Variable(torch.zeros(n_draws, imsize, imsize).type(dtype))
         
         # computed fixed parts if they exist
         if n_params < n_points:
             n_seeds = n_points - n_params
-            x_fixed = torch.Tensor(x_list[:n_seeds]).type(dtype)
-            y_fixed = torch.Tensor(y_list[:n_seeds]).type(dtype)
+            x_fixed = Variable(torch.Tensor(x_list[:n_seeds]).type(dtype))
+            y_fixed = Variable(torch.Tensor(y_list[:n_seeds]).type(dtype))
             pen_fixed = pen_list[:n_seeds]
 
             for i in range(1, n_seeds):
@@ -72,7 +72,7 @@ class SketchRenderNet(nn.Module):
                     template[draw_ix] = _template
                     draw_ix += 1
 
-        self.template = template
+        self.template = template.data
         self.imsize = imsize
         self.fuzz = fuzz
         self.use_cuda = use_cuda
