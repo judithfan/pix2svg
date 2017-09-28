@@ -102,10 +102,10 @@ class EmbeddingGenerator(object):
                    same class diff photo and same class same photo near each other.
     :param random_seed: so that random shuffle is the same everytime
     """
-    def __init__(photo_emb_dir, sketch_emb_dir, batch_size=32, train=True, 
+    def __init__(self, photo_emb_dir, sketch_emb_dir, batch_size=32, train=True, 
                  use_cuda=False, strict=False, random_seed=42):
-        np.random.seed(self.random_seed)
-        random.seed(self.random_seed)
+        np.random.seed(random_seed)
+        random.seed(random_seed)
 
         self.photo_emb_dir = photo_emb_dir
         self.sketch_emb_dir = sketch_emb_dir
@@ -114,7 +114,7 @@ class EmbeddingGenerator(object):
         self.use_cuda = use_cuda
         self.strict = strict
 
-    def gen_photo_from_sketch_filename(sketch_filename):
+    def gen_photo_from_sketch_filename(self, sketch_filename):
         """Overwrite this function for other purposes."""
         photo_filename = sketch_filename.split('-')[0] + '.npy'
         return photo_filename
@@ -161,7 +161,7 @@ class EmbeddingGenerator(object):
                 sketch_path = sketch_paths_0[class_0_i]
                 sketch_filename = os.path.basename(sketch_path)
                 sketch_folder = os.path.dirname(sketch_path).split('/')[-1]
-                photo_filename = gen_photo_from_sketch_filename(sketch_filename)
+                photo_filename = self.gen_photo_from_sketch_filename(sketch_filename)
                 photo_path = os.path.join(self.photo_emb_dir, sketch_folder, photo_filename)
                 class_0_i += 1
             elif class_samples[i] == 1:
@@ -178,7 +178,7 @@ class EmbeddingGenerator(object):
                 sketch_path = sketch_paths_2[class_2_i]
                 sketch_filename = os.path.basename(sketch_path)
                 sketch_folder = os.path.dirname(sketch_path).split('/')[-1]
-                matching_photo_filename = gen_photo_from_sketch_filename(sketch_filename)
+                matching_photo_filename = self.gen_photo_from_sketch_filename(sketch_filename)
                 matching_photo_path = os.path.join(self.photo_emb_dir, sketch_folder, matching_photo_filename)             
                 matching_photo_folder = os.path.dirname(matching_photo_path)
 
@@ -309,10 +309,10 @@ if __name__ == '__main__':
     sketch_emb_dir = '/home/wumike/full_sketchy_embeddings/sketches'
 
     def reset_generators():
-        train_generator = EmbeddingGenerator(photo_emb_dir, sketch_emb_dir, imsize=256, 
+        train_generator = EmbeddingGenerator(photo_emb_dir, sketch_emb_dir,
                                              batch_size=args.batch_size, train=True, 
                                              strict=args.strict, use_cuda=args.cuda)
-        test_generator = EmbeddingGenerator(photo_emb_dir, sketch_emb_dir, imsize=256, 
+        test_generator = EmbeddingGenerator(photo_emb_dir, sketch_emb_dir, 
                                             batch_size=args.batch_size, train=False, 
                                             strict=args.strict, use_cuda=args.cuda)
         return train_generator.make_generator(), test_generator.make_generator()
