@@ -85,17 +85,12 @@ def generator_size(sketch_emb_dir, train=True):
     return len(sketch_paths) * 2
 
 
-def embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256, 
-                        batch_size=32, train=True, use_cuda=False, 
-                        strict=False, random_seed=42):
+class EmbeddingGenerator(object):
     """This data generator returns (photo, sketch, label) where label
-    is one of 3 classes: same photo, same class + diff photo, 
-    diff class + diff photo. We provide 50% class 0, 25% class 1, and
-    25% class 2.
+    is 0 or 1: same object, different object.
  
     :param photo_emb_dir: pass to photo embedding directories
     :param sketch_emb_dir: pass to sketch embedding directories
-    :param imsize: int; size of image to generate
     :param train: if True, return 80% of data; else return 20%.
     :param batch_size: number to return at a time
     :param use_cuda: if True, make CUDA compatible objects
@@ -107,100 +102,137 @@ def embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256,
                    same class diff photo and same class same photo near each other.
     :param random_seed: so that random shuffle is the same everytime
     """
-    categories = os.listdir(sketch_emb_dir)
-    n_categories = len(categories)
+    def __init__(photo_emb_dir, sketch_emb_dir, batch_size=32, train=True, 
+                 use_cuda=False, strict=False, random_seed=42):
+        np.random.seed(self.random_seed)
+        random.seed(self.random_seed)
 
-    if train:
-        categories = categories[:int(n_categories * 0.8)]
-    else:
-        categories = categories[int(n_categories * 0.8):]
+        self.photo_emb_dir = photo_emb_dir
+        self.sketch_emb_dir = sketch_emb_dir
+        self.batch_size = batch_size
+        self.train = train
+        self.use_cuda = use_cuda
+        self.strict = strict
 
-    photo_paths = [path for path in list_files(photo_emb_dir, ext='npy') 
-                   if os.path.dirname(path).split('/')[-1] in categories]
-    sketch_paths = [path for path in list_files(sketch_emb_dir, ext='npy') 
-                   if os.path.dirname(path).split('/')[-1] in categories]
-    
-    np.random.seed(random_seed)
-    random.seed(random_seed)
+    def gen_photo_from_sketch_filename(sketch_filename):
+        """Overwrite this function for other purposes."""
+        photo_filename = sketch_filename.split('-')[0] + '.npy'
+        return photo_filename
 
-    sketch_paths_0 = copy.deepcopy(sketch_paths)
-    sketch_paths_1 = copy.deepcopy(sketch_paths)
-    sketch_paths_2 = copy.deepcopy(sketch_paths)
+    def make_generator(self):
+        categories = os.listdir(self.sketch_emb_dir)
+        n_categories = len(categories)
 
-    random.shuffle(sketch_paths_0)
-    random.shuffle(sketch_paths_1)
-    random.shuffle(sketch_paths_2)
+        categories = (categories[:int(n_categories * 0.8)] if self.train 
+                      else categories[int(n_categories * 0.8):])
+        photo_paths = [path for path in list_files(self.photo_emb_dir, ext='npy') 
+                       if os.path.dirname(path).split('/')[-1] in categories]
+        sketch_paths = [path for path in list_files(self.sketch_emb_dir, ext='npy') 
+                       if os.path.dirname(path).split('/')[-1] in categories]
 
-    n_paths = len(sketch_paths) * 2
-    
-    if strict:
-        class_samples = np.random.choice(range(3), size=n_paths, p=[0.5, 0.25, 0.25])
-    else:
-        class_samples_0 = [0 for i in range(len(sketch_paths))]
-        class_samples_1 = [1 for i in range(len(sketch_paths))]
-        class_samples = class_samples_0 + class_samples_1
-        random.shuffle(class_samples)
+        sketch_paths_0 = copy.deepcopy(sketch_paths)
+        sketch_paths_1 = copy.deepcopy(sketch_paths)
+        sketch_paths_2 = copy.deepcopy(sketch_paths)
 
-    class_0_i = 0
-    class_1_i = 0
-    class_2_i = 0
+        random.shuffle(sketch_paths_0)
+        random.shuffle(sketch_paths_1)
+        random.shuffle(sketch_paths_2)
 
-    photo_batch = None
-    sketch_batch = None
-    label_batch = None
-
-    for i in range(n_paths):
-        if class_samples[i] == 0:
-            sketch_path = sketch_paths_0[class_0_i]
-            sketch_filename = os.path.basename(sketch_path)
-            sketch_folder = os.path.dirname(sketch_path).split('/')[-1]
-            photo_filename = sketch_filename.split('-')[0] + '.npy'
-            photo_path = os.path.join(photo_emb_dir, sketch_folder, photo_filename)
-            class_0_i += 1
-        elif class_samples[i] == 1:
-            sketch_path = sketch_paths_1[class_1_i]
-            sketch_filename = os.path.basename(sketch_path)
-            sketch_folder = os.path.dirname(sketch_path).split('/')[-1]
-            while True:
-                photo_path = np.random.choice(photo_paths)
-                photo_folder = os.path.dirname(photo_path).split('/')[-1]
-                if photo_folder != sketch_folder:
-                    break
-            class_1_i += 1
+        n_paths = len(sketch_paths) * 2
+        
+        if self.strict:
+            class_samples = np.random.choice(range(3), size=n_paths, p=[0.5, 0.25, 0.25])
         else:
-            sketch_path = sketch_paths_2[class_2_i]
-            sketch_filename = os.path.basename(sketch_path)
-            sketch_folder = os.path.dirname(sketch_path).split('/')[-1]
-            matching_photo_filename = sketch_filename.split('-')[0] + '.npy'
-            matching_photo_path = os.path.join(photo_emb_dir, sketch_folder, matching_photo_filename)             
-            matching_photo_folder = os.path.dirname(matching_photo_path)
+            class_samples_0 = [0 for i in range(len(sketch_paths))]
+            class_samples_1 = [1 for i in range(len(sketch_paths))]
+            class_samples = class_samples_0 + class_samples_1
+            random.shuffle(class_samples)
 
-            while True:                        
-                photo_filename = np.random.choice(os.listdir(matching_photo_folder))
-                photo_path = os.path.join(matching_photo_folder, photo_filename)
-                if photo_filename != matching_photo_filename:
-                    break
-            class_2_i += 1
+        class_0_i = 0
+        class_1_i = 0
+        class_2_i = 0
 
-        photo = np.load(photo_path)
-        sketch = np.load(sketch_path)
-        label = int(class_samples[i] == 0)
+        photo_batch = None
+        sketch_batch = None
+        label_batch = None
 
-        if photo_batch is None and sketch_batch is None:
-            photo_batch = photo
-            sketch_batch = sketch
-            label_batch = [label]
-        else:
-            photo_batch = np.vstack((photo_batch, photo))
-            sketch_batch = np.vstack((sketch_batch, sketch))
-            label_batch.append(label)
+        for i in range(n_paths):
+            if class_samples[i] == 0:
+                sketch_path = sketch_paths_0[class_0_i]
+                sketch_filename = os.path.basename(sketch_path)
+                sketch_folder = os.path.dirname(sketch_path).split('/')[-1]
+                photo_filename = gen_photo_from_sketch_filename(sketch_filename)
+                photo_path = os.path.join(self.photo_emb_dir, sketch_folder, photo_filename)
+                class_0_i += 1
+            elif class_samples[i] == 1:
+                sketch_path = sketch_paths_1[class_1_i]
+                sketch_filename = os.path.basename(sketch_path)
+                sketch_folder = os.path.dirname(sketch_path).split('/')[-1]
+                while True:
+                    photo_path = np.random.choice(photo_paths)
+                    photo_folder = os.path.dirname(photo_path).split('/')[-1]
+                    if photo_folder != sketch_folder:
+                        break
+                class_1_i += 1
+            else:
+                sketch_path = sketch_paths_2[class_2_i]
+                sketch_filename = os.path.basename(sketch_path)
+                sketch_folder = os.path.dirname(sketch_path).split('/')[-1]
+                matching_photo_filename = gen_photo_from_sketch_filename(sketch_filename)
+                matching_photo_path = os.path.join(self.photo_emb_dir, sketch_folder, matching_photo_filename)             
+                matching_photo_folder = os.path.dirname(matching_photo_path)
 
-        if photo_batch.shape[0] == batch_size:
+                while True:                        
+                    photo_filename = np.random.choice(os.listdir(matching_photo_folder))
+                    photo_path = os.path.join(matching_photo_folder, photo_filename)
+                    if photo_filename != matching_photo_filename:
+                        break
+                class_2_i += 1
+
+            photo = np.load(photo_path)
+            sketch = np.load(sketch_path)
+            label = int(class_samples[i] == 0)
+
+            if photo_batch is None and sketch_batch is None:
+                photo_batch = photo
+                sketch_batch = sketch
+                label_batch = [label]
+            else:
+                photo_batch = np.vstack((photo_batch, photo))
+                sketch_batch = np.vstack((sketch_batch, sketch))
+                label_batch.append(label)
+
+            if photo_batch.shape[0] == self.batch_size:
+                photo_batch = torch.from_numpy(photo_batch)
+                sketch_batch = torch.from_numpy(sketch_batch)
+                label_batch = np.array(label_batch)
+                label_batch = torch.from_numpy(label_batch)
+
+                if self.train:
+                    photo_batch = Variable(photo_batch)
+                    sketch_batch = Variable(sketch_batch)
+                else:
+                    photo_batch = Variable(photo_batch, volatile=True)
+                    sketch_batch = Variable(sketch_batch, volatile=True)
+                label_batch = Variable(label_batch, requires_grad=False)
+
+                if self.use_cuda:
+                    photo_batch = photo_batch.cuda()
+                    sketch_batch = sketch_batch.cuda()
+                    label_batch = label_batch.cuda()
+
+                yield (photo_batch, sketch_batch, label_batch)
+                
+                photo_batch = None
+                sketch_batch = None
+                label_batch = None
+
+        # return any remaining data
+        if photo_batch is not None and sketch_batch is not None:
             photo_batch = torch.from_numpy(photo_batch)
             sketch_batch = torch.from_numpy(sketch_batch)
             label_batch = np.array(label_batch)
             label_batch = torch.from_numpy(label_batch)
-
             if train:
                 photo_batch = Variable(photo_batch)
                 sketch_batch = Variable(sketch_batch)
@@ -209,37 +241,12 @@ def embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256,
                 sketch_batch = Variable(sketch_batch, volatile=True)
             label_batch = Variable(label_batch, requires_grad=False)
 
-            if use_cuda:
+            if self.use_cuda:
                 photo_batch = photo_batch.cuda()
                 sketch_batch = sketch_batch.cuda()
                 label_batch = label_batch.cuda()
 
             yield (photo_batch, sketch_batch, label_batch)
-            
-            photo_batch = None
-            sketch_batch = None
-            label_batch = None
-
-    # return any remaining data
-    if photo_batch is not None and sketch_batch is not None:
-        photo_batch = torch.from_numpy(photo_batch)
-        sketch_batch = torch.from_numpy(sketch_batch)
-        label_batch = np.array(label_batch)
-        label_batch = torch.from_numpy(label_batch)
-        if train:
-            photo_batch = Variable(photo_batch)
-            sketch_batch = Variable(sketch_batch)
-        else:
-            photo_batch = Variable(photo_batch, volatile=True)
-            sketch_batch = Variable(sketch_batch, volatile=True)
-        label_batch = Variable(label_batch, requires_grad=False)
-
-        if use_cuda:
-            photo_batch = photo_batch.cuda()
-            sketch_batch = sketch_batch.cuda()
-            label_batch = label_batch.cuda()
-
-        yield (photo_batch, sketch_batch, label_batch)
 
 
 def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
@@ -302,13 +309,13 @@ if __name__ == '__main__':
     sketch_emb_dir = '/home/wumike/full_sketchy_embeddings/sketches'
 
     def reset_generators():
-        train_generator = embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256, 
-                                              batch_size=args.batch_size, train=True, 
-                                              strict=args.strict, use_cuda=args.cuda)
-        test_generator = embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256, 
-                                             batch_size=args.batch_size, train=False, 
+        train_generator = EmbeddingGenerator(photo_emb_dir, sketch_emb_dir, imsize=256, 
+                                             batch_size=args.batch_size, train=True, 
                                              strict=args.strict, use_cuda=args.cuda)
-        return train_generator, test_generator
+        test_generator = EmbeddingGenerator(photo_emb_dir, sketch_emb_dir, imsize=256, 
+                                            batch_size=args.batch_size, train=False, 
+                                            strict=args.strict, use_cuda=args.cuda)
+        return train_generator.make_generator(), test_generator.make_generator()
 
     train_generator, test_generator = reset_generators()
     n_train = generator_size(sketch_emb_dir, train=True)
