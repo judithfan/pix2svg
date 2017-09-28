@@ -306,7 +306,7 @@ if __name__ == '__main__':
                                               batch_size=args.batch_size, train=True, 
                                               strict=args.strict, use_cuda=args.cuda)
         test_generator = embedding_generator(photo_emb_dir, sketch_emb_dir, imsize=256, 
-                                             batch_size=args.batch_size, train=True, 
+                                             batch_size=args.batch_size, train=False, 
                                              strict=args.strict, use_cuda=args.cuda)
         return train_generator, test_generator
 

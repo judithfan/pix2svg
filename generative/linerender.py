@@ -23,46 +23,84 @@ class SketchRenderNet(nn.Module):
     :param y_list: path of y coordinates (y0, y1, ..., yn)
     :param pen_list: path of pen types (p0, p1, ..., pn)
     :param imsize: image size to generate
+    :param n_params: make the last <n_params> parameters
     :param fuzz: hyperparameter to scale differences; fuzz > 1 would
                  localize around the line; fuzz < 1 would make things
                  more uniform.
+    :param smoothness: the bigger it is, the closer it is to min() func.
     :param use_cuda: boolean to gen cuda variables
     :return template: imsize by imsize rendered sketch
     """
     def __init__(self, x_list, y_list, pen_list=None, imsize=224, 
-                 fuzz=1, use_cuda=False):
+                 n_params=-1, fuzz=1, smoothness=8, use_cuda=False):
         super(SketchRenderNet, self).__init__()
         assert len(x_list) == len(y_list)
-        self.n_points = len(x_list)
-        if use_cuda:
-            self.x_list = Parameter(torch.cuda.FloatTensor(x_list))
-            self.y_list = Parameter(torch.cuda.FloatTensor(y_list))
-        else:
-            self.x_list = Parameter(torch.Tensor(x_list))
-            self.y_list = Parameter(torch.Tensor(y_list))
+        assert n_params == -1 or n_params > 1
+
+        n_points = len(x_list)
+        n_params = n_points if n_params == -1 else n_params
+        dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
+        
         if pen_list is None:
             # if none is provided, draw everything.
-            pen_list = [2 for i in xrange(self.n_points)]
-        self.pen_list = pen_list
+            pen_list = [2 for i in xrange(n_points)]
+
+        # we normalize the params to be between 0 and 1 so that its an 
+        # easier optimization problem
+        x_params = torch.Tensor(x_list[-n_params:]) / imsize
+        y_params = torch.Tensor(y_list[-n_params:]) / imsize
+        self.x_params = Parameter(x_params.type(dtype))
+        self.y_params = Parameter(y_params.type(dtype))
+        self.pen_params = pen_list[-n_params:]  # just a regular list
+
+        # we will store distances from points to each segment 
+        n_draws = sum(1 for i in pen_list if i == 2)
+        draw_ix = 0  # stores index of draw
+        template = Variable(torch.zeros(n_draws, imsize, imsize).type(dtype))
+        
+        # computed fixed parts if they exist
+        if n_params < n_points:
+            n_seeds = n_points - n_params
+            x_fixed = Variable(torch.Tensor(x_list[:n_seeds]).type(dtype))
+            y_fixed = Variable(torch.Tensor(y_list[:n_seeds]).type(dtype))
+            pen_fixed = pen_list[:n_seeds]
+
+            for i in range(1, n_seeds):
+                if pen_fixed[i] == 2:
+                    _template = draw_line(x_fixed[i - 1], y_fixed[i - 1], x_fixed[i], y_fixed[i],
+                                          imsize=imsize, fuzz=fuzz, use_cuda=use_cuda)
+                    template[draw_ix] = _template
+                    draw_ix += 1
+
+        self.template = template.data
         self.imsize = imsize
         self.fuzz = fuzz
         self.use_cuda = use_cuda
+        self.n_params = n_params
+        self.draw_ix = draw_ix
+        self.smoothness = smoothness
 
-    def forward(self):
-        for i in range(1, self.n_points):
-            if self.pen_list[i] == 2:
-                _template = draw_line(self.x_list[i - 1], self.y_list[i - 1],
-                                      self.x_list[i], self.y_list[i],
+    def forward(self): 
+        draw_ix = self.draw_ix
+        template = Variable(self.template)
+        for i in range(1, self.n_params):
+            if self.pen_params[i] == 2:
+                # b/c our params are scaled to 0 --> 1, we need to resize them
+                # back to 0 --> imsize
+                _template = draw_line(self.x_params[i - 1] * self.imsize, 
+                                      self.y_params[i - 1] * self.imsize,
+                                      self.x_params[i] * self.imsize, 
+                                      self.y_params[i] * self.imsize,
                                       imsize=self.imsize, fuzz=self.fuzz,
                                       use_cuda=self.use_cuda)
-                if i == 1:
-                    template = _template
-                else:
-                    ix = _template < template
-                    template[ix] = _template[ix]
+                template[draw_ix] = _template
+                draw_ix += 1
+        
+        template = exponential_smooth_min(template, dim=0, k=self.smoothness)
+        # add a dimension for batches and a dimension for channels
         template = torch.unsqueeze(template, dim=0)
         template = torch.unsqueeze(template, dim=0)
-
+        
         return template
 
 
@@ -143,6 +181,14 @@ class BresenhamRenderNet(object):
         template = torch.unsqueeze(template, dim=0)
 
         return template
+
+
+def exponential_smooth_min(A, dim=0, k=32):
+    A_max = torch.max(A, dim=dim)[0]
+    B = torch.sum(torch.exp(-k * (A - A_max)), dim=dim)
+    N = k * A_max
+    C = -torch.log(B) + N
+    return C / k
 
 
 def draw_line(x0, y0, x1, y1, imsize=224, fuzz=1.0, use_cuda=False):

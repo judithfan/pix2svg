@@ -13,6 +13,7 @@ import os
 import sys
 import csv
 
+from copy import deepcopy
 import numpy as np
 from PIL import Image
 
@@ -65,6 +66,9 @@ if __name__ == "__main__":
                         help='path to the trained model file')
     parser.add_argument('out_folder', type=str,
                         help='where to save sketch')
+    parser.add_argument('n_wiggle', type=int, help='number of segments to wiggle (from the end)')
+    parser.add_argument('smoothness', type=int, help='parameter in softmin')
+    parser.add_argument('fuzz', type=float, help='fuzziness of the rendered sketch')
     parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--log_interval', type=int, default=1)
@@ -112,8 +116,11 @@ if __name__ == "__main__":
     sketch_endpoints[:, 1] = sketch_endpoints[:, 1] / 480 * 256 
 
     renderer = SketchRenderNet(sketch_endpoints[:, 0], sketch_endpoints[:, 1], 
-                               sketch_endpoints[:, 2], imsize=256, fuzz=0.0001,
+                               # seems most visually appealing
+                               sketch_endpoints[:, 2], imsize=256, fuzz=args.fuzz,
+                               smoothness=args.smoothness, n_params=args.n_wiggle, 
                                use_cuda=args.cuda)
+    
     optimizer = optim.Adam(renderer.parameters(), lr=args.lr)
     if args.cuda:
         renderer = renderer.cuda()
@@ -123,6 +130,7 @@ if __name__ == "__main__":
         renderer.train()
         optimizer.zero_grad()
         sketch = renderer()
+
         # HACK: manually center crop to 224 by 224 from 256 by 256
         #       AKA transforms.CenterCrop(224)
         sketch = sketch[:, :, 16:240, 16:240]
@@ -147,36 +155,82 @@ if __name__ == "__main__":
         # near 1.0. See quip.
         loss = 1 - cosine_similarity(photo, sketch, dim=1)
         loss.backward()
+        optimizer.step()
 
         if epoch % args.log_interval == 0:
             print('Train Epoch: {} \tCosine Distance: {:.6f}'.format(epoch, loss.data[0]))
+        
+        return loss.data[0]
 
+
+    def gen_bresenham_sketch(x_list, y_list, pen_list):
+        # make sure no parameters went over imsize or under 0
+        x_list[x_list < 0] = 0
+        x_list[x_list > 255] = 255
+        y_list[y_list < 0] = 0
+        y_list[y_list > 255] = 255
+
+        # TODO: BresenhamRenderNet flips x and y; fix this.
+        tracer = BresenhamRenderNet(y_list, x_list, pen_list=pen_list, linewidth=3, imsize=256)
+        sketch = tracer.forward()
+        
+        # Do some of preprocessing hacks to make it look lke a real image
+        sketch_min = torch.min(sketch)
+        sketch_max = torch.max(sketch)
+        sketch = (sketch - sketch_min) / (sketch_max - sketch_min)
+        sketch = torch.cat((sketch, sketch, sketch), dim=1)
+
+        # convert to numpy
+        sketch = (1 - sketch[0].numpy()) * 255
+        sketch = np.rollaxis(sketch, 0, 3)
+        sketch = np.round(sketch, 0).astype(np.uint8)
+        return sketch
+
+
+    best_x_list = None
+    best_y_list = None
+    best_pen_list = None
+    best_loss = sys.maxint
 
     for i in range(args.epochs):
-        train(i)
+        loss = train(i)
 
+        parameters = list(renderer.parameters())
+        x_list = parameters[0].cpu().data.numpy() * 256
+        y_list = parameters[1].cpu().data.numpy() * 256
+        pen_list = np.array(renderer.pen_params)
 
-    parameters = list(renderer.parameters())
-    x_parameters = parameters[0].data.numpy()
-    y_parameters = parameters[1].data.numpy()
-    pen_parameters = renderer.pen_list
+        x_list_norm = np.linalg.norm(x_list)
+        y_list_norm = np.linalg.norm(y_list)
 
-    # TODO: BresenhamRenderNet flips x and y; fix this.
-    tracer = BresenhamRenderNet(y_parameters, x_parameters,
-                                pen_list=pen_parameters, imsize=256)
-    sketch = tracer.forward()
-    # Do some of preprocessing hacks to make it look lke a real image
-    sketch_min = torch.min(sketch)
-    sketch_max = torch.max(sketch)
-    sketch = (sketch - sketch_min) / (sketch_max - sketch_min)
-    sketch = (1 - sketch) * 255
-    sketch = torch.cat((sketch, sketch, sketch), dim=1)
+        if i > 0:
+            print("\tX Param Delta: {}".format(x_list_norm - old_x_list_norm))
+            print("\tY Param Delta: {}".format(y_list_norm - old_y_list_norm))
 
-    # convert to numpy
-    sketch = sketch[0].data.numpy()
-    sketch = np.rollaxis(sketch, 0, 3)
-    sketch = np.round(sketch, 0).astype(np.uint8)
+        old_x_list_norm = x_list_norm
+        old_y_list_norm = y_list_norm
 
-    # visualize and save
+        if loss < best_loss:
+            best_x_list = x_list
+            best_y_list = y_list
+            best_pen_list = pen_list
+            best_loss = loss
+
+        if args.n_wiggle != -1:
+            x_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 0], x_list))
+            y_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 1], y_list))
+            pen_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 2], pen_list))
+
+        sketch = gen_bresenham_sketch(x_list, y_list, pen_list)
+        sketch = Image.fromarray(sketch)
+        sketch.save(os.path.join(args.out_folder, 'output_epoch_{}.png'.format(i)))
+
+    if args.n_wiggle != -1:
+        x_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 0], best_x_list))
+        y_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 1], best_y_list))
+        pen_list = np.concatenate((sketch_endpoints[:-args.n_wiggle, 2], best_pen_list))
+
+    print('\nBest Loss: {}'.format(best_loss))
+    sketch = gen_bresenham_sketch(x_list, y_list, pen_list)
     sketch = Image.fromarray(sketch)
-    sketch.save(os.path.join(args.out_folder, 'output.png'))
+    sketch.save(os.path.join(args.out_folder, 'output_best.png'.format(i)))

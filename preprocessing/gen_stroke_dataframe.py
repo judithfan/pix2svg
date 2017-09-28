@@ -18,38 +18,45 @@ import pandas as pd
 import helpers as helpers
 
 
-class TinyDataset():
-    """tiny airplane dataset of photos and sketches for pix2svg."""
+class SketchDataset():
+    """dataset of photos and sketches for pix2svg."""
 
-    def __init__(self, npy_file, root_dir, transform=None):
+    def __init__(self, npy_file, photo_dir, class_name, transform=None):
         """
         Args:
             npy_file (string): Path to the numpy file with stroke-5 representation and corresponding photos.
                     # to get stroke-5 representation of svg
                     x['airplane'][0][5]
-                    # to get corresponding photos
+                    # to get corresponding sketch path
                     x['airplane'][1][5]
-            root_dir (string): Directory with all the images.
+            photo_dir (string): Directory with all the photos.
+            class_name: name of category (e.g., airplane)
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
-        self.root_dir = root_dir
         self.stroke_dir = npy_file
-        self.photo_dir = os.path.join(root_dir,'photo')
-        self.stroke_numpy = np.load(os.path.join(root_dir,'airplane.npy'))[()]
+        self.photo_dir = photo_dir
+        self.class_name = class_name
         self.strokes = np.load(npy_file)[()]
         self.transform = transform
     
     def __len__(self):
-        return len(self.strokes['airplane'][0])
+        return len(self.strokes[self.class_name][0])
 
     def __getitem__(self, idx):
-        X = self.stroke_numpy
-        img_name = os.path.join(self.photo_dir,'airplane',X['airplane'][1][idx]+ '.jpg')
-        photo = io.imread(img_name)
+        X = self.strokes
+        filelist = X[self.class_name][1]
+        photo_filename = filelist[idx].split('/')[-1].split('.')[0].split('-')[0] + '.jpg'
+        if self.class_name=='car_(sedan)':
+            _cname = 'car'
+        else:
+            _cname = self.class_name        
+        photo_path = os.path.join(self.photo_dir,_cname,photo_filename)                               
+        photo = io.imread(photo_path)
         photo = photo.astype(float)
-        strokes = self.strokes['airplane'][0][idx]
-        sample = {'photo': photo, 'strokes': strokes,'name': X['airplane'][1][idx]+ '.jpg'}
+        strokes = self.strokes[self.class_name][0][idx]
+        sketch_filename = filelist[idx].split('/')[-1].split('.')[0] + '.png'
+        sample = {'photo': photo, 'strokes': strokes,'name': photo_filename, 'sketch_filename': sketch_filename}          
         
         if self.transform:
             sample = self.transform(sample)
@@ -141,73 +148,84 @@ def path_renderer(verts, codes):
         plt.show()
 
         
+def flatten(x):
+    return [item for sublist in x for item in sublist]        
+        
 if __name__ == '__main__': 
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--npy_path', type=str, default='./tiny/airplane.npy')
-    parser.add_argument('--root_dir', type=str, default='./tiny')    
-    parser.add_argument('--save_path', type=str, default='./tiny/stroke_dataframe.csv')    
+    parser.add_argument('--root_dir', type=str, default='./sketch_coords')    
+    parser.add_argument('--save_dir', type=str, default='./stroke_dataframes')   
+    parser.add_argument('--photo_dir', type=str, default='/home/jefan/full_sketchy_dataset/photos')
     
     args = parser.parse_args()
 
-    if not os.path.exists(args.root_dir):
-        os.makedirs(args.root_dir)
+    if not os.path.exists(args.save_dir):
+        os.makedirs(args.save_dir)
+        
+    all_classes = os.listdir(args.root_dir)
     
-    ## load in airplanes dataset
-    airplanes = TinyDataset(npy_file=args.npy_path, \
-                            root_dir=args.root_dir,transform=None)    
+    for c in all_classes:
+        cname = c.split('.')[0][7:]
+        
+        ## load in each dataset
+        Class = SketchDataset(npy_file=os.path.join(args.root_dir,c), \
+                                photo_dir=args.photo_dir, class_name=cname, transform=None)    
 
-    ## loop through airplanes and save photos and sketchID's indexed in same way as full_sketchy_dataset is organized
-    photos = []
-    sketchID = []
-    counter = 1
-    for i in range(len(airplanes)):
-        photos.append(airplanes[i]['name'].split('.')[0])
-        if i==0:
-            sketchID.append(1)
-        elif airplanes[i]['name'].split('.')[0] == airplanes[i-1]['name'].split('.')[0]: # current matches previous
-            counter = counter + 1
-            sketchID.append(counter)
-        elif airplanes[i]['name'].split('.')[0] != airplanes[i-1]['name'].split('.')[0]: # new photo dir
-            counter = 1
-            sketchID.append(counter)
+        ## loop through Class and save photos and sketchID's indexed in same way as full_sketchy_dataset is organized
+        photos = []
+        sketchID = []
+        sketchFN = []
+        counter = 1
+        for i in range(len(Class)):
+            photos.append(Class[i]['name'].split('.')[0])
+            sketchFN.append(Class[i]['sketch_filename'])
+            if i==0:
+                sketchID.append(1)
+            elif Class[i]['name'].split('.')[0] == Class[i-1]['name'].split('.')[0]: # current matches previous
+                counter = counter + 1
+                sketchID.append(counter)
+            elif Class[i]['name'].split('.')[0] != Class[i-1]['name'].split('.')[0]: # new photo dir
+                counter = 1
+                sketchID.append(counter)
 
-    unique_photos = np.unique(photos)
-    zipped = zip(photos,sketchID)    
-    
-    ##### save out full stroke matrix (55855,5): columns are: [x,y,pen_state,sketch_id,photo_id]
-    Verts = []
-    Codes = []
-    PhotoID = [] # object-level
-    SketchID = [] # sketch-level
-    StrokeID = [] # stroke-level
+        unique_photos = np.unique(photos)
+        zipped = zip(photos,sketchID,sketchFN)    
 
-    for idx in range(len(airplanes)):
-        sample = airplanes[idx]
-        this_sketchID = zipped[idx][1]
-        this_photoID = zipped[idx][0]
-        lines = strokes_to_lines(to_normal_strokes(sample['strokes']))
-        verts,codes = polyline_pathmaker(lines)
-        Verts.append(verts)
-        Codes.append(codes)
-        SketchID.append([this_sketchID]*len(verts))
-        PhotoID.append([this_photoID]*len(verts))
-        strokeID = []
-        for i,l in enumerate(lines):
-            strokeID.append([i]*len(l))
-        StrokeID.append(flatten(strokeID))
+        ##### save out full stroke matrix (55855,5): columns are: [x,y,pen_state,sketch_id,photo_id]
+        Verts = []
+        Codes = []
+        PhotoID = [] # object-level
+        SketchID = [] # sketch-level
+        StrokeID = [] # stroke-level
+        SketchFN = [] # sketch png filename
 
-    def flatten(x):
-        return [item for sublist in x for item in sublist]
-    Verts,Codes,SketchID,PhotoID,StrokeID = map(flatten,[Verts,Codes,SketchID,PhotoID,StrokeID]) 
-    x,y = zip(*Verts) # unzip x,y segments 
-    print str(len(Verts)) + ' vertices to predict.'
+        for idx in range(len(Class)):
+            sample = Class[idx]
+            this_sketchFN = zipped[idx][2]
+            this_sketchID = zipped[idx][1]
+            this_photoID = zipped[idx][0]
+            lines = strokes_to_lines(to_normal_strokes(sample['strokes']))
+            verts,codes = polyline_pathmaker(lines)
+            Verts.append(verts)
+            Codes.append(codes)
+            SketchID.append([this_sketchID]*len(verts))
+            PhotoID.append([this_photoID]*len(verts))
+            SketchFN.append([this_sketchFN]*len(verts))
+            strokeID = []
+            for i,l in enumerate(lines):
+                strokeID.append([i]*len(l))
+            StrokeID.append(flatten(strokeID))
 
-    data = np.array([x,y,Codes,StrokeID, SketchID,PhotoID]).T
-    S = pd.DataFrame(data,columns=['x','y','pen','strokeID','sketchID','photoID'])
-    print 'Saving out stroke_dataframe.csv'
-    S.to_csv(args.save_path)    
-    
-    
+
+        Verts,Codes,SketchID,PhotoID,StrokeID,SketchFN = map(flatten,[Verts,Codes,SketchID,PhotoID,StrokeID,SketchFN]) 
+        x,y = zip(*Verts) # unzip x,y segments 
+        print str(len(Verts)) + ' vertices to predict.'
+
+        data = np.array([x,y,Codes,StrokeID,SketchID,PhotoID, SketchFN]).T
+        S = pd.DataFrame(data,columns=['x','y','pen','strokeID','sketchID','photoID','sketchFN'])
+        print 'Saving out stroke_dataframe for ' + cname
+        save_path = os.path.join(args.save_dir,cname + '.csv')
+        S.to_csv(save_path) 
     
     
