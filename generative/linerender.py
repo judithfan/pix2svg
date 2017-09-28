@@ -109,23 +109,31 @@ def draw_lines(x0, y0, x1, y1, p0, p1, imsize=224, use_cuda=False):
     # non-vert first, then vertical
     x0_0 = x0[ii_nonvert].view(-1, imsize * imsize)
     y0_0 = y0[ii_nonvert].view(-1, imsize * imsize)
+    p0_0 = p0[ii_nonvert.data[:, 0]]
     x1_0 = x1[ii_nonvert].view(-1, imsize * imsize)
     y1_0 = y1[ii_nonvert].view(-1, imsize * imsize)
+    p1_0 = p1[ii_nonvert.data[:, 0]]
 
     if n_vert > 0:
         x0_1 = x0[ii_vert].view(-1, imsize * imsize)
         y0_1 = y0[ii_vert].view(-1, imsize * imsize)
+        p0_1 = p0[ii_vert.data[:, 0]]
         x1_1 = x1[ii_vert].view(-1, imsize * imsize)
         y1_1 = y1[ii_vert].view(-1, imsize * imsize)
+        p1_1 = p1[ii_vert.data[:, 0]]
         x0 = torch.cat((x0_0, x0_1))
         y0 = torch.cat((y0_0, y0_1))
         x1 = torch.cat((x1_0, x1_1))
         y1 = torch.cat((y1_0, y1_1))
+        p0 = torch.cat((p0_0, p0_1))
+        p1 = torch.cat((p1_0, p1_1))
     else:
         x0 = x0_0
         y0 = y0_0
         x1 = x1_0
         y1 = y1_0
+        p0 = p0_0
+        p1 = p1_0
 
     # compute closest point on line for each of 2 scenarios
     xp1_0, yp1_0 = gen_closest_point_on_line(x0[:n_points - n_vert], y0_0[:n_points - n_vert], 
@@ -133,10 +141,10 @@ def draw_lines(x0, y0, x1, y1, p0, p1, imsize=224, use_cuda=False):
                                              xp0, yp0)
 
     if n_vert > 0:
-        x0_1 = x0[n_vert:].view(-1, imsize * imsize)
-        y0_1 = y0[n_vert:].view(-1, imsize * imsize)
-        x1_1 = x1[n_vert:].view(-1, imsize * imsize)
-        y1_1 = y1[n_vert:].view(-1, imsize * imsize)
+        x0_1 = x0[-n_vert:].view(-1, imsize * imsize)
+        y0_1 = y0[-n_vert:].view(-1, imsize * imsize)
+        x1_1 = x1[-n_vert:].view(-1, imsize * imsize)
+        y1_1 = y1[-n_vert:].view(-1, imsize * imsize)
         xp1_1, yp1_1 = x1_1, yp0.repeat(n_vert, 1)
 
         xp1 = torch.cat((xp1_0, xp1_1), dim=0)
