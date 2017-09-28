@@ -92,7 +92,7 @@ def draw_lines(x0, y0, x1, y1, p0, p1, imsize=224, use_cuda=False):
     x1 = x1.unsqueeze(1).repeat(1, imsize * imsize)
     y1 = y1.unsqueeze(1).repeat(1, imsize * imsize)
 
-    xp0 = Variable(torch.arange(0, imsize).repeat(imsize))
+    xp0 = Variable(torch.arange(0, imsize).repeat(imsize).type(dtype))
     yp0 = torch.t(xp0.view(imsize, imsize)).contiguous().view(-1)
     xp0 = xp0.unsqueeze(0)
     yp0 = yp0.unsqueeze(0)
