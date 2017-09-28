@@ -2,12 +2,10 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
-
 import sys
 import copy
 import math
 import numpy as np
-
 
 import torch
 import torch.nn as nn
@@ -108,14 +106,69 @@ class ParabolicBrezierRenderNet(object):
             y1 = self.y1_list[i]
             x2 = self.x2_list[i]
             y2 = self.y2_list[i]
-            _template = draw_binary_spline(x0, y0, x1, y1, x2, y2, imsize=self.imsize,
-                                           width=self.linewidth, tstep=self.tstep)
+            _template = draw_parabolic_binary_spline(x0, y0, x1, y1, x2, y2, 
+                                                     imsize=self.imsize, width=self.linewidth, 
+                                                     tstep=self.tstep)
             template += _template
         template = torch.clamp(template, 0, 1)
         template = torch.unsqueeze(template, dim=0)
         template = torch.unsqueeze(template, dim=0)
 
         return template
+
+
+class CubicBrezierRenderNet(object):
+    """Non-differentiable spline renderer. After we learn the parameters
+    we should use this to render the final image so that it will
+    look cleaner.
+    """
+    def __init__(self, x0_list, y0_list, x1_list, y1_list,
+                 x2_list, y2_list, x3_list, y3_list, 
+                 imsize=224, linewidth=1, tstep=0.01):
+        super(CubicBrezierRenderNet, self).__init__()
+        assert len(x0_list) == len(y0_list)
+        assert len(x1_list) == len(y1_list)
+        assert len(x2_list) == len(y2_list)
+        assert len(x3_list) == len(y3_list)
+        assert len(x0_list) == len(x1_list)
+        assert len(x0_list) == len(x2_list)
+        assert len(x0_list) == len(x3_list)
+        assert tstep > 0 and tstep < 1
+        self.n_points = len(x0_list)
+        self.x0_list = x0_list
+        self.y0_list = y0_list
+        self.x1_list = x1_list
+        self.y1_list = y1_list
+        self.x2_list = x2_list
+        self.y2_list = y2_list
+        self.x3_list = x3_list
+        self.y3_list = y3_list
+        self.imsize = imsize
+        if linewidth % 2 == 0:
+            linewidth += 1
+        self.linewidth = linewidth
+        self.tstep = tstep
+
+    def forward(self):
+        template = torch.zeros(self.imsize, self.imsize)
+        for i in range(self.n_points):
+            x0 = self.x0_list[i]
+            y0 = self.y0_list[i]
+            x1 = self.x1_list[i]
+            y1 = self.y1_list[i]
+            x2 = self.x2_list[i]
+            y2 = self.y2_list[i]
+            x3 = self.x3_list[i]
+            y3 = self.y3_list[i]
+            _template = draw_cubic_binary_spline(x0, y0, x1, y1, x2, y2, x3, y3, 
+                                                 imsize=self.imsize, width=self.linewidth, 
+                                                 tstep=self.tstep)
+            template += _template
+        template = torch.clamp(template, 0, 1)
+        template = torch.unsqueeze(template, dim=0)
+        template = torch.unsqueeze(template, dim=0)
+
+        return template 
 
 
 def draw_spline(x0, y0, x1, y1, x2, y2, imsize=224, fuzz=1.0, use_cuda=False):
@@ -452,7 +505,8 @@ def get_position(x0, y0, x1, y1, x2, y2, t):
     return pos_x, pos_y
 
 
-def draw_binary_spline(x0, y0, x1, y1, x2, y2, imsize=224, width=1, tstep=0.01):
+def draw_parabolic_binary_spline(x0, y0, x1, y1, x2, y2, 
+                                 imsize=224, width=1, tstep=0.01):
     """Non-differentiable way to draw a spline with no fuzz
 
     :param x0: int, x coordinate of point 0
@@ -494,3 +548,130 @@ def draw_binary_spline(x0, y0, x1, y1, x2, y2, imsize=224, width=1, tstep=0.01):
 
     return template
 
+
+def draw_cubic_binary_spline(x0, y0, x1, y1, x2, y2, x3, y3, 
+                             imsize=224, width=1, tstep=0.01):
+    """Non-differentiable way to draw a spline with no fuzz
+    :param x0: int, x coordinate of point 0
+    :param y0: int, y coordinate of point 0
+    :param x1: int, x coordinate of (tangent) point 1 
+    :param y1: int, y coordinate of (tangent) point 1
+    :param x2: int, x coordinate of (tangent) point 2
+    :param y2: int, y coordinate of (tangent) point 2
+    :param x3: int, x coordinate of point 3
+    :param y3: int, y coordinate of point 3
+    :param imsize: size of image frame
+    :param width: width of line
+    :return template: torch Tensor of imsize x imsize
+    """
+
+    if width % 2 == 0:
+        width += 1
+    hw = int((width - 1) / 2)
+
+    # we will be populating this.
+    template = torch.zeros((imsize, imsize))
+
+    t = torch.arange(0, 1, tstep)
+    n_t = t.size()[0]
+
+    p0 = torch.Tensor([x0, y0]).repeat(n_t).view(n_t, -1)
+    p1 = torch.Tensor([x1, y1]).repeat(n_t).view(n_t, -1)
+    p2 = torch.Tensor([x2, y2]).repeat(n_t).view(n_t, -1)
+    p3 = torch.Tensor([x3, y3]).repeat(n_t).view(n_t, -1)
+    t = torch.t(t.repeat(2).view(-1, n_t))
+
+    p_t = ((1-t)**3)*p0 + (3*(1-t)**2)*t*p1 + (3*(1-t)*t**2)*p2 + t**3*p3  
+    p_t = torch.round(p_t).int()
+
+    for i in range(n_t):
+        x_t, y_t = p_t[i, 0], p_t[i, 1]
+        if hw > 0:
+            try:
+                template[max(y_t-hw, 0):min(y_t+hw, imsize), 
+                         max(x_t-hw, 0):min(x_t+hw, imsize)] = 1
+            except:
+                pass
+        else:
+            template[y_t, x_t] = 1
+
+    return template
+
+
+def rotate_coordinate(x, y, cx, cy, theta):
+    """Return a new point (x', y') as rotating an existing point
+    (x, y) theta radians around the point (cx, cy).
+    """
+    x_p = ((x - cx) * math.cos(theta) + (y - cy) * math.sin(theta)) + cx
+    y_p = (-(x - cx) * math.sin(theta) + (y - cy) * math.cos(theta)) + cy
+    return x_p, y_p
+
+
+def gen_cubic_spline_inflection(x0, y0, cx0, cy0, cx1, cy1, x1, y1):
+    """Given (x0, y0), (cx0, cy0), (cx1, cy1), (x1, y1), convert
+    it into 2 parabolic curves.
+    """
+
+    # save a copy of these parameters so we can call them later
+    _x0, _y0, _cx0, _cy0, _cx1, _cy1, _x1, _y1 = \
+        x0, y0, cx0, cy0, cx1, cy1, x1, y1
+
+    # save parameters important for later
+    translate_x = x0
+    translate_y = y0
+    radians = math.atan2(y1 - y0, float(x1 - x0))
+
+    # We want this new spline to be axis aligned where (x0, y0)
+    # is the origin and y1 is at 0. This involves a translation 
+    # and a rotation. We want to do this because converting cubic 
+    # to parabolic splines involves finding roots and that is 
+    # tricky if we don't rotate. 
+
+    cx0 -= translate_x
+    cx1 -= translate_x
+    x1 -= translate_x
+    x0 -= translate_x
+    cy0 -= translate_y
+    cy1 -= translate_y
+    y1 -= translate_y
+    y0 -= translate_y
+
+    # rotate a bunch of coordinates along the plane
+    cx0, cy0 = rotate_coordinate(cx0, cy0, x0, y0, radians)
+    cx1, cy1 = rotate_coordinate(cx1, cy1, x0, y0, radians)
+    x1, y1 = rotate_coordinate(x1, y1, x0, y0, radians)
+
+    # now we can try to compute roots
+    a = cx1 * cy0
+    b = x1 * cy0
+    c = cx0 * cy1 
+    d = x1 * cy1
+
+    v1 = (-3 * a + 2 * b + 3 * c - d) * 18
+    v2 = (3 * a - b - 3 * c) * 18
+    v3 = (c - a) * 18
+
+    # this assumes 3a + d != 2b + 3c in which case there are no roots
+    determinant = (v2**2 - 4 * v1 * v3)
+    if determinant < 0:
+        return None, None, 
+        
+    sqr = determinant**(.5)
+    d = 2 * v1
+
+    # these are the roots
+    root1 = (sqr - v2) / d
+    root2 = -(sqr + v2) / d
+
+    if root1 >=0 and root1 <= 1:
+        t = root1
+    elif root2 >=0 and root2 <= 1:
+        t = root2
+    else:
+        return None, None
+
+    # map t back to x, y coordinates
+    x_t = ((1-t)**3)*_x0 + (3*(1-t)**2)*t*_cx0 + (3*(1-t)*t**2)*_cx1 + t**3*_x1
+    y_t = ((1-t)**3)*_y0 + (3*(1-t)**2)*t*_cy0 + (3*(1-t)*t**2)*_cy1 + t**3*_y1
+
+    return x_t, y_t
