@@ -6,7 +6,7 @@ import sys
 import json
 
 import torch
-from generator import ReferenceGameGenerator
+from generator import ReferenceGameEmbeddingGenerator
 import torchvision.models as models
 
 sys.path.append('../multimodal_test')
@@ -28,19 +28,16 @@ def cnn_predict(x, cnn):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('sketch_dir', type=str, help='path to sketches')
-    parser.add_argument('render_dir', type=str, help='path to renderings')
+    parser.add_argument('sketch_emb_dir', type=str, help='path to sketches')
+    parser.add_argument('render_emb_dir', type=str, help='path to renderings')
     parser.add_argument('json_path', type=str, help='path to where to dump json')
     parser.add_argument('model_dir', type=str, help='path to trained MM model')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    print('\nSketch Directory: {}'.format(args.sketch_dir))
-    print('3D-Render Directory: {}'.format(args.render_dir))
-    print('Trained Model Directory: {}\n'.format(args.model_dir))
-
-    _generator = ReferenceGameGenerator(args.sketch_dir, args.render_dir, use_cuda=args.cuda)
+    _generator = ReferenceGameGenerator(args.sketch_emb_dir, args.render_emb_dir, 
+                                        use_cuda=args.cuda)
     generator = _generator.make_generator() 
     print('Built generator.')
 
@@ -63,13 +60,11 @@ if __name__ == "__main__":
 
     while True:
         try:  # exhaust the generator to return all pairs
-            sketch_path, sketch, render_path, render = generator.next()
+            sketch_emb_path, sketch_emb, render_emb_path, render_emb = generator.next()
         except StopIteration:
             break
 
         # pass sketch and render in VGG (fc7) and then get MM embeddings
-        sketch_emb = cnn_predict(sketch, cnn)
-        render_emb = cnn_predict(render, cnn)
         sketch_emb = model.sketch_adaptor(sketch_emb)
         render_emb = model.photo_adaptor(render_emb)
         # compute cosine similarity

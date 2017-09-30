@@ -70,7 +70,8 @@ class ReferenceGameGenerator(object):
     (sketch, render) for every sketch and every render, so it will 
     be a total of |sketch| * |render| images.
 
-    :param image_dir: path to folder of images
+    :param sketch_dir: path to folder of sketch pngs
+    :param render_dir: path to folder of image pngs
     :param use_cuda: whether to return cuda.FloatTensor or FloatTensor
     """
 
@@ -105,6 +106,46 @@ class ReferenceGameGenerator(object):
 
                 sketch = preprocessing(sketch).unsqueeze(0)
                 render = preprocessing(render).unsqueeze(0)
+
+                sketch = Variable(sketch.type(self.dtype), volatile=True)
+                render = Variable(render.type(self.dtype), volatile=True)
+
+                yield (sketch_path, sketch, render_path, render)
+
+
+class ReferenceGameEmbeddingGenerator(object):
+    """This generates pairs from the reference game data. 
+    This is not used for training purposes. This will yield a pair 
+    (sketch, render) for every sketch and every render, so it will 
+    be a total of |sketch| * |render| images.
+
+    :param sketch_dir: path to folder of sketch pngs
+    :param render_dir: path to folder of image pngs
+    :param use_cuda: whether to return cuda.FloatTensor or FloatTensor
+    """
+
+    def __init__(self, sketch_dir, render_dir, use_cuda=False):
+        self.sketch_dir = sketch_dir
+        self.render_dir = render_dir
+        self.dtype = dtype = (torch.cuda.FloatTensor 
+                              if use_cuda else torch.FloatTensor)
+
+    def make_generator(self):
+        sketch_paths = [path for path in list_files(self.sketch_dir, ext='npy')]
+        render_paths = [path for path in list_files(self.render_dir, ext='npy')]
+
+        n_sketches = len(sketch_paths)
+        n_renders = len(render_paths)
+        self.size = n_sketches * n_renders
+
+        for i in range(n_sketches):
+            for j in range(n_renders):
+                sketch_path, render_path = sketch_paths[i], render_paths[j]
+                sketch = np.load(sketch_path)
+                render = np.load(render_path)
+
+                sketch = torch.from_numpy(sketch).unsqueeze(0)
+                render = torch.from_numpy(render).unsqueeze(0)
 
                 sketch = Variable(sketch.type(self.dtype), volatile=True)
                 render = Variable(render.type(self.dtype), volatile=True)
