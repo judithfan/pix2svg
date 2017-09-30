@@ -91,13 +91,17 @@ class ReferenceGameGenerator(object):
         for i in range(n_sketches):
             for j in range(n_renders):
                 sketch_path, render_path = sketch_paths[i], render_paths[j]
-                sketch = Image.open(sketch_path).convert('RGB')
-                render = Image.open(render_path).convert('RGB')
+                sketch = Image.open(sketch_path)
+                render = Image.open(render_path)
 
                 # sketches in this dataset are transparent so we need to 
                 # fill it up with a blank color: white. 
                 # renderings do not have a similar problem.
                 sketch = alpha_composite_with_color(sketch)
+
+                # now convert to RGB
+                sketch = sketch.convert('RGB')
+                render = render.convert('RGB')
 
                 sketch = preprocessing(sketch).unsqueeze(0)
                 render = preprocessing(render).unsqueeze(0)
