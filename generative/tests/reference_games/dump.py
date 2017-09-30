@@ -36,8 +36,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    _generator = ReferenceGameGenerator(args.sketch_emb_dir, args.render_emb_dir, 
-                                        use_cuda=args.cuda)
+    _generator = ReferenceGameEmbeddingGenerator(args.sketch_emb_dir, args.render_emb_dir, 
+                                                 use_cuda=args.cuda)
     generator = _generator.make_generator() 
     print('Built generator.')
 
@@ -71,8 +71,8 @@ if __name__ == "__main__":
         dist = cosine_similarity(render_emb, sketch_emb, dim=1)
         dist = float(dist.cpu().data.numpy()[0])
         
-        dist_json = {'sketch': sketch_path,
-                     'render': render_path,
+        dist_json = {'sketch': sketch_emb_path,
+                     'render': render_emb_path,
                      'distance': dist}
         dist_jsons.append(dist_json)
 

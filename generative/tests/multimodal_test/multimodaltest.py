@@ -292,6 +292,8 @@ class AverageMeter(object):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('photo_emb_folder', type=str)
+    parser.add_argument('sketch_emb_folder', type=str)
     parser.add_argument('out_folder', type=str)
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--lr', type=float, default=0.01)
@@ -305,8 +307,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    photo_emb_dir = '/home/wumike/full_sketchy_embeddings/photos'
-    sketch_emb_dir = '/home/wumike/full_sketchy_embeddings/sketches'
+    # photo_emb_dir = '/home/wumike/full_sketchy_embeddings/photos'
+    # sketch_emb_dir = '/home/wumike/full_sketchy_embeddings/sketches'
+    photo_emb_dir = args.photo_emb_folder
+    sketch_emb_dir = args.sketch_emb_folder
 
     def reset_generators():
         train_generator = EmbeddingGenerator(photo_emb_dir, sketch_emb_dir,
