@@ -5,6 +5,7 @@ from __future__ import absolute_import
 import sys
 import json
 
+import torch
 from generator import ReferenceGameGenerator
 import torchvision.models as models
 
@@ -35,20 +36,27 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    print('Sketch Directory: {}.'.format(args.sketch_dir))
-    print('3D-Render Directory: {}.'.format(args.render_dir))
-    print('Trained Model Directory: {},\n'.format(args.model_dir))
+    print('\nSketch Directory: {}'.format(args.sketch_dir))
+    print('3D-Render Directory: {}'.format(args.render_dir))
+    print('Trained Model Directory: {}\n'.format(args.model_dir))
 
-    generator = ReferenceGameGenerator(args.sketch_dir, args.render_dir, use_cuda=args.cuda)
-    generator = generator.make_generator() 
+    _generator = ReferenceGameGenerator(args.sketch_dir, args.render_dir, use_cuda=args.cuda)
+    generator = _generator.make_generator() 
+    print('Built generator.')
 
     # load VGG
     cnn = models.vgg19(pretrained=True)
     cnn.eval()
+    if args.cuda:
+        cnn.cuda()
+    print('Loaded VGG.')
 
     # load multimodal model  
     model = load_checkpoint(args.model_dir, use_cuda=args.cuda)
     model.eval()
+    if model.cuda:
+        model.cuda()
+    print('Loaded multimodal model.')
 
     dist_jsons = []
     count = 0
@@ -67,13 +75,13 @@ if __name__ == "__main__":
         # compute cosine similarity
         dist = cosine_similarity(render_emb, sketch_emb, dim=1)
         dist = float(dist.cpu().data.numpy()[0])
-
+        
         dist_json = {'sketch': sketch_path,
                      'render': render_path,
                      'distance': dist}
         dist_jsons.append(dist_json)
 
-        print('Compute Distance [{}/{}].'.format(count + 1, generator.size))
+        print('Compute Distance [{}/{}].'.format(count + 1, _generator.size))
         count += 1
 
 

@@ -11,8 +11,8 @@ import torch
 import numpy as np
 from PIL import Image
 
-from utils import list_files
-
+from torch.autograd import Variable
+import torchvision.transforms as transforms
 
 preprocessing = transforms.Compose([
             transforms.Scale(256),
@@ -49,8 +49,8 @@ class ReferenceGameGenerator(object):
         for i in range(n_sketches):
             for j in range(n_renders):
                 sketch_path, render_path = sketch_paths[i], render_paths[j]
-                sketch = Image.open(sketch_path)
-                render = Image.open(render_path)
+                sketch = Image.open(sketch_path).convert('RGB')
+                render = Image.open(render_path).convert('RGB')
 
                 sketch = preprocessing(sketch).unsqueeze(0)
                 render = preprocessing(render).unsqueeze(0)
