@@ -29,7 +29,7 @@ def merge_sketch_folders(folders, postfixes, out_folder):
 
     for folder, postfix in zip(folders, postfixes):
         
-        filepaths = list_files(folder)
+        filepaths = list_files(folder, ext='png')
         n_files = len(filepaths)
         file_i = 0
         

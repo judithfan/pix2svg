@@ -8,6 +8,13 @@ import os
 import json
 
 
+def simplify_sketch(path):
+    path = '_'.join(os.path.splitext(os.path.basename(path))[0].split('_')[1:])
+    path = path.split('-')[-1]
+    path = path.replace('trial', '')
+    return path
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
@@ -25,14 +32,16 @@ if __name__ == "__main__":
 
     out_json = {}
     for path in render_paths:
-        out_json[os.path.basename(path)] = {}
+        path = os.path.splitext(os.path.basename(path))[0]
+        path = path.split('_')[2:]
+        out_json[path] = {}
     
     for i, item in enumerate(data):
-        render_key = os.path.basename(item['render'])
-        sketch_key = os.path.basename(item['sketch'])
+        render_key = os.path.splitext(os.path.basename(item['render']))[0]
+        render_key = render_key.split('_')[2:]
+        sketch_key = simplify_sketch(item['sketch'])
         out_json[render_key][sketch_key] = item['distance']
         print('Processed items [{}/{}]'.format(i + 1, n_data))
 
     with open(args.output_path, 'wb') as fp:
         json.dump(out_json, fp)
-
