@@ -11,7 +11,7 @@ import json
 def simplify_sketch(path):
     path = '_'.join(os.path.splitext(os.path.basename(path))[0].split('_')[1:])
     path = path.split('-')[-1]
-    path = path.replace('trial', '')
+    path = path.replace('_trial', '')
     return path
 
 
@@ -33,12 +33,12 @@ if __name__ == "__main__":
     out_json = {}
     for path in render_paths:
         path = os.path.splitext(os.path.basename(path))[0]
-        path = path.split('_')[2:]
+        path = '_'.join(path.split('_')[2:])
         out_json[path] = {}
     
     for i, item in enumerate(data):
         render_key = os.path.splitext(os.path.basename(item['render']))[0]
-        render_key = render_key.split('_')[2:]
+        render_key = '_'.join(render_key.split('_')[2:])
         sketch_key = simplify_sketch(item['sketch'])
         out_json[render_key][sketch_key] = item['distance']
         print('Processed items [{}/{}]'.format(i + 1, n_data))
