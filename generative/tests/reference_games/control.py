@@ -71,6 +71,7 @@ if __name__ == '__main__':
 
     # store raw images in a batch so we can evaluate them using vgg
     image_jpg_batch, image_jpg_batches = [], []
+    image_path_batch, image_path_batches = [], []
 
     for i in range(n_images):
         print('Loading image [{}/{}]'.format(i + 1, n_images))
@@ -81,19 +82,22 @@ if __name__ == '__main__':
         image_torch = image_torch.convert('RGB')
         image_torch = preprocessing(image_torch).unsqueeze(0)
         image_jpg_batch.append(image_torch)
+        image_path_batch.append(image_paths[i])
 
         if i % args.batch_size == 0:
             image_jpg_batch = torch.cat(image_jpg_batch, dim=0)
             image_jpg_batches.append(image_jpg_batch)
+            image_path_batches.append(image_path_batch)
             image_jpg_batch = []
+            image_path_batch = []
 
     if len(image_jpg_batch) > 0:
         image_jpg_batch = torch.cat(image_jpg_batch, dim=0)
         image_jpg_batches.append(image_jpg_batch)
+        image_path_batches.append(image_path_batch)
 
     n_batches = len(image_jpg_batches)
     
-    image_emb_batches = []
     for i in range(n_batches):
         print('Getting embeddings [batch {}/{}]'.format(i + 1, n_batches))
         image_inputs = image_jpg_batches[i]
@@ -104,14 +108,11 @@ if __name__ == '__main__':
 
         image_emb = extract_features(image_inputs, cnn, args.layer_ix, 
                                      classifier=args.classifier)
-        image_emb_batches.append(image_emb)
 
-    image_embs = torch.cat(image_emb_batches, dim=0)
-    image_embs = image_embs.cpu().data.numpy()
-    assert(image_embs.shape[0] == n_images)
-
-    for i in range(n_images):
-        print('Saving numpy object [{}/{}]'.format(i + 1, n_images))
-        path_name = image_paths[i].replace(args.imgfolder, args.outfolder)
-        path_name = path_name.replace(args.extension, 'npy')
-        np.save(path_name, image_embs[i])
+        image_embs = image_embs.cpu().data.numpy()
+        
+        batch_paths = image_path_batches[i]
+        for j in range(args.batch_size):
+            path_name = batch_paths[j].replace(args.imgfolder, args.outfolder)
+            path_name = path_name.replace(args.extension, 'npy')
+            np.save(path_name, image_embs[j])
