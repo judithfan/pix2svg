@@ -102,7 +102,7 @@ if __name__ == "__main__":
 
             outputs = model(photos, sketches_same_photo, sketches_same_class, 
                             sketches_diff_class, noises)
-            loss = ranking_loss(outputs)
+            loss = ranking_loss(outputs, use_cuda=args.cuda)
             loss_meter.update(loss.data[0], len(photos)) 
 
         print('Test Epoch: {}\tLoss: {:.6f}'.format(epoch, loss_meter.avg))
