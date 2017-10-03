@@ -19,7 +19,7 @@ from utils import save_checkpoint
 
 if __name__ == "__main__":
     import argparse
-    parser = argparser.ArgumentParser()
+    parser = argparse.ArgumentParser()
     parser.add_argument('photo_emb_folder', type=str)
     parser.add_argument('sketch_emb_folder', type=str)
     parser.add_argument('noise_emb_folder', type=str)
@@ -34,14 +34,12 @@ if __name__ == "__main__":
 
 
     def reset_generators():
-        photo_emb_dir, sketch_emb_dir, noise_emb_dir, batch_size=32, 
-                 train=True, strict=False, random_seed=42, use_cuda=False
         train_generator = EmbeddingGenerator(args.photo_emb_dir, args.sketch_emb_dir, 
                                              args.noise_emb_dir, batch_size=args.batch_size, 
                                              train=True, use_cuda=args.cuda)
         test_generator = EmbeddingGenerator(args.photo_emb_dir, args.sketch_emb_dir, 
-                                             args.noise_emb_dir, batch_size=args.batch_size, 
-                                             train=False, use_cuda=args.cuda)
+                                            args.noise_emb_dir, batch_size=args.batch_size, 
+                                            train=False, use_cuda=args.cuda)
         return train_generator, test_generator
 
 

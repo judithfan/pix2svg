@@ -46,8 +46,8 @@ def ranking_loss(dists, strong=False):
     p = len(dists)
     discount = torch.from_numpy(np.log2(np.arange(1, p + 1) + 1))
     if strong:
-        2base = torch.Tensor([2]).repeat(p)
-        dists = torch.pow(2base, dists) - 1
+        base2 = torch.Tensor([2]).repeat(p)
+        dists = torch.pow(base2, dists) - 1
     return torch.sum(dists / discount)
 
 
