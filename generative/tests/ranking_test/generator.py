@@ -141,7 +141,7 @@ class EmbeddingGenerator(object):
                    sketch_diff_class_batch, noise_batch)
 
 
-# 100000 loops, best of 3: 2.37 µs per loop
+# 100000 loops, best of 3: 2.37 micros per loop
 def get_photo_from_sketch_path(sketch_path, photo_emb_dir):
     """Get path to matching photo given sketch path"""
     sketch_filename = os.path.basename(sketch_path)
@@ -151,7 +151,7 @@ def get_photo_from_sketch_path(sketch_path, photo_emb_dir):
     return photo_path
 
 
-# 100000 loops, best of 3: 2.21 µs per loop
+# 100000 loops, best of 3: 2.21 micros per loop
 def get_noise_from_sketch_path(sketch_path, noise_emb_dir):
     sketch_folder = os.path.dirname(sketch_path).split('/')[-1]
     sketch_filename = os.path.basename(sketch_path)
@@ -219,6 +219,6 @@ if __name__ == "__main__":
     start_time = time.time()
     for i in xrange(100):
         print('Iteration [{}/{}]'.format(i + 1, 100))
-       generator.next()
+        generator.next()
 
     print('\nWall Time: {} seconds'.format(time.time() - start_time))
