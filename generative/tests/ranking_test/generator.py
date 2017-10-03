@@ -82,8 +82,9 @@ class EmbeddingGenerator(object):
             sketch_same_photo_path = sketch_paths[i]
             photo_path = get_photo_from_sketch_path(sketch_same_photo_path, self.photo_emb_dir)
             noise_path = get_noise_from_sketch_path(sketch_same_photo_path, self.noise_emb_dir)
-            sketch_same_class_path = get_same_class_sketch_from_photo(photo_path, sketch_paths)
-            sketch_diff_class_path = get_diff_class_sketch_from_photo(photo_path, sketch_paths)
+            sketch_same_class_path = get_same_class_sketch_from_photo(photo_path, self.sketch_emb_dir)
+            sketch_diff_class_path = get_diff_class_sketch_from_photo(photo_path, self.sketch_emb_dir, 
+                                                                      categories)
 
             photo = np.load(photo_path)
             sketch_same_photo = np.load(sketch_same_photo_path)
@@ -140,6 +141,7 @@ class EmbeddingGenerator(object):
                    sketch_diff_class_batch, noise_batch)
 
 
+# 100000 loops, best of 3: 2.37 µs per loop
 def get_photo_from_sketch_path(sketch_path, photo_emb_dir):
     """Get path to matching photo given sketch path"""
     sketch_filename = os.path.basename(sketch_path)
@@ -149,6 +151,7 @@ def get_photo_from_sketch_path(sketch_path, photo_emb_dir):
     return photo_path
 
 
+# 100000 loops, best of 3: 2.21 µs per loop
 def get_noise_from_sketch_path(sketch_path, noise_emb_dir):
     sketch_folder = os.path.dirname(sketch_path).split('/')[-1]
     sketch_filename = os.path.basename(sketch_path)
@@ -156,7 +159,8 @@ def get_noise_from_sketch_path(sketch_path, noise_emb_dir):
     return noise_path
 
 
-def get_same_class_sketch_from_photo(photo_path, sketch_paths):
+# 1000 loops, best of 3: 2.07 ms per loop
+def get_same_class_sketch_from_photo(photo_path, sketch_emb_dir):
     """Find a sketch of the same class as the photo but not of the same photo.
     
     :param photo_path: path to photo embedding.
@@ -164,41 +168,33 @@ def get_same_class_sketch_from_photo(photo_path, sketch_paths):
     """
     photo_folder = os.path.dirname(photo_path).split('/')[-1]
     photo_filename = os.path.basename(photo_path)
+    photo_filename = os.path.splitext(photo_filename)[0]
 
     # only keep sketch paths of the same class
-    sketch_paths = [path for path in sketch_paths 
-                    if os.path.dirname(path).split('/')[-1] == photo_folder]
-
-    while True:
-        # pick a random sketch path  
-        sketch_path = np.random.choice(sketch_paths)
-        _photo_path = get_photo_from_sketch_path(sketch_path, photo_folder)
-
-        # if the 2 paths do not match, that means the sketch is of a diff
-        # photo of the same class.
-        if photo_path != _photo_path:
-            break
-
+    sketch_paths = list_files(os.path.join(sketch_emb_dir, photo_folder), ext='npy')
+    # there are never more than 20 sketches for a given photo. this 
+    # is hacky but to avoid loops, we can do set subtraction by assuming
+    # that there 20 sketches for this sketch
+    blacklist_paths = [os.path.join(sketch_emb_dir, photo_folder, 
+                                   '{}-{}.npy'.format(photo_filename, i))
+                       for i in range(20)]
+    sketch_paths = list(set(sketch_paths) - set(blacklist_paths))
+    sketch_path = np.random.choice(sketch_paths)
     return sketch_path
 
 
-def get_diff_class_sketch_from_photo(photo_path, sketch_paths):
+# 100 loops, best of 3: 2.36 ms per loop
+def get_diff_class_sketch_from_photo(photo_path, sketch_emb_dir, categories):
     """Find a sketch of a different class.
 
     :param photo_path: path to photo embedding.
-    :param sketch_paths: list of paths to all sketches.
+    :param sketch_emb_dir: directory pointing to sketch embeddings
+    :param categories: list of classes
     """
     photo_folder = os.path.dirname(photo_path).split('/')[-1]
-    photo_filename = os.path.basename(photo_path)
-
-    while True:
-        # pick a random sketch path  
-        sketch_path = np.random.choice(sketch_paths)
-        sketch_folder = os.path.dirname(sketch_path).split('/')[-1]
-
-        if photo_folder != sketch_folder:
-            break
-
+    category = np.random.choice(list(set(categories) - set([photo_folder])))
+    sketch_paths = list_files(os.path.join(sketch_emb_dir, category), ext='npy')
+    sketch_path = np.random.choice(sketch_paths)
     return sketch_path
 
 
@@ -207,3 +203,22 @@ def list_files(path, ext='jpg'):
               for y in glob(os.path.join(x[0], '*.%s' % ext))]
     return result
 
+
+if __name__ == "__main__":
+    import time
+    # test our generator -- esp. with timings because I'm worried about it
+    # being a little bit slow:
+    photo_emb_dir = '/home/wumike/full_sketchy_embeddings/photos'
+    sketch_emb_dir = '/home/wumike/full_sketchy_embeddings/sketches'
+    noise_emb_dir = '/home/wumike/full_sketchy_embeddings/noise'
+
+    generator = EmbeddingGenerator(photo_emb_dir, sketch_emb_dir,
+                                   noise_emb_dir, 32, train=True)
+    generator = generator.make_generator()
+
+    start_time = time.time()
+    for i in xrange(100):
+        print('Iteration [{}/{}]'.format(i + 1, 100))
+       generator.next()
+
+    print('\nWall Time: {} seconds'.format(time.time() - start_time))
