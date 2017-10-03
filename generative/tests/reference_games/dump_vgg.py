@@ -38,20 +38,6 @@ if __name__ == "__main__":
     generator = _generator.make_generator() 
     print('Built generator.')
 
-    # load VGG
-    cnn = models.vgg19(pretrained=True)
-    cnn.eval()
-    if args.cuda:
-        cnn.cuda()
-    print('Loaded VGG.')
-
-    # load multimodal model  
-    model = load_checkpoint(args.model_dir, use_cuda=args.cuda)
-    model.eval()
-    if model.cuda:
-        model.cuda()
-    print('Loaded multimodal model.')
-
     dist_jsons = []
     count = 0
 

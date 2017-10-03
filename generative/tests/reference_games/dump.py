@@ -16,15 +16,6 @@ sys.path.append('../distribution_test')
 from distribtest import cosine_similarity
 
 
-def cnn_predict(x, cnn):
-    x = cnn.features(x)
-    x = x.view(x.size(0), -1)
-    classifier = list(cnn.classifier)[:4]  # fc7 layer
-    for i in range(len(classifier)):
-        x = classifier[i](x)
-    return x
-
-
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
@@ -40,13 +31,6 @@ if __name__ == "__main__":
                                                  use_cuda=args.cuda)
     generator = _generator.make_generator() 
     print('Built generator.')
-
-    # load VGG
-    cnn = models.vgg19(pretrained=True)
-    cnn.eval()
-    if args.cuda:
-        cnn.cuda()
-    print('Loaded VGG.')
 
     # load multimodal model  
     model = load_checkpoint(args.model_dir, use_cuda=args.cuda)
