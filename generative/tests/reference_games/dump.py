@@ -22,7 +22,9 @@ if __name__ == "__main__":
     parser.add_argument('sketch_emb_dir', type=str, help='path to sketches')
     parser.add_argument('render_emb_dir', type=str, help='path to renderings')
     parser.add_argument('json_path', type=str, help='path to where to dump json')
-    parser.add_argument('model_dir', type=str, help='path to trained MM model')
+    # if this is not supplied, we can calculate cosine distance directly 
+    # on the VGG embeddings themselves.
+    parser.add_argument('--model_dir', type=str, help='path to trained MM model')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
@@ -33,11 +35,12 @@ if __name__ == "__main__":
     print('Built generator.')
 
     # load multimodal model  
-    model = load_checkpoint(args.model_dir, use_cuda=args.cuda)
-    model.eval()
-    if model.cuda:
-        model.cuda()
-    print('Loaded multimodal model.')
+    if args.model_dir:
+        model = load_checkpoint(args.model_dir, use_cuda=args.cuda)
+        model.eval()
+        if model.cuda:
+            model.cuda()
+        print('Loaded multimodal model.')
 
     dist_jsons = []
     count = 0
@@ -48,9 +51,10 @@ if __name__ == "__main__":
         except StopIteration:
             break
 
-        # pass sketch and render in VGG (fc7) and then get MM embeddings
-        sketch_emb = model.sketch_adaptor(sketch_emb)
-        render_emb = model.photo_adaptor(render_emb)
+        if args.model_dir:
+            # pass sketch and render in VGG (fc7) and then get MM embeddings
+            sketch_emb = model.sketch_adaptor(sketch_emb)
+            render_emb = model.photo_adaptor(render_emb)
         # compute cosine similarity
         dist = cosine_similarity(render_emb, sketch_emb, dim=1)
         dist = float(dist.cpu().data.numpy()[0])
