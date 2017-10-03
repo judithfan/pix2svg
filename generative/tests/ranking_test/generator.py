@@ -47,6 +47,16 @@ class EmbeddingGenerator(object):
         self.train = train
         self.strict = strict
         self.dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
+        self.size = self.get_size()
+
+    def get_size(self):
+        categories = os.listdir(self.sketch_emb_dir)
+        n_categories = len(categories)
+        categories = (categories[:int(n_categories * 0.8)] if self.train
+                      else categories[int(n_categories * 0.8):])
+        sketch_paths = [path for path in list_files(self.sketch_emb_dir, ext='npy')
+                        if os.path.dirname(path).split('/')[-1] in categories]
+        return len(sketch_paths)
 
     def make_generator(self):
         categories = os.listdir(self.sketch_emb_dir)
@@ -62,7 +72,6 @@ class EmbeddingGenerator(object):
                        if os.path.dirname(path).split('/')[-1] in categories]
 
         random.shuffle(sketch_paths)
-        self.size = len(sketch_paths)
         batch_idx = 0
 
         # for each sketch, find its matching photo, find a sketch of same class but different photo, 
@@ -87,13 +96,13 @@ class EmbeddingGenerator(object):
                 noise_batch = noise
                 sketch_same_photo_batch = sketch_same_photo
                 sketch_same_class_batch = sketch_same_class
-                sketch_diff_photo_batch = sketch_diff_photo
+                sketch_diff_class_batch = sketch_diff_class
             else:
                 photo_batch = np.vstack((photo_batch, photo))
                 noise_batch = np.vstack((noise_batch, noise))
                 sketch_same_photo_batch = np.vstack((sketch_same_photo_batch, sketch_same_photo))
                 sketch_same_class_batch = np.vstack((sketch_same_class_batch, sketch_same_class))
-                sketch_diff_photo_batch = np.vstack((sketch_diff_photo_batch, sketch_diff_photo))
+                sketch_diff_class_batch = np.vstack((sketch_diff_class_batch, sketch_diff_class))
 
             if (batch_idx + 1) == self.batch_size:
                 photo_batch = Variable(torch.from_numpy(photo_batch), 
@@ -104,12 +113,13 @@ class EmbeddingGenerator(object):
                                                    volatile=not self.train).type(self.dtype)
                 sketch_same_class_batch = Variable(torch.from_numpy(sketch_same_class_batch), 
                                                    volatile=not self.train).type(self.dtype)
-                sketch_diff_photo_batch = Variable(torch.from_numpy(sketch_diff_photo_batch), 
+                sketch_diff_class_batch = Variable(torch.from_numpy(sketch_diff_class_batch), 
                                                    volatile=not self.train).type(self.dtype)
 
                 yield (photo_batch, sketch_same_photo_batch, sketch_same_class_batch,
-                       sketch_diff_photo_batch, noise_batch)
-                batch_idx = 0
+                       sketch_diff_class_batch, noise_batch)
+                
+                batch_idx = -1
             # increment batch_idx
             batch_idx += 1
 
@@ -123,11 +133,11 @@ class EmbeddingGenerator(object):
                                                volatile=not self.train).type(self.dtype)
             sketch_same_class_batch = Variable(torch.from_numpy(sketch_same_class_batch), 
                                                volatile=not self.train).type(self.dtype)
-            sketch_diff_photo_batch = Variable(torch.from_numpy(sketch_diff_photo_batch), 
+            sketch_diff_class_batch = Variable(torch.from_numpy(sketch_diff_class_batch), 
                                                volatile=not self.train).type(self.dtype)
 
             yield (photo_batch, sketch_same_photo_batch, sketch_same_class_batch,
-                   sketch_diff_photo_batch, noise_batch)
+                   sketch_diff_class_batch, noise_batch)
 
 
 def get_photo_from_sketch_path(sketch_path, photo_emb_dir):

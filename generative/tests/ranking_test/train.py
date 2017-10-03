@@ -8,6 +8,9 @@ from __future__ import absolute_import
 import os
 import sys
 
+import torch
+import torch.optim as optim
+
 from model import SketchRankNet
 from model import ranking_loss
 
@@ -20,10 +23,10 @@ from utils import save_checkpoint
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('photo_emb_folder', type=str)
-    parser.add_argument('sketch_emb_folder', type=str)
-    parser.add_argument('noise_emb_folder', type=str)
-    parser.add_argument('out_folder', type=str)
+    parser.add_argument('photo_emb_dir', type=str)
+    parser.add_argument('sketch_emb_dir', type=str)
+    parser.add_argument('noise_emb_dir', type=str)
+    parser.add_argument('out_dir', type=str)
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--epochs', type=int, default=10)
@@ -43,11 +46,11 @@ if __name__ == "__main__":
         return train_generator, test_generator
 
 
-    train_generator, test_generator = reset_generators()
-    train_generator = train_generator.make_generator()
-    test_generator = test_generator.make_generator()
-    n_train = train_generator.size
-    n_test = test_generator.size
+    _train_generator, _test_generator = reset_generators()
+    train_generator = _train_generator.make_generator()
+    test_generator = _test_generator.make_generator()
+    n_train = _train_generator.size
+    n_test = _test_generator.size
 
     model = SketchRankNet()
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -72,7 +75,7 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             outputs = model(photos, sketches_same_photo, sketches_same_class, 
                             sketches_diff_class, noises)
-            loss = ranking_loss(outputs)
+            loss = ranking_loss(outputs, use_cuda=args.cuda)
             loss_meter.update(loss.data[0], len(photos)) 
             loss.backward()
             optimizer.step()
@@ -111,9 +114,9 @@ if __name__ == "__main__":
         train(epoch)
         loss = test(epoch)
         
-        train_generator, test_generator = reset_generators()
-        train_generator = train_generator.make_generator()
-        test_generator = test_generator.make_generator()
+        _train_generator, _test_generator = reset_generators()
+        train_generator = _train_generator.make_generator()
+        test_generator = _test_generator.make_generator()
 
         is_best = loss < best_loss
         best_loss = min(loss, best_loss)
@@ -122,4 +125,4 @@ if __name__ == "__main__":
             'state_dict': model.state_dict(),
             'best_loss': best_loss,
             'optimizer' : optimizer.state_dict(),
-        }, is_best, folder=args.out_folder)
+        }, is_best, folder=args.out_dir)

@@ -6,16 +6,19 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
+import numpy as np
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
 
 
 class SketchRankNet(nn.Module):
     def __init__(self):
         super(SketchRankNet, self).__init__()
-        self.photo_adaptor = AdaptorNet(4096, adaptive_size)
-        self.sketch_adaptor = AdaptorNet(4096, adaptive_size)
+        self.photo_adaptor = AdaptorNet(4096, 1000)
+        self.sketch_adaptor = AdaptorNet(4096, 1000)
         self.fusenet = FuseEuclidean()
 
     def forward(self, photo_emb, sketch_same_photo_emb, 
@@ -28,7 +31,7 @@ class SketchRankNet(nn.Module):
 
         # compute distances between photo and each sketch
         photo_sketch_same_photo_dist = self.fusenet(photo_emb, sketch_same_photo_emb)
-        photo_sketch_same_class_dist =self.fusenet(photo_emb, sketch_same_class_emb)
+        photo_sketch_same_class_dist = self.fusenet(photo_emb, sketch_same_class_emb)
         photo_sketch_diff_class_dist = self.fusenet(photo_emb, sketch_diff_class_emb)
         photo_noise_dist = self.fusenet(photo_emb, noise_emb)
 
@@ -36,24 +39,28 @@ class SketchRankNet(nn.Module):
         dists = torch.cat([photo_sketch_same_photo_dist, 
                            photo_sketch_same_class_dist,
                            photo_sketch_diff_class_dist, 
-                           photo_noise_dist])
+                           photo_noise_dist], dim=1)
 
         return dists
 
 
-def ranking_loss(dists, strong=False):
+def ranking_loss(dists, strong=False, use_cuda=False):
     # https://en.wikipedia.org/wiki/Discounted_cumulative_gain#Normalized_DCG
-    p = len(dists)
-    discount = torch.from_numpy(np.log2(np.arange(1, p + 1) + 1))
+    dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
+    p = dists.size()[1]
+    discount = torch.from_numpy(np.log2(np.arange(1, p + 1) + 1)).type(dtype)
+    discount = discount.unsqueeze(0).repeat(dists.size()[0], 1)
+    discount = Variable(discount)
     if strong:
-        base2 = torch.Tensor([2]).repeat(p)
+        base2 = torch.Tensor([2]).repeat(p).type(dtype)
         dists = torch.pow(base2, dists) - 1
-    return torch.sum(dists / discount)
+    dists = torch.sum(dists / discount, dim=1)
+    return torch.mean(dists)
 
 
 class FuseEuclidean(nn.Module):
     def forward(self, e1, e2):
-        return torch.norm(e1, e2, dim=1, p=2, keepdim=True)
+        return torch.norm(e1 - e2, dim=1, p=2, keepdim=True)
 
 
 class AdaptorNet(nn.Module):
