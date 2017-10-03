@@ -33,11 +33,11 @@ from distribtest import cosine_similarity
 
 
 class EmbedNet(nn.Module):
-    def __init__(self, adaptive_size):
+    def __init__(self, input_size, adaptive_size):
         super(EmbedNet, self).__init__()
         self.adaptive_size = adaptive_size
-        self.photo_adaptor = AdaptorNet(4096, adaptive_size)
-        self.sketch_adaptor = AdaptorNet(4096, adaptive_size)
+        self.photo_adaptor = AdaptorNet(input_size, adaptive_size)
+        self.sketch_adaptor = AdaptorNet(input_size, adaptive_size)
         self.fusenet = FuseClassifier()
 
     def forward(self, photo_emb, sketch_emb):
@@ -299,6 +299,8 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--log_interval', type=int, default=10)
+    parser.add_argument('--input_size', type=int, default=4096,
+                        help='size of the input embedding')
     parser.add_argument('--adaptive_size', type=int, default=1000,
                         help='size to of shared vector space for images and text [default: 1000]')
     parser.add_argument('--strict', action='store_true', default=False,
@@ -325,7 +327,7 @@ if __name__ == '__main__':
     n_train = generator_size(sketch_emb_dir, train=True)
     n_test = generator_size(sketch_emb_dir, train=False)
 
-    model = EmbedNet(args.adaptive_size)
+    model = EmbedNet(args.input_size, args.adaptive_size)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
     if args.cuda:
@@ -414,6 +416,7 @@ if __name__ == '__main__':
         save_checkpoint({
             'epoch': epoch,
             'state_dict': model.state_dict(),
+            'input_size': args.input_size,
             'adaptive_size': args.adaptive_size,
             'best_acc': best_acc,
             'optimizer' : optimizer.state_dict(),

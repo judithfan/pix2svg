@@ -22,13 +22,10 @@ import torchvision.transforms as transforms
 
 
 def cnn_predict(x, cnn, layer_ix=4):
-    x = cnn.features(x)
+    extractor = list(cnn.features)[:layer_ix]
+    for i in range(len(extractor)):
+        x = extractor[i](x)
     x = x.view(x.size(0), -1)
-
-    classifier = list(cnn.classifier)[:layer_ix]
-    for i in range(len(classifier)):
-        x = classifier[i](x)
-    
     return x
 
 
@@ -46,12 +43,10 @@ if __name__ == '__main__':
     parser.add_argument('imgfolder', type=str, help='path to where images are stored')
     parser.add_argument('outfolder', type=str, help='path to save text embeddings to')
     parser.add_argument('extension', type=str, help='jpg|png')
-    parser.add_argument('--fc6', action='store_true', default=False)
-    parser.add_argument('--fc7', action='store_true', default=False)
+    parser.add_argument('--layer_ix', type=int, default=25)  # conv_4_2
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
-    assert args.fc6 or args.fc7, "User must supply either fc6 or fc7"
 
     # check and create all sub-directories
     all_folders = [x[0] for x in os.walk(args.imgfolder)]
@@ -111,8 +106,7 @@ if __name__ == '__main__':
         if args.cuda:
             image_inputs = image_inputs.cuda()
 
-        image_emb = cnn_predict(image_inputs, cnn, 
-                                layer_ix=4 if args.fc7 else 1)
+        image_emb = cnn_predict(image_inputs, cnn, layer_ix=layer_ix)
         image_emb_batches.append(image_emb)
 
     image_embs = torch.cat(image_emb_batches, dim=0)
