@@ -98,6 +98,7 @@ sketchy/triplet_features/*.npy
 checkpoints/*
 
 # custom settings
+**.Rhistory
 generative/data
 generative/notebooks
 **.DS_Store
