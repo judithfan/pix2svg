@@ -266,7 +266,9 @@ def load_checkpoint(file_path, use_cuda=False):
         checkpoint = torch.load(file_path,
                                 map_location=lambda storage, location: storage)
 
-    model = EmbedNet(checkpoint['input_size'], checkpoint['adaptive_size'])
+    input_size = checkpoint['input_size'] if 'input_size' in checkpoint else 4096
+    adaptive_size = checkpoint['adaptive_size'] if 'adaptive_size' in checkpoint else 1000
+    model = EmbedNet(input_size, adaptive_size)
     model.load_state_dict(checkpoint['state_dict'])
     return model
 

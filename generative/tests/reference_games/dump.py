@@ -9,11 +9,11 @@ import torch
 from generator import ReferenceGameEmbeddingGenerator
 import torchvision.models as models
 
-sys.path.append('../multimodal_test')
-import multimodaltest as multimodal_utils
-
 sys.path.append('../ranking_test')
 import utils as ranking_utils
+
+sys.path.append('../multimodal_test')
+import multimodaltest as multimodal_utils
 
 sys.path.append('../distribution_test')
 from distribtest import cosine_similarity
@@ -42,10 +42,10 @@ if __name__ == "__main__":
     # load multimodal model  
     if args.model_dir:
         if args.ranking:
-            model = multimodal_utils.load_checkpoint(args.model_dir, use_cuda=args.cuda)
+            model = ranking_utils.load_checkpoint(args.model_dir, use_cuda=args.cuda)
             print('Loaded ranking model.')
         else:
-            model = ranking_utils.load_checkpoint(args.model_dir, use_cuda=args.cuda)
+            model = multimodal_utils.load_checkpoint(args.model_dir, use_cuda=args.cuda)
             print('Loaded multimodal model.')
         model.eval()
         if model.cuda:
