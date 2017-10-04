@@ -6,6 +6,8 @@ import os
 import shutil
 import torch
 
+from model import SketchRankNet
+
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -33,3 +35,16 @@ def save_checkpoint(state, is_best, folder='./',
     if is_best:
         shutil.copyfile(os.path.join(folder, filename),
                         os.path.join(folder, 'model_best.pth.tar'))
+
+
+def load_checkpoint(file_path, use_cuda=False):
+    """Return EmbedNet instance"""
+    if use_cuda:
+        checkpoint = torch.load(file_path)
+    else:
+        checkpoint = torch.load(file_path,
+                                map_location=lambda storage, location: storage)
+
+    model = SketchRankNet()
+    model.load_state_dict(checkpoint['state_dict'])
+    return model

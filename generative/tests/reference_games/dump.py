@@ -10,7 +10,10 @@ from generator import ReferenceGameEmbeddingGenerator
 import torchvision.models as models
 
 sys.path.append('../multimodal_test')
-from multimodaltest import load_checkpoint
+import multimodaltest as multimodal_utils
+
+sys.path.append('../ranking_test')
+import utils as ranking_utils
 
 sys.path.append('../distribution_test')
 from distribtest import cosine_similarity
@@ -24,6 +27,8 @@ if __name__ == "__main__":
     parser.add_argument('json_path', type=str, help='path to where to dump json')
     # if this is not supplied, we can calculate cosine distance directly 
     # on the VGG embeddings themselves.
+    parser.add_argument('--ranking', action='store_true', default=False,
+                        help='if supplied, assume we are loading ranking_test + euclidean.')
     parser.add_argument('--model_dir', type=str, help='path to trained MM model')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
@@ -36,12 +41,16 @@ if __name__ == "__main__":
 
     # load multimodal model  
     if args.model_dir:
-        model = load_checkpoint(args.model_dir, use_cuda=args.cuda)
+        if args.ranking:
+            model = multimodal_utils.load_checkpoint(args.model_dir, use_cuda=args.cuda)
+            print('Loaded ranking model.')
+        else:
+            model = ranking_utils.load_checkpoint(args.model_dir, use_cuda=args.cuda)
+            print('Loaded multimodal model.')
         model.eval()
         if model.cuda:
             model.cuda()
-        print('Loaded multimodal model.')
-
+        
     dist_jsons = []
     count = 0
 
@@ -53,10 +62,15 @@ if __name__ == "__main__":
 
         if args.model_dir:
             # pass sketch and render in VGG (fc7) and then get MM embeddings
+            # this is the same for our ranking model (luckily)
             sketch_emb = model.sketch_adaptor(sketch_emb)
             render_emb = model.photo_adaptor(render_emb)
-        # compute cosine similarity
-        dist = cosine_similarity(render_emb, sketch_emb, dim=1)
+
+        if args.model_dir and args.ranking:
+            # our ranking model is trained on euclidean distance.
+            dist = torch.norm(render_emb - sketch_emb, dim=1, p=2, keepdim=True)
+        else:  # compute cosine similarity
+            dist = cosine_similarity(render_emb, sketch_emb, dim=1)
         dist = float(dist.cpu().data.numpy()[0])
         
         dist_json = {'sketch': sketch_emb_path,
