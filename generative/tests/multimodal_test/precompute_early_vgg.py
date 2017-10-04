@@ -22,7 +22,7 @@ import torchvision.transforms as transforms
 
 
 def cnn_predict(x, cnn, layer_ix=4):
-    extractor = list(cnn.features)[:layer_ix]
+    extractor = list(cnn.features)[:layer_ix + 1]
     for i in range(len(extractor)):
         x = extractor[i](x)
     x = x.view(x.size(0), -1)
@@ -111,7 +111,7 @@ if __name__ == '__main__':
         if args.cuda:
             image_inputs = image_inputs.cuda()
 
-        image_emb = cnn_predict(image_inputs, cnn, layer_ix=layer_ix)
+        image_emb = cnn_predict(image_inputs, cnn, layer_ix=args.layer_ix)
         image_emb = image_emb.cpu().data.numpy()
         batch_paths = image_path_batches[i]
         for j in range(len(image_inputs)):
