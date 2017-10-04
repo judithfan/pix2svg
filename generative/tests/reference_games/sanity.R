@@ -11,9 +11,7 @@ library(optparse)
 # Handle command line options
 option_list = list(
   make_option(c("-j", "--json"), type="character", default=NULL, 
-              help="json file path", metavar="character"),
-  make_option(c("-o", "--out"), type="character", default="./",
-              help="pdf plot directory", metavar="character")
+              help="json file path", metavar="character")
 ); 
 opt_parser = OptionParser(option_list=option_list);
 opt = parse_args(opt_parser);
@@ -60,8 +58,6 @@ tmp %>%
     ggtitle('sketch similarity in FAR condition') +
     scale_fill_colorblind()
 
-ggsave(file.path(opt$out, 'far.pdf'))
-
 # plot density when comparing CLOSE conditions
 tmp = d.similarity %>% 
   mutate(contextElement = case_when(contextElement == 'Target' ~ 'target',
@@ -76,5 +72,3 @@ tmp %>%
     xlim(-1, 1) +
     ggtitle('sketch similarity in CLOSE condition') +
     scale_fill_colorblind()
-
-ggsave(file.path(opt$out, 'close.pdf'))
