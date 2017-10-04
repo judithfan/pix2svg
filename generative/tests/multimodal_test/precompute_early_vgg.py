@@ -21,11 +21,12 @@ import torchvision.models as models
 import torchvision.transforms as transforms
 
 
-def cnn_predict(x, cnn, layer_ix=4):
+def cnn_predict(x, cnn, layer_ix=4, flatten=False):
     extractor = list(cnn.features)[:layer_ix + 1]
     for i in range(len(extractor)):
         x = extractor[i](x)
-    x = x.view(x.size(0), -1)
+    if flatten:
+        x = x.view(x.size(0), -1)
     return x
 
 
@@ -45,6 +46,8 @@ if __name__ == '__main__':
     parser.add_argument('extension', type=str, help='jpg|png')
     parser.add_argument('layer_ix', type=int, help='which layer index to pull features from')
     parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--flatten', action='store_true', default=False,
+                        help='if true, flatten the convolutional embedding')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
 
@@ -111,7 +114,8 @@ if __name__ == '__main__':
         if args.cuda:
             image_inputs = image_inputs.cuda()
 
-        image_emb = cnn_predict(image_inputs, cnn, layer_ix=args.layer_ix)
+        image_emb = cnn_predict(image_inputs, cnn, layer_ix=args.layer_ix,
+                                flatten=args.flatten)
         image_emb = image_emb.cpu().data.numpy()
         batch_paths = image_path_batches[i]
         for j in range(len(image_inputs)):
