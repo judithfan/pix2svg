@@ -23,7 +23,14 @@ from generator import list_files
 from generator import preprocessing
 from generator import alpha_composite_with_color
 
-from dump import cnn_predict
+
+def cnn_predict(x, cnn):
+    x = cnn.features(x)
+    x = x.view(x.size(0), -1)
+    classifier = list(cnn.classifier)[:4]  # fc7 layer
+    for i in range(len(classifier)):
+        x = classifier[i](x)
+    return x
 
 
 if __name__ == '__main__':

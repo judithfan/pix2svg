@@ -108,11 +108,10 @@ if __name__ == '__main__':
 
         image_emb = extract_features(image_inputs, cnn, args.layer_ix, 
                                      classifier=args.classifier)
-
-        image_embs = image_embs.cpu().data.numpy()
-        
+    
+        image_emb = image_emb.cpu().data.numpy()
         batch_paths = image_path_batches[i]
-        for j in range(args.batch_size):
+        for j in range(len(image_inputs)):
             path_name = batch_paths[j].replace(args.imgfolder, args.outfolder)
             path_name = path_name.replace(args.extension, 'npy')
-            np.save(path_name, image_embs[j])
+            np.save(path_name, image_emb[j])

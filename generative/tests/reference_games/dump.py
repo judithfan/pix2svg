@@ -9,20 +9,14 @@ import torch
 from generator import ReferenceGameEmbeddingGenerator
 import torchvision.models as models
 
+sys.path.append('../ranking_test')
+import utils as ranking_utils
+
 sys.path.append('../multimodal_test')
-from multimodaltest import load_checkpoint
+import multimodaltest as multimodal_utils
 
 sys.path.append('../distribution_test')
 from distribtest import cosine_similarity
-
-
-def cnn_predict(x, cnn):
-    x = cnn.features(x)
-    x = x.view(x.size(0), -1)
-    classifier = list(cnn.classifier)[:4]  # fc7 layer
-    for i in range(len(classifier)):
-        x = classifier[i](x)
-    return x
 
 
 if __name__ == "__main__":
@@ -31,7 +25,11 @@ if __name__ == "__main__":
     parser.add_argument('sketch_emb_dir', type=str, help='path to sketches')
     parser.add_argument('render_emb_dir', type=str, help='path to renderings')
     parser.add_argument('json_path', type=str, help='path to where to dump json')
-    parser.add_argument('model_dir', type=str, help='path to trained MM model')
+    # if this is not supplied, we can calculate cosine distance directly 
+    # on the VGG embeddings themselves.
+    parser.add_argument('--ranking', action='store_true', default=False,
+                        help='if supplied, assume we are loading ranking_test + euclidean.')
+    parser.add_argument('--model_dir', type=str, help='path to trained MM model')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
@@ -41,20 +39,18 @@ if __name__ == "__main__":
     generator = _generator.make_generator() 
     print('Built generator.')
 
-    # load VGG
-    cnn = models.vgg19(pretrained=True)
-    cnn.eval()
-    if args.cuda:
-        cnn.cuda()
-    print('Loaded VGG.')
-
     # load multimodal model  
-    model = load_checkpoint(args.model_dir, use_cuda=args.cuda)
-    model.eval()
-    if model.cuda:
-        model.cuda()
-    print('Loaded multimodal model.')
-
+    if args.model_dir:
+        if args.ranking:
+            model = ranking_utils.load_checkpoint(args.model_dir, use_cuda=args.cuda)
+            print('Loaded ranking model.')
+        else:
+            model = multimodal_utils.load_checkpoint(args.model_dir, use_cuda=args.cuda)
+            print('Loaded multimodal model.')
+        model.eval()
+        if model.cuda:
+            model.cuda()
+        
     dist_jsons = []
     count = 0
 
@@ -64,11 +60,17 @@ if __name__ == "__main__":
         except StopIteration:
             break
 
-        # pass sketch and render in VGG (fc7) and then get MM embeddings
-        sketch_emb = model.sketch_adaptor(sketch_emb)
-        render_emb = model.photo_adaptor(render_emb)
-        # compute cosine similarity
-        dist = cosine_similarity(render_emb, sketch_emb, dim=1)
+        if args.model_dir:
+            # pass sketch and render in VGG (fc7) and then get MM embeddings
+            # this is the same for our ranking model (luckily)
+            sketch_emb = model.sketch_adaptor(sketch_emb)
+            render_emb = model.photo_adaptor(render_emb)
+
+        if args.model_dir and args.ranking:
+            # our ranking model is trained on euclidean distance.
+            dist = torch.norm(render_emb - sketch_emb, dim=1, p=2, keepdim=True)
+        else:  # compute cosine similarity
+            dist = cosine_similarity(render_emb, sketch_emb, dim=1)
         dist = float(dist.cpu().data.numpy()[0])
         
         dist_json = {'sketch': sketch_emb_path,

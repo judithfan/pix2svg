@@ -31,13 +31,15 @@ import sys
 sys.path.append('../distribution_test')
 from distribtest import cosine_similarity
 
+EMBED_NET_TYPE = 0
+CONV_EMBED_NET_TYPE = 1
+
 
 class EmbedNet(nn.Module):
-    def __init__(self, adaptive_size):
+    def __init__(self):
         super(EmbedNet, self).__init__()
-        self.adaptive_size = adaptive_size
-        self.photo_adaptor = AdaptorNet(4096, adaptive_size)
-        self.sketch_adaptor = AdaptorNet(4096, adaptive_size)
+        self.photo_adaptor = AdaptorNet(4096, 2048, 1000)
+        self.sketch_adaptor = AdaptorNet(4096, 2048, 1000)
         self.fusenet = FuseClassifier()
 
     def forward(self, photo_emb, sketch_emb):
@@ -47,10 +49,10 @@ class EmbedNet(nn.Module):
 
 
 class AdaptorNet(nn.Module):
-    def __init__(self, in_dim, out_dim):
+    def __init__(self, in_dim, hid_dim, out_dim):
         super(AdaptorNet, self).__init__()
-        self.fc1 = nn.Linear(in_dim, (in_dim + out_dim) // 2)
-        self.fc2 = nn.Linear((in_dim + out_dim) // 2, out_dim)
+        self.fc1 = nn.Linear(in_dim, hid_dim)
+        self.fc2 = nn.Linear(hid_dim, out_dim)
         self.fc3 = nn.Linear(out_dim, out_dim)
         self.drop1 = nn.Dropout(p=0.5)
         self.drop2 = nn.Dropout(p=0.2)
@@ -59,6 +61,55 @@ class AdaptorNet(nn.Module):
         x = F.elu(self.fc1(x))
         x = self.drop1(x)
         x = F.elu(self.fc2(x))
+        x = self.drop2(x)
+        x = self.fc3(x)
+        return x
+
+
+class ConvEmbedNet(nn.Module):
+    def __init__(self):
+        super(ConvEmbedNet, self).__init__()
+        self.photo_adaptor = ConvAdaptorNet(64, 8, 64, 64, 2048, 1000)
+        self.sketch_adaptor = ConvAdaptorNet(64, 8, 64, 64, 2048, 1000)
+        self.fusenet = FuseClassifier()
+
+    def forward(self, photo_emb, sketch_emb):
+        photo_emb = self.photo_adaptor(photo_emb)
+        sketch_emb = self.sketch_adaptor(sketch_emb)
+        return self.fusenet(photo_emb, sketch_emb)
+
+
+class ConvAdaptorNet(nn.Module):
+    def __init__(self, in_n_filters, out_n_filters, 
+                 in_height, in_width, hid_dim, out_dim):
+        """Many of the early convolutional networks are too big 
+        for us to collapse into a fully connected network. Let's
+        shrink down the number of filters + add a max pool. (NCHW)
+
+        :param in_n_filters: number of filters in input tensor
+        :param out_n_filters: number of filters in output tensor
+        :param in_height: size of height
+        :param in_width: size of width
+        :param mid_dim: number of dimensions in middle FC layer
+        :param out_dim: number of dimensions in output embedding
+        """
+        super(ConvAdaptorNet, self).__init__()
+        self.conv = nn.Conv2d(in_n_filters, out_n_filters, kernel_size=(3, 3))
+        self.pool = nn.MaxPool2d(size=(2, 2), stride=(2, 2), dilation=(1, 1))
+        in_dim = out_n_filters * in_height / 2 * in_width / 2
+        self.fc1 = nn.Linear(in_dim, hid_dim)
+        self.fc2 = nn.Linear(hid_dim, out_dim)
+        self.fc3 = nn.Linear(out_dim, out_dim)
+        self.drop1 = nn.Dropout(p=0.5)
+        self.drop2 = nn.Dropout(p=0.2)
+
+    def forward(self, x):
+        x = F.relu(self.conv(x))
+        x = self.pool(x)
+        x = x.view(x.size(0), -1)
+        x = F.relu(self.fc1(x))
+        x = self.drop1(x)
+        x = F.relu(self.fc2(x))
         x = self.drop2(x)
         x = self.fc3(x)
         return x
@@ -266,7 +317,12 @@ def load_checkpoint(file_path, use_cuda=False):
         checkpoint = torch.load(file_path,
                                 map_location=lambda storage, location: storage)
 
-    model = EmbedNet(checkpoint['adaptive_size'])
+    if checkpoint['type'] == EMBED_NET_TYPE:
+        model = EmbedNet()
+    elif checkpoint['type'] == CONV_EMBED_NET_TYPE:
+        model = ConvEmbedNet()
+    else:
+        raise Exception('Unknown model type %d.' % checkpoint['type'])
     model.load_state_dict(checkpoint['state_dict'])
     return model
 
@@ -295,20 +351,18 @@ if __name__ == '__main__':
     parser.add_argument('photo_emb_folder', type=str)
     parser.add_argument('sketch_emb_folder', type=str)
     parser.add_argument('out_folder', type=str)
+    parser.add_argument('--convolutional', action='store_true', default=False,
+                        help='If True, initialize ConvEmbedNet.')
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--log_interval', type=int, default=10)
-    parser.add_argument('--adaptive_size', type=int, default=1000,
-                        help='size to of shared vector space for images and text [default: 1000]')
     parser.add_argument('--strict', action='store_true', default=False,
                         help='if True, then consider a sketch of the same class but different photo as negative.')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    # photo_emb_dir = '/home/wumike/full_sketchy_embeddings/photos'
-    # sketch_emb_dir = '/home/wumike/full_sketchy_embeddings/sketches'
     photo_emb_dir = args.photo_emb_folder
     sketch_emb_dir = args.sketch_emb_folder
 
@@ -325,7 +379,13 @@ if __name__ == '__main__':
     n_train = generator_size(sketch_emb_dir, train=True)
     n_test = generator_size(sketch_emb_dir, train=False)
 
-    model = EmbedNet(args.adaptive_size)
+    if args.convolutional:
+        model = ConvEmbedNet()
+        model_type = CONV_EMBED_NET_TYPE
+    else:
+        model = EmbedNet()
+        model_type = EMBED_NET_TYPE
+
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
     if args.cuda:
@@ -412,12 +472,8 @@ if __name__ == '__main__':
         best_acc = max(acc, best_acc)
 
         save_checkpoint({
-            'epoch': epoch,
             'state_dict': model.state_dict(),
-            'adaptive_size': args.adaptive_size,
             'best_acc': best_acc,
             'optimizer' : optimizer.state_dict(),
-            'batch_size': args.batch_size,
-            'lr': args.lr,
-            'epochs': args.epochs,
+            'type': model_type,
         }, is_best, folder=args.out_folder)
