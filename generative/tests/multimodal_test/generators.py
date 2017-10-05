@@ -408,3 +408,48 @@ def list_files(path, ext='jpg'):
     result = [y for x in os.walk(path)
               for y in glob(os.path.join(x[0], '*.%s' % ext))]
     return result
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('n_examples', type=int, help='number of calls to make')
+    parser.add_argument('--test', action='store_true', default=False)
+    args = parser.parse_args()
+
+    photo_emb_dir = '/data/wumike/full_sketchy_embeddings_fc7/photos'
+    sketch_emb_dir = '/data/wumike/full_sketchy_embeddings_fc7/sketches'
+    noise_emb_dir = '/data/wumike/full_sketchy_embeddings_fc7/noise'
+
+    if args.test:
+        generator = MultiModalTestGenerator(photo_emb_dir, sketch_emb_dir, 
+                                            noise_emb_dir=noise_emb_dir, batch_size=1)
+    else:
+        generator = MultiModalTrainGenerator(photo_emb_dir, sketch_emb_dir, batch_size=1)
+    examples = generator.make_generator()
+
+    photo_lst = []
+    sketch_lst = []
+    label_lst = []
+    type_lst = []
+
+    for i in range(args.n_examples):
+        photos, sketchs, labels, types = examples.next()
+        photo_lst.append(photos)
+        sketch_lst.append(sketchs)
+        label_lst.append(labels)
+        type_lst.append(types)
+
+    photo_lst = torch.stack(photo_lst)
+    sketch_lst = torch.stack(sketch_lst)
+    label_lst = torch.stack(label_lst)
+    type_lst = torch.stack(type_lst)
+
+    print('\nPhotos:')
+    print(photo_lst)
+    print('\nSketches:')
+    print(sketch_lst)
+    print('\nLabels:')
+    print(label_lst)
+    print('\nTypes:')
+    print(type_lst)

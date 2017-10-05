@@ -211,7 +211,7 @@ def list_files(path, ext='jpg'):
     return result
 
 
-if __name__ == "__main__":
+def time_test():
     import time
     # test our generator -- esp. with timings because I'm worried about it
     # being a little bit slow:
@@ -219,8 +219,8 @@ if __name__ == "__main__":
     sketch_emb_dir = '/home/wumike/full_sketchy_embeddings/sketches'
     noise_emb_dir = '/home/wumike/full_sketchy_embeddings/noise'
 
-    generator = EmbeddingGenerator(photo_emb_dir, sketch_emb_dir,
-                                   noise_emb_dir, 32, train=True)
+    generator = RankingGenerator(photo_emb_dir, sketch_emb_dir, noise_emb_dir, 
+                                 batch_size=32, train=True)
     generator = generator.make_generator()
 
     start_time = time.time()
@@ -229,3 +229,53 @@ if __name__ == "__main__":
         generator.next()
 
     print('\nWall Time: {} seconds'.format(time.time() - start_time))
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('n_examples', type=int, help='number of calls to make')
+    parser.add_argument('--test', action='store_true', default=False)
+    args = parser.parse_args()
+
+    photo_emb_dir = '/data/wumike/full_sketchy_embeddings_fc7/photos'
+    sketch_emb_dir = '/data/wumike/full_sketchy_embeddings_fc7/sketches'
+    noise_emb_dir = '/data/wumike/full_sketchy_embeddings_fc7/noise'
+
+    generator = RankingGenerator(photo_emb_dir, sketch_emb_dir, noise_emb_dir, 
+                                 batch_size=1, train=not args.test)
+    examples = generator.make_generator()
+
+    photo_lst = []
+    sketch_same_photo_lst = []
+    sketch_same_class_lst = []
+    sketch_diff_class_lst = []
+    sketch_noise_lst = []
+
+    for i in range(args.n_examples):
+        (photos, sketchs_same_photo, sketchs_same_class, 
+         sketchs_diff_class, sketchs_noise) = examples.next()
+
+        photo_lst.append(photos)
+        sketch_same_photo_lst.append(sketchs_same_photo)
+        sketch_same_class_lst.append(sketchs_same_class)
+        sketch_diff_class_lst.append(sketchs_diff_class)
+        sketch_noise_lst.append(sketchs_noise)
+
+    photo_lst = torch.stack(photo_lst)
+    sketch_same_photo_lst = torch.stack(sketch_same_photo_lst)
+    sketch_same_class_lst = torch.stack(sketch_same_class_lst)
+    sketch_diff_class_lst = torch.stack(sketch_diff_class_lst)
+    sketch_noise_lst = torch.stack(sketch_noise_lst)
+
+    print('\nPhotos:')
+    print(photo_lst)
+    print('\nSketches (Same Photo):')
+    print(sketch_same_photo_lst)
+    print('\nSketches (Same Class):')
+    print(sketch_same_class_lst)
+    print('\nSketches (Diff Class):')
+    print(sketch_diff_class_lst)
+    print('\nSketches (Noise):')
+    print(sketch_noise_list)
+
