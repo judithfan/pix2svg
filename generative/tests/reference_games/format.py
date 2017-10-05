@@ -1,4 +1,5 @@
-"""Format the json to be a particular way."""
+"""Format the json to be a particular way. This is to be called 
+after dump.py."""
 
 from __future__ import division
 from __future__ import print_function

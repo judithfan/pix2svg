@@ -1,6 +1,12 @@
-"""Training a joint embedding net will go much faster if we precompute
-the embeddings for all images and sketches and save them to some shared 
-directory as Numpy Arrays.
+"""As a control we should try raw distances between low-level 
+features in VGG. We want to make the claim that our embeddings
+are superior in simulating human behavior. 
+
+This script is very similar to multimodal_test/precompute.py and
+multimodal_test/precompute_vgg.py put together. It will dump
+out embeddings. The main difference is that here, we handle 
+the case that sketches or photos have transparent backgrounds, 
+which VGG is not able to deal with explicitly.
 """
 
 from __future__ import division
@@ -24,12 +30,18 @@ from generator import preprocessing
 from generator import alpha_composite_with_color
 
 
-def cnn_predict(x, cnn):
-    x = cnn.features(x)
-    x = x.view(x.size(0), -1)
-    classifier = list(cnn.classifier)[:4]  # fc7 layer
-    for i in range(len(classifier)):
-        x = classifier[i](x)
+def extract_features(x, cnn, ix, classifier=False):
+    if classifier:
+        x = cnn.features(x)
+        x = x.view(x.size(0), -1)
+        classifier = list(cnn.classifier)[:ix + 1]
+        for i in range(len(classifier)):
+            x = classifier[i](x)
+    else:
+        features = list(cnn.features)[:ix + 1]
+        for i in range(len(features)):
+            x = features[i](x)
+        x = x.view(x.size(0), -1)
     return x
 
 
@@ -39,8 +51,10 @@ if __name__ == '__main__':
     # sub-folder structure will be preserved. in other words, if imgfolder/ has
     # a/, b/, and c/, then outfolder/ will also have the same subfolders.
     parser.add_argument('imgfolder', type=str, help='path to where images are stored')
-    parser.add_argument('outfolder', type=str, help='path to save text embeddings to')
+    parser.add_argument('outfolder', type=str, help='path to save embeddings to')
     parser.add_argument('extension', type=str, help='jpg|png')
+    parser.add_argument('layer_ix', type=int, help='which layer index to pull features from')
+    parser.add_argument('--classifier', action='store_true')
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--transparent', action='store_true', default=False)
     parser.add_argument('--cuda', action='store_true', default=False)
@@ -64,6 +78,7 @@ if __name__ == '__main__':
 
     # store raw images in a batch so we can evaluate them using vgg
     image_jpg_batch, image_jpg_batches = [], []
+    image_path_batch, image_path_batches = [], []
 
     for i in range(n_images):
         print('Loading image [{}/{}]'.format(i + 1, n_images))
@@ -74,19 +89,22 @@ if __name__ == '__main__':
         image_torch = image_torch.convert('RGB')
         image_torch = preprocessing(image_torch).unsqueeze(0)
         image_jpg_batch.append(image_torch)
+        image_path_batch.append(image_paths[i])
 
         if i % args.batch_size == 0:
             image_jpg_batch = torch.cat(image_jpg_batch, dim=0)
             image_jpg_batches.append(image_jpg_batch)
+            image_path_batches.append(image_path_batch)
             image_jpg_batch = []
+            image_path_batch = []
 
     if len(image_jpg_batch) > 0:
         image_jpg_batch = torch.cat(image_jpg_batch, dim=0)
         image_jpg_batches.append(image_jpg_batch)
+        image_path_batches.append(image_path_batch)
 
     n_batches = len(image_jpg_batches)
     
-    image_emb_batches = []
     for i in range(n_batches):
         print('Getting embeddings [batch {}/{}]'.format(i + 1, n_batches))
         image_inputs = image_jpg_batches[i]
@@ -95,15 +113,12 @@ if __name__ == '__main__':
         if args.cuda:
             image_inputs = image_inputs.cuda()
 
-        image_emb = cnn_predict(image_inputs, cnn)
-        image_emb_batches.append(image_emb)
-
-    image_embs = torch.cat(image_emb_batches, dim=0)
-    image_embs = image_embs.cpu().data.numpy()
-    assert(image_embs.shape[0] == n_images)
-
-    for i in range(n_images):
-        print('Saving numpy object [{}/{}]'.format(i + 1, n_images))
-        path_name = image_paths[i].replace(args.imgfolder, args.outfolder)
-        path_name = path_name.replace(args.extension, 'npy')
-        np.save(path_name, image_embs[i])
+        image_emb = extract_features(image_inputs, cnn, args.layer_ix, 
+                                     classifier=args.classifier)
+    
+        image_emb = image_emb.cpu().data.numpy()
+        batch_paths = image_path_batches[i]
+        for j in range(len(image_inputs)):
+            path_name = batch_paths[j].replace(args.imgfolder, args.outfolder)
+            path_name = path_name.replace(args.extension, 'npy')
+            np.save(path_name, image_emb[j])

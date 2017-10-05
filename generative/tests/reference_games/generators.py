@@ -140,6 +140,7 @@ class ReferenceGameEmbeddingGenerator(object):
 
         for i in range(n_sketches):
             for j in range(n_renders):
+                # here we are just looping through each pair of sketch and rendering
                 sketch_path, render_path = sketch_paths[i], render_paths[j]
                 sketch = np.load(sketch_path)
                 render = np.load(render_path)

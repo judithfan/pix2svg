@@ -4,19 +4,11 @@ from __future__ import absolute_import
 
 import sys
 import json
-
 import torch
-from generator import ReferenceGameEmbeddingGenerator
-import torchvision.models as models
 
-sys.path.append('../ranking_test')
-import utils as ranking_utils
-
-sys.path.append('../multimodal_test')
-import multimodaltest as multimodal_utils
-
-sys.path.append('../distribution_test')
-from distribtest import cosine_similarity
+from generators import ReferenceGameEmbeddingGenerator
+import ranking_test.utils as rk_utils
+import multimodal_test.utils as mm_utils
 
 
 if __name__ == "__main__":
@@ -25,27 +17,29 @@ if __name__ == "__main__":
     parser.add_argument('sketch_emb_dir', type=str, help='path to sketches')
     parser.add_argument('render_emb_dir', type=str, help='path to renderings')
     parser.add_argument('json_path', type=str, help='path to where to dump json')
-    # if this is not supplied, we can calculate cosine distance directly 
-    # on the VGG embeddings themselves.
+    # if this is supplied, then we know the model we are using is a ranking model,
+    # which will affect our distance calculation.
     parser.add_argument('--ranking', action='store_true', default=False,
                         help='if supplied, assume we are loading ranking_test + euclidean.')
+    # if this is not supplied, we can calculate pearson correlation directly 
+    # on the VGG embeddings themselves.
     parser.add_argument('--model_dir', type=str, help='path to trained MM model')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    _generator = ReferenceGameEmbeddingGenerator(args.sketch_emb_dir, args.render_emb_dir, 
-                                                 use_cuda=args.cuda)
-    generator = _generator.make_generator() 
+    generator = ReferenceGameEmbeddingGenerator(args.sketch_emb_dir, args.render_emb_dir, 
+                                                use_cuda=args.cuda)
+    examples = generator.make_generator() 
     print('Built generator.')
 
     # load multimodal model  
     if args.model_dir:
         if args.ranking:
-            model = ranking_utils.load_checkpoint(args.model_dir, use_cuda=args.cuda)
+            model = rk_utils.load_checkpoint(args.model_dir, use_cuda=args.cuda)
             print('Loaded ranking model.')
         else:
-            model = multimodal_utils.load_checkpoint(args.model_dir, use_cuda=args.cuda)
+            model = mm_utils.load_checkpoint(args.model_dir, use_cuda=args.cuda)
             print('Loaded multimodal model.')
         model.eval()
         if model.cuda:
@@ -55,8 +49,8 @@ if __name__ == "__main__":
     count = 0
 
     while True:
-        try:  # exhaust the generator to return all pairs
-            sketch_emb_path, sketch_emb, render_emb_path, render_emb = generator.next()
+        try:  # exhaust the generator to return all pairs. this loads 1 tuple at a time.
+            sketch_emb_path, sketch_emb, render_emb_path, render_emb = examples.next()
         except StopIteration:
             break
 
@@ -70,15 +64,16 @@ if __name__ == "__main__":
             # our ranking model is trained on euclidean distance.
             dist = torch.norm(render_emb - sketch_emb, dim=1, p=2, keepdim=True)
         else:  # compute cosine similarity
+            render_emb = render_emb - torch.mean(render_emb, dim=1, keepdim=True)
+            sketch_emb = sketch_emb - torch.mean(sketch_emb, dim=1, keepdim=True)
             dist = cosine_similarity(render_emb, sketch_emb, dim=1)
         dist = float(dist.cpu().data.numpy()[0])
-        
         dist_json = {'sketch': sketch_emb_path,
                      'render': render_emb_path,
                      'distance': dist}
         dist_jsons.append(dist_json)
 
-        print('Compute Distance [{}/{}].'.format(count + 1, _generator.size))
+        print('Compute Distance [{}/{}].'.format(count + 1, generator.size))
         count += 1
 
 
