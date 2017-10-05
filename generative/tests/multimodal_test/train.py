@@ -28,54 +28,8 @@ from generators import MultiModalTrainGenerator
 from generators import MultiModalTestGenerator
 
 from model import EmbedNet, ConvEmbedNet
-
-EMBED_NET_TYPE = 0
-CONV_EMBED_NET_TYPE = 1
-
-
-def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
-    if not os.path.exists(folder):
-        os.makedirs(folder)
-    torch.save(state, os.path.join(folder, filename))
-    if is_best:
-        shutil.copyfile(os.path.join(folder, filename),
-                        os.path.join(folder, 'model_best.pth.tar'))
-
-
-def load_checkpoint(file_path, use_cuda=False):
-    """Return EmbedNet instance"""
-    if use_cuda:
-        checkpoint = torch.load(file_path)
-    else:
-        checkpoint = torch.load(file_path,
-                                map_location=lambda storage, location: storage)
-
-    if checkpoint['type'] == EMBED_NET_TYPE:
-        model = EmbedNet()
-    elif checkpoint['type'] == CONV_EMBED_NET_TYPE:
-        model = ConvEmbedNet()
-    else:
-        raise Exception('Unknown model type %d.' % checkpoint['type'])
-    model.load_state_dict(checkpoint['state_dict'])
-    return model
-
-
-class AverageMeter(object):
-    """Computes and stores the average and current value"""
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
+from utils import save_checkpoint
+from utils import AverageMeter
 
 
 if __name__ == '__main__':
@@ -83,7 +37,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('photo_emb_dir', type=str)
     parser.add_argument('sketch_emb_dir', type=str)
-    parser.add_argument('out_folder', type=str)
+    parser.add_argument('out_dir', type=str)
     parser.add_argument('--convolutional', action='store_true', default=False,
                         help='If True, initialize ConvEmbedNet.')
     parser.add_argument('--batch_size', type=int, default=32)
@@ -201,4 +155,4 @@ if __name__ == '__main__':
             'optimizer' : optimizer.state_dict(),
             'type': model_type,
             'strict': args.strict,
-        }, is_best, folder=args.out_folder)
+        }, is_best, folder=args.out_dir)

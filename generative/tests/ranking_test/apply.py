@@ -1,4 +1,4 @@
-"""Given a trained multimodal model, plot the distributions for
+"""Given a trained ranking model,  plot the distributions for
 each of our (photo, sketch) pairs. We can do this for the 
 training and testing sets. We will also be evaluating against 
 (photo, noise) pairs.
@@ -15,16 +15,22 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 
-# load internal functions
-from utils import cosine_similarity
 from utils import load_checkpoint
-from generators import MultiModalTrainGenerator
-from generators import MultiModalTestGenerator
-from generators import (SAME_PHOTO_EX, SAME_CLASS_EX, 
-                        DIFF_CLASS_EX, NOISE_EX)
+
+# here we do not use ranking_test generators because we do not want
+# images in pairs of 4; we want pairs of (photo, some_sketch) where 
+# the some_sketch can be anything.
+from multimodal_test.generators import MultiModalTrainGenerator
+from multimodal_test.generators import MultiModalTestGenerator
+from multimodal_test.generators import (SAME_PHOTO_EX, SAME_CLASS_EX, 
+                                        DIFF_CLASS_EX, NOISE_EX)
 
 
-if __name__ == '__main__':
+if __init__ == '__main__':
+    """This part is actually exactly the same as multimodal_test/apply.py
+    but notably, we use a different load_checkpoint here (hence a different 
+    model structure).
+    """
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('photo_emb_folder', type=str)

@@ -16,7 +16,7 @@ import torch
 from torch.autograd import Variable
 
 
-class EmbeddingGenerator(object):
+class RankingGenerator(object):
     """This data generator returns 
     (photo, sketch_same_photo, sketch_same_class, sketch_diff_class, noise).
     Note that this generator only accepts embeddings (not raw images).
@@ -33,20 +33,15 @@ class EmbeddingGenerator(object):
                    noise and diff photo same class are about the same. Ideally, 
                    we want to have noise + diff class be about the same, and have
                    same class diff photo and same class same photo near each other.
-    :param random_seed: so that random shuffle is the same everytime
     """
     def __init__(self, photo_emb_dir, sketch_emb_dir, noise_emb_dir, batch_size=32, 
-                 train=True, strict=False, random_seed=42, use_cuda=False):
-        np.random.seed(random_seed)
-        random.seed(random_seed)
-
+                 train=True, strict=False, use_cuda=False):
         self.photo_emb_dir = photo_emb_dir
         self.sketch_emb_dir = sketch_emb_dir
         self.noise_emb_dir = noise_emb_dir
         self.batch_size = batch_size
         self.train = train
         self.strict = strict
-        self.dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
         self.size = self.get_size()
 
     def get_size(self):
@@ -59,9 +54,15 @@ class EmbeddingGenerator(object):
         return len(sketch_paths)
 
     def make_generator(self):
+        # automatically handle cuda calls
+        dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
+        # sketches and photos are organized into classes by directories. we want
+        # to take advantage of this fact to do train/test splits.
         categories = os.listdir(self.sketch_emb_dir)
         n_categories = len(categories)
-
+        # depending on whether this is train or test, we will return a different 
+        # subset of photos/sketches/noise to work with; that way we don't have any
+        # questions of generalizability.
         categories = (categories[:int(n_categories * 0.8)] if self.train 
                       else categories[int(n_categories * 0.8):])
         photo_paths = [path for path in list_files(self.photo_emb_dir, ext='npy') 
@@ -71,6 +72,8 @@ class EmbeddingGenerator(object):
         noise_paths = [path for path in list_files(self.noise_emb_dir, ext='npy')
                        if os.path.dirname(path).split('/')[-1] in categories]
 
+        # everytime we call this, the order will be different -- a sort of implicit
+        # regularization.
         random.shuffle(sketch_paths)
         batch_idx = 0
 
@@ -82,10 +85,14 @@ class EmbeddingGenerator(object):
             sketch_same_photo_path = sketch_paths[i]
             photo_path = get_photo_from_sketch_path(sketch_same_photo_path, self.photo_emb_dir)
             noise_path = get_noise_from_sketch_path(sketch_same_photo_path, self.noise_emb_dir)
+            # note that these 2 functions are random processes. therefore, repeated calls will show 
+            # different pairs (still in dataset); this is desired as another form of data 
+            # augmentation / implicit regularization.
             sketch_same_class_path = get_same_class_sketch_from_photo(photo_path, self.sketch_emb_dir)
             sketch_diff_class_path = get_diff_class_sketch_from_photo(photo_path, self.sketch_emb_dir, 
                                                                       categories)
 
+            # consider all 5 images at once.
             photo = np.load(photo_path)
             sketch_same_photo = np.load(sketch_same_photo_path)
             sketch_same_class = np.load(sketch_same_class_path)
@@ -94,28 +101,28 @@ class EmbeddingGenerator(object):
 
             if batch_idx == 0:
                 photo_batch = photo
-                noise_batch = noise
                 sketch_same_photo_batch = sketch_same_photo
                 sketch_same_class_batch = sketch_same_class
                 sketch_diff_class_batch = sketch_diff_class
+                noise_batch = noise
             else:
                 photo_batch = np.vstack((photo_batch, photo))
-                noise_batch = np.vstack((noise_batch, noise))
                 sketch_same_photo_batch = np.vstack((sketch_same_photo_batch, sketch_same_photo))
                 sketch_same_class_batch = np.vstack((sketch_same_class_batch, sketch_same_class))
                 sketch_diff_class_batch = np.vstack((sketch_diff_class_batch, sketch_diff_class))
+                noise_batch = np.vstack((noise_batch, noise))
 
             if (batch_idx + 1) == self.batch_size:
                 photo_batch = Variable(torch.from_numpy(photo_batch), 
-                                       volatile=not self.train).type(self.dtype)
-                noise_batch = Variable(torch.from_numpy(noise_batch), 
-                                       volatile=not self.train).type(self.dtype)
+                                       volatile=not self.train).type(dtype)
                 sketch_same_photo_batch = Variable(torch.from_numpy(sketch_same_photo_batch), 
-                                                   volatile=not self.train).type(self.dtype)
+                                                   volatile=not self.train).type(dtype)
                 sketch_same_class_batch = Variable(torch.from_numpy(sketch_same_class_batch), 
-                                                   volatile=not self.train).type(self.dtype)
+                                                   volatile=not self.train).type(dtype)
                 sketch_diff_class_batch = Variable(torch.from_numpy(sketch_diff_class_batch), 
-                                                   volatile=not self.train).type(self.dtype)
+                                                   volatile=not self.train).type(dtype)
+                noise_batch = Variable(torch.from_numpy(noise_batch), 
+                                       volatile=not self.train).type(dtype)
 
                 yield (photo_batch, sketch_same_photo_batch, sketch_same_class_batch,
                        sketch_diff_class_batch, noise_batch)
@@ -127,15 +134,15 @@ class EmbeddingGenerator(object):
         # return any remaining data
         if batch_idx > 0:
             photo_batch = Variable(torch.from_numpy(photo_batch), 
-                                   volatile=not self.train).type(self.dtype)
+                                   volatile=not self.train).type(dtype)
             noise_batch = Variable(torch.from_numpy(noise_batch), 
-                                   volatile=not self.train).type(self.dtype)
+                                   volatile=not self.train).type(dtype)
             sketch_same_photo_batch = Variable(torch.from_numpy(sketch_same_photo_batch), 
-                                               volatile=not self.train).type(self.dtype)
+                                               volatile=not self.train).type(dtype)
             sketch_same_class_batch = Variable(torch.from_numpy(sketch_same_class_batch), 
-                                               volatile=not self.train).type(self.dtype)
+                                               volatile=not self.train).type(dtype)
             sketch_diff_class_batch = Variable(torch.from_numpy(sketch_diff_class_batch), 
-                                               volatile=not self.train).type(self.dtype)
+                                               volatile=not self.train).type(dtype)
 
             yield (photo_batch, sketch_same_photo_batch, sketch_same_class_batch,
                    sketch_diff_class_batch, noise_batch)

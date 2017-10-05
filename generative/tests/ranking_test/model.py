@@ -60,6 +60,9 @@ def ranking_loss(dists, strong=False, use_cuda=False):
 
 class FuseEuclidean(nn.Module):
     def forward(self, e1, e2):
+        # center cosine similarity (pearson coefficient)
+        e1 = e1 - torch.mean(e1, dim=1, keepdim=True)
+        e2 = e2 - torch.mean(e2, dim=1, keepdim=True)
         return torch.norm(e1 - e2, dim=1, p=2, keepdim=True)
 
 

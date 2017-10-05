@@ -14,7 +14,7 @@ import torch.optim as optim
 from model import SketchRankNet
 from model import ranking_loss
 
-from generator import EmbeddingGenerator
+from generator import RankingGenerator
 
 from utils import AverageMeter
 from utils import save_checkpoint
@@ -37,20 +37,18 @@ if __name__ == "__main__":
 
 
     def reset_generators():
-        train_generator = EmbeddingGenerator(args.photo_emb_dir, args.sketch_emb_dir, 
-                                             args.noise_emb_dir, batch_size=args.batch_size, 
-                                             train=True, use_cuda=args.cuda)
-        test_generator = EmbeddingGenerator(args.photo_emb_dir, args.sketch_emb_dir, 
-                                            args.noise_emb_dir, batch_size=args.batch_size, 
-                                            train=False, use_cuda=args.cuda)
+        train_generator = RankingGenerator(args.photo_emb_dir, args.sketch_emb_dir, 
+                                           args.noise_emb_dir, batch_size=args.batch_size, 
+                                           train=True, use_cuda=args.cuda)
+        test_generator = RankingGenerator(args.photo_emb_dir, args.sketch_emb_dir, 
+                                          args.noise_emb_dir, batch_size=args.batch_size, 
+                                          train=False, use_cuda=args.cuda)
         return train_generator, test_generator
 
 
-    _train_generator, _test_generator = reset_generators()
-    train_generator = _train_generator.make_generator()
-    test_generator = _test_generator.make_generator()
-    n_train = _train_generator.size
-    n_test = _test_generator.size
+    train_generator, test_generator = reset_generators()
+    train_examples = train_generator.make_generator()
+    test_examples = test_generator.make_generator()
 
     model = SketchRankNet()
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -67,7 +65,7 @@ if __name__ == "__main__":
         while True:
             try:
                 (photos, sketches_same_photo, sketches_same_class, 
-                 sketches_diff_class, noises) = train_generator.next()
+                 sketches_diff_class, noises) = train_examples.next()
                 batch_idx += 1
             except StopIteration:
                 break
@@ -82,8 +80,8 @@ if __name__ == "__main__":
 
             if batch_idx % args.log_interval == 0:
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                      epoch, batch_idx * args.batch_size, n_train,
-                      (100. * batch_idx * args.batch_size) / n_train, 
+                      epoch, batch_idx * args.batch_size, train_generator.size,
+                      (100. * batch_idx * args.batch_size) / train_generator.size, 
                       loss_meter.avg))
 
 
@@ -95,7 +93,7 @@ if __name__ == "__main__":
         while True:
             try:
                 (photos, sketches_same_photo, sketches_same_class, 
-                 sketches_diff_class, noises) = test_generator.next()
+                 sketches_diff_class, noises) = test_examples.next()
                 batch_idx += 1
             except StopIteration:
                 break
@@ -114,9 +112,9 @@ if __name__ == "__main__":
         train(epoch)
         loss = test(epoch)
         
-        _train_generator, _test_generator = reset_generators()
-        train_generator = _train_generator.make_generator()
-        test_generator = _test_generator.make_generator()
+        train_generator, test_generator = reset_generators()
+        train_examples = train_generator.make_generator()
+        test_examples = test_generator.make_generator()
 
         is_best = loss < best_loss
         best_loss = min(loss, best_loss)
