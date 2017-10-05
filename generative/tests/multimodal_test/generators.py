@@ -364,6 +364,45 @@ def get_diff_class_photo_from_sketch(sketch_path, photo_emb_dir, categories):
     return photo_path
 
 
+# 1000 loops, best of 3: 2.07 ms per loop
+def get_same_class_sketch_from_photo(photo_path, sketch_emb_dir):
+    """Find a sketch of the same class as the photo but not of the same photo.
+    
+    :param photo_path: path to photo embedding.
+    :param sketch_paths: list of paths to all sketches.
+    """
+    photo_folder = os.path.dirname(photo_path).split('/')[-1]
+    photo_filename = os.path.basename(photo_path)
+    photo_filename = os.path.splitext(photo_filename)[0]
+
+    # only keep sketch paths of the same class
+    sketch_paths = list_files(os.path.join(sketch_emb_dir, photo_folder), ext='npy')
+    # there are never more than 20 sketches for a given photo. this 
+    # is hacky but to avoid loops, we can do set subtraction by assuming
+    # that there 20 sketches for this sketch
+    blacklist_paths = [os.path.join(sketch_emb_dir, photo_folder, 
+                                   '{}-{}.npy'.format(photo_filename, i))
+                       for i in range(20)]
+    sketch_paths = list(set(sketch_paths) - set(blacklist_paths))
+    sketch_path = np.random.choice(sketch_paths)
+    return sketch_path
+
+
+# 100 loops, best of 3: 2.36 ms per loop
+def get_diff_class_sketch_from_photo(photo_path, sketch_emb_dir, categories):
+    """Find a sketch of a different class.
+
+    :param photo_path: path to photo embedding.
+    :param sketch_emb_dir: directory pointing to sketch embeddings
+    :param categories: list of classes
+    """
+    photo_folder = os.path.dirname(photo_path).split('/')[-1]
+    category = np.random.choice(list(set(categories) - set([photo_folder])))
+    sketch_paths = list_files(os.path.join(sketch_emb_dir, category), ext='npy')
+    sketch_path = np.random.choice(sketch_paths)
+    return sketch_path
+
+
 def list_files(path, ext='jpg'):
     # recursively lise files in folder and all subfolders
     result = [y for x in os.walk(path)
