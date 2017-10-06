@@ -58,6 +58,18 @@ def ranking_loss(dists, strong=False, use_cuda=False):
     return torch.mean(dists)
 
 
+def exagg_ranking_loss(dists, use_cuda=False):
+    """I'm hoping that by increasing the magnitude and the amount 
+    we stretch it out, we can pull apart the distributions."""
+    dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
+    p = dists.size()[1]
+    discount = torch.Tensor([1, 10, 15, 18])
+    discount = discount.unsqueeze(0).repeat(dists.size()[0], 1)
+    discount = Variable(discount)
+    dists = torch.sum(dists / discount, dim=1)
+    return torch.mean(dists)
+
+
 class FuseEuclidean(nn.Module):
     def forward(self, e1, e2):
         # center cosine similarity (pearson coefficient)

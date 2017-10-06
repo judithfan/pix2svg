@@ -13,7 +13,7 @@ import torch
 import torch.optim as optim
 
 from model import SketchRankNet
-from model import ranking_loss
+from model import exagg_ranking_loss
 
 from generators import RankingGenerator
 
@@ -74,7 +74,7 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             outputs = model(photos, sketches_same_photo, sketches_same_class, 
                             sketches_diff_class, noises)
-            loss = ranking_loss(outputs, use_cuda=args.cuda)
+            loss = exagg_ranking_loss(outputs, use_cuda=args.cuda)
             loss_meter.update(loss.data[0], len(photos)) 
             loss.backward()
             optimizer.step()
@@ -103,7 +103,7 @@ if __name__ == "__main__":
 
             outputs = model(photos, sketches_same_photo, sketches_same_class, 
                             sketches_diff_class, noises)
-            loss = ranking_loss(outputs, use_cuda=args.cuda)
+            loss = exagg_ranking_loss(outputs, use_cuda=args.cuda)
             loss_meter.update(loss.data[0], len(photos)) 
 
         print('Test Epoch: {}\tLoss: {:.6f}'.format(epoch, loss_meter.avg))
