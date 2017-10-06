@@ -42,6 +42,7 @@ class RankingGenerator(object):
         self.batch_size = batch_size
         self.train = train
         self.strict = strict
+        self.use_cuda = use_cuda
         self.size = self.get_size()
 
     def get_size(self):
@@ -55,7 +56,7 @@ class RankingGenerator(object):
 
     def make_generator(self):
         # automatically handle cuda calls
-        dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
+        dtype = torch.cuda.FloatTensor if self.use_cuda else torch.FloatTensor
         # sketches and photos are organized into classes by directories. we want
         # to take advantage of this fact to do train/test splits.
         categories = os.listdir(self.sketch_emb_dir)
@@ -277,5 +278,5 @@ if __name__ == "__main__":
     print('\nSketches (Diff Class):')
     print(sketch_diff_class_lst)
     print('\nSketches (Noise):')
-    print(sketch_noise_list)
+    print(sketch_noise_lst)
 

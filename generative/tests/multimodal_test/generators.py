@@ -71,8 +71,9 @@ class MultiModalTrainGenerator(object):
         # same_class pair or diff_class pair. Again, over different epochs, 
         # randomness will lead to a sketch / photo being used in different
         # pairs which should be a form of regularization itself.
+        random.shuffle(sketch_paths)
         n_paths = len(sketch_paths)
-        
+
         # if strict, we treat same_class pairs as negatives, meaning we want to 
         # only treat same_photo as positive. This theoretically should preserve
         # more finer grain details in our embedding.
@@ -116,8 +117,8 @@ class MultiModalTrainGenerator(object):
             sketch = np.load(sketch_path)
 
             if photo_batch is None:
-                photo_batch = photo
-                sketch_batch = sketch
+                photo_batch = photo[np.newaxis, ...]
+                sketch_batch = sketch[np.newaxis, ...]
                 label_batch = [label]
                 type_batch = [sample_ixs[i]]
             else:
@@ -440,10 +441,10 @@ if __name__ == "__main__":
         label_lst.append(labels)
         type_lst.append(types)
 
-    photo_lst = torch.stack(photo_lst)
-    sketch_lst = torch.stack(sketch_lst)
-    label_lst = torch.stack(label_lst)
-    type_lst = torch.stack(type_lst)
+    photo_lst = torch.cat(photo_lst)
+    sketch_lst = torch.cat(sketch_lst)
+    label_lst = torch.cat(label_lst)
+    type_lst = torch.cat(type_lst)
 
     print('\nPhotos:')
     print(photo_lst)
