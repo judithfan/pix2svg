@@ -7,6 +7,8 @@ import json
 import torch
 
 from generators import ReferenceGameEmbeddingGenerator
+
+sys.path.append('..')
 import ranking_test.utils as rk_utils
 import multimodal_test.utils as mm_utils
 

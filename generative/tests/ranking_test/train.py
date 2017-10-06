@@ -7,6 +7,7 @@ from __future__ import absolute_import
 
 import os
 import sys
+import numpy as np
 
 import torch
 import torch.optim as optim
@@ -14,10 +15,10 @@ import torch.optim as optim
 from model import SketchRankNet
 from model import ranking_loss
 
-from generator import RankingGenerator
+from generators import RankingGenerator
 
 from utils import AverageMeter
-from utils import save_checkpoint
+from model import save_checkpoint
 
 
 if __name__ == "__main__":

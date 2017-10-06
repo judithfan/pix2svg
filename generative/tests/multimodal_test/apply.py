@@ -17,7 +17,7 @@ from torch.autograd import Variable
 
 # load internal functions
 from utils import cosine_similarity
-from utils import load_checkpoint
+from model import load_checkpoint
 from generators import MultiModalTrainGenerator
 from generators import MultiModalTestGenerator
 from generators import (SAME_PHOTO_EX, SAME_CLASS_EX, 
@@ -27,9 +27,9 @@ from generators import (SAME_PHOTO_EX, SAME_CLASS_EX,
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('photo_emb_folder', type=str)
-    parser.add_argument('sketch_emb_folder', type=str)
-    parser.add_argument('noise_emb_folder', type=str)
+    parser.add_argument('photo_emb_dir', type=str)
+    parser.add_argument('sketch_emb_dir', type=str)
+    parser.add_argument('noise_emb_dir', type=str)
     parser.add_argument('distance_path', type=str, help='where to save distances.')
     parser.add_argument('model_path', type=str, help='where to find trained model.')
     parser.add_argument('--batch_size', type=int, default=32)
@@ -41,6 +41,8 @@ if __name__ == '__main__':
     model = load_checkpoint(args.model_path, use_cuda=args.cuda)
     strict = torch.load(args.model_path)['strict']
     model.eval()
+    if args.cuda:
+        model.cuda()
 
     if args.train:
         generator = MultiModalTrainGenerator(args.photo_emb_dir, args.sketch_emb_dir,
@@ -53,14 +55,14 @@ if __name__ == '__main__':
                                             use_cuda=args.cuda)
     examples = generator.make_generator()
     count = 0  # track number of examples seen
-    distances = np.zeros(generator.size, 2)  # store distances between test examples here
+    distances = np.zeros((generator.size, 2))  # store distances between test examples here
     while True:
         try:
             photos, sketches, _, types = examples.next()
             examples_size = len(photos)
         except StopIteration:
             break
-        
+       
         photos = model.photo_adaptor(photos)
         sketches = model.sketch_adaptor(sketches)
 
@@ -78,5 +80,5 @@ if __name__ == '__main__':
         count += examples_size
         print('Compute Distance [{}/{}].'.format(count, generator.size))
 
-    np.save(distance_path, distances)
-    print('Distances saved to %s.' % distance_path)
+    np.save(args.distance_path, distances)
+    print('Distances saved to %s.' % args.distance_path)

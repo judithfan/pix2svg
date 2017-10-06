@@ -15,18 +15,19 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 
-from utils import load_checkpoint
+from model import load_checkpoint
 
 # here we do not use ranking_test generators because we do not want
 # images in pairs of 4; we want pairs of (photo, some_sketch) where 
 # the some_sketch can be anything.
+sys.path.append('..')
 from multimodal_test.generators import MultiModalTrainGenerator
 from multimodal_test.generators import MultiModalTestGenerator
 from multimodal_test.generators import (SAME_PHOTO_EX, SAME_CLASS_EX, 
                                         DIFF_CLASS_EX, NOISE_EX)
 
 
-if __init__ == '__main__':
+if __name__ == '__main__':
     """This part is actually exactly the same as multimodal_test/apply.py
     but notably, we use a different load_checkpoint here (hence a different 
     model structure).

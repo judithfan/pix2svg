@@ -79,8 +79,8 @@ class MultiModalTrainGenerator(object):
         # more finer grain details in our embedding.
         if self.strict: 
             same_photo_ixs = [SAME_PHOTO_EX for i in range(n_paths)]
-            same_class_ixs = [SAME_CLASS_EX for i in range(n_paths / 2)]
-            diff_class_ixs = [DIFF_CLASS_EX for i in range(n_paths / 2)]
+            same_class_ixs = [SAME_CLASS_EX for i in range(int(n_paths / 2))]
+            diff_class_ixs = [DIFF_CLASS_EX for i in range(int(n_paths / 2))]
             sample_ixs = same_photo_ixs + same_class_ixs + diff_class_ixs
             random.shuffle(sample_ixs)
         else:  # otherwise, we just treat diff_class as negatives and let the 
@@ -265,7 +265,7 @@ class MultiModalTestGenerator(object):
                 # replace sketch here with a sketch made from
                 # random noise.
                 sketch_path = get_noise_from_sketch_path(
-                    sketch_paths, self.noise_emb_dir)
+                    sketch_path, self.noise_emb_dir)
                 label = 0
             else:
                 raise Exception('Example type %d not recognized.' % sample_ixs[i])

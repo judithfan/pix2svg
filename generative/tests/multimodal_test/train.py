@@ -29,9 +29,9 @@ from generators import MultiModalTrainGenerator
 from generators import MultiModalTestGenerator
 
 from model import EmbedNet, ConvEmbedNet
-from utils import save_checkpoint
+from model import save_checkpoint
 from utils import AverageMeter
-from utils import EMBED_NET_TYPE, CONV_EMBED_NET_TYPE
+from model import EMBED_NET_TYPE, CONV_EMBED_NET_TYPE
 
 
 def rdm_regularize(model, photo_emb_dir, sketch_emb_dir, n_classes=10, 

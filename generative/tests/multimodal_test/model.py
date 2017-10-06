@@ -6,9 +6,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import sys
-sys.path.append('../distribution_test')
-from distribtest import cosine_similarity
+from utils import cosine_similarity
+
+EMBED_NET_TYPE = 0
+CONV_EMBED_NET_TYPE = 1
 
 
 class EmbedNet(nn.Module):
@@ -98,3 +99,31 @@ class FuseClassifier(nn.Module):
         e2 = e2 - torch.mean(e2, dim=1, keepdim=True)
         e = cosine_similarity(e1, e2, dim=1).unsqueeze(1)
         return F.sigmoid(e)
+
+
+def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+    torch.save(state, os.path.join(folder, filename))
+    if is_best:
+        shutil.copyfile(os.path.join(folder, filename),
+                        os.path.join(folder, 'model_best.pth.tar'))
+
+
+def load_checkpoint(file_path, use_cuda=False):
+    """Return EmbedNet instance"""
+    if use_cuda:
+        checkpoint = torch.load(file_path)
+    else:
+        checkpoint = torch.load(file_path,
+                                map_location=lambda storage, location: storage)
+
+    if checkpoint['type'] == EMBED_NET_TYPE:
+        model = EmbedNet()
+    elif checkpoint['type'] == CONV_EMBED_NET_TYPE:
+        model = ConvEmbedNet()
+    else:
+        raise Exception('Unknown model type %d.' % checkpoint['type'])
+    model.load_state_dict(checkpoint['state_dict'])
+    return model
+

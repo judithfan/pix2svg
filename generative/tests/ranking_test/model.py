@@ -82,3 +82,27 @@ class AdaptorNet(nn.Module):
         x = self.drop2(x)
         x = self.fc3(x)
         return x
+
+
+def save_checkpoint(state, is_best, folder='./',
+                    filename='checkpoint.pth.tar'):
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+    torch.save(state, os.path.join(folder, filename))
+    if is_best:
+        shutil.copyfile(os.path.join(folder, filename),
+                        os.path.join(folder, 'model_best.pth.tar'))
+
+
+def load_checkpoint(file_path, use_cuda=False):
+    """Return EmbedNet instance"""
+    if use_cuda:
+        checkpoint = torch.load(file_path)
+    else:
+        checkpoint = torch.load(file_path,
+                                map_location=lambda storage, location: storage)
+
+    model = SketchRankNet()
+    model.load_state_dict(checkpoint['state_dict'])
+    return model
+
