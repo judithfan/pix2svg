@@ -18,8 +18,7 @@ from torch.autograd import Variable
 # load internal functions
 from utils import cosine_similarity
 from model import load_checkpoint
-from generators import MultiModalTrainGenerator
-from generators import MultiModalTestGenerator
+from generators import MultiModalApplyGenerator
 from generators import (SAME_PHOTO_EX, SAME_CLASS_EX, 
                         DIFF_CLASS_EX, NOISE_EX)
 
@@ -44,15 +43,10 @@ if __name__ == '__main__':
     if args.cuda:
         model.cuda()
 
-    if args.train:
-        generator = MultiModalTrainGenerator(args.photo_emb_dir, args.sketch_emb_dir,
-                                             batch_size=args.batch_size, strict=strict, 
-                                             use_cuda=args.cuda)
-    else:
-        generator = MultiModalTestGenerator(args.photo_emb_dir, args.sketch_emb_dir, 
-                                            noise_emb_dir=args.noise_emb_dir,
-                                            batch_size=args.batch_size, strict=strict, 
-                                            use_cuda=args.cuda)
+    generator = MultiModalApplyGenerator(args.photo_emb_dir, args.sketch_emb_dir, 
+                                        noise_emb_dir=args.noise_emb_dir,
+                                        batch_size=args.batch_size, strict=strict, 
+                                        train=args.train, use_cuda=args.cuda)
     examples = generator.make_generator()
     count = 0  # track number of examples seen
     distances = np.zeros((generator.size, 2))  # store distances between test examples here

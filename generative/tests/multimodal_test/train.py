@@ -26,7 +26,7 @@ from sklearn.metrics import accuracy_score
 from precompute_vgg import list_files
 
 from generators import MultiModalTrainGenerator
-from generators import MultiModalTestGenerator
+from generators import MultiModalApplyGenerator
 
 from model import EmbedNet, ConvEmbedNet
 from model import save_checkpoint
@@ -215,9 +215,9 @@ if __name__ == '__main__':
         train_generator = MultiModalTrainGenerator(args.photo_emb_dir, args.sketch_emb_dir,
                                                    batch_size=args.batch_size,
                                                    strict=args.strict, use_cuda=args.cuda)
-        test_generator = MultiModalTestGenerator(args.photo_emb_dir, args.sketch_emb_dir,
-                                                 batch_size=args.batch_size, 
-                                                 strict=args.strict, use_cuda=args.cuda)
+        test_generator = MultiModalApplyGenerator(args.photo_emb_dir, args.sketch_emb_dir,
+                                                  batch_size=args.batch_size, 
+                                                  strict=args.strict, use_cuda=args.cuda)
         return train_generator, test_generator
 
     train_generator, test_generator = reset_generators()
