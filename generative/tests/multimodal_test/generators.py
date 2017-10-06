@@ -222,17 +222,22 @@ class MultiModalTestGenerator(object):
         # - 2) (photo, same_class sketch)
         # - 3) (photo, diff_class sketch)
         # - 4) (photo, noise)
-        n_paths = len(sketch_paths) * (4 if self.noise_emb_dir else 3)
-        
-        same_photo_ixs = [SAME_PHOTO_EX for i in range(n_paths)]
-        same_class_ixs = [SAME_CLASS_EX for i in range(n_paths)]
-        diff_class_ixs = [DIFF_CLASS_EX for i in range(n_paths)]
+        same_photo_ixs = [SAME_PHOTO_EX for i in range(len(sketch_paths))]
+        same_class_ixs = [SAME_CLASS_EX for i in range(len(sketch_paths))]
+        diff_class_ixs = [DIFF_CLASS_EX for i in range(len(sketch_paths))]
         sample_ixs = same_photo_ixs + same_class_ixs + diff_class_ixs 
 
         if self.noise_emb_dir:
-            noise_ixs = [NOISE_EX for i in range(n_paths)]
+            noise_ixs = [NOISE_EX for i in range(len(sketch_paths))]
             sample_ixs += noise_ixs
-        random.shuffle(sample_ixs)
+
+        n_paths = len(sketch_paths) * (4 if self.noise_emb_dir else 3)
+        sketch_paths = sketch_paths * (4 if self.noise_emb_dir else 3)
+
+        # reorder paths but do it with the sample_ixs
+        combined = list(zip(sketch_paths, sample_ixs))
+        random.shuffle(combined)
+        sketch_paths, sample_ixs = zip(*combined)
 
         # None is how we keep track of batches.
         photo_batch = None
