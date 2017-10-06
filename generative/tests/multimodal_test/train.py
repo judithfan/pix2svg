@@ -14,6 +14,7 @@ import copy
 import random
 import shutil
 import numpy as np
+from glob import glob
 
 import torch
 import torch.optim as optim
@@ -30,6 +31,7 @@ from generators import MultiModalTestGenerator
 from model import EmbedNet, ConvEmbedNet
 from utils import save_checkpoint
 from utils import AverageMeter
+from utils import EMBED_NET_TYPE, CONV_EMBED_NET_TYPE
 
 
 def rdm_regularize(model, photo_emb_dir, sketch_emb_dir, n_samples=10, use_cuda=False):
@@ -55,17 +57,16 @@ def rdm_regularize(model, photo_emb_dir, sketch_emb_dir, n_samples=10, use_cuda=
     # first loop across classes and for each class we will
     # calculate RDMs
     for i in range(125):
-        photo_embs = np.zeros((n_samples, 1000))
-        sketch_embs = np.zeros((n_samples, 1000))
+        photo_embs = np.zeros((n_samples, 4096))
+        sketch_embs = np.zeros((n_samples, 4096))
         # for each sample, we are going to sample a photo path, and find
         # a corresponding sketch(es)
-        photo_paths = list_files(os.path.join(photo_emb_dir, folders[i]))
+        photo_paths = list_files(os.path.join(photo_emb_dir, folders[i]), ext='npy')
         photo_paths = np.random.choice(photo_paths, size=n_samples, replace=False)
-        
         for j in range(n_samples):
-            sketch_paths = get_same_photo_sketch_from_photo(photo_paths[j], sketch_emb_dir, size=n_sketches)
+            sketch_paths = get_same_photo_sketch_from_photo(photo_paths[j], sketch_emb_dir, size=1)
             photo_embs[j, :] = np.load(photo_paths[j])
-            sketch_embs[j, :] = np.load(sketch_paths[j])
+            sketch_embs[j, :] = np.load(sketch_paths[0])
 
         # convert to torch (we will always be in volatile mode)
         photo_embs = Variable(torch.from_numpy(photo_embs).type(dtype), volatile=True)
@@ -149,9 +150,9 @@ def corrcoef(x):
         # [out]: True
     """
     # calculate covariance matrix of rows
-    mean_x = torch.mean(x, 1)
+    mean_x = torch.mean(x, 1, keepdim=True)
     xm = x.sub(mean_x.expand_as(x))
-    c = xm.mm(xm.t())
+    c = torch.mm(xm, torch.t(xm))
     c = c / (x.size(1) - 1)
 
     # normalize covariance matrix
@@ -179,9 +180,8 @@ def get_same_photo_sketch_from_photo(photo_path, sketch_emb_dir, size=1):
     photo_filename = os.path.splitext(photo_filename)[0]
 
     # find files in the right sketch folder that start with the photo name
-    sketch_paths = list_files(os.path.join(sketch_emb_dir, photo_folder, 
-                                           '{}-*'.format(photo_filename)), 
-                              ext='npy')
+    sketch_paths = glob(os.path.join(sketch_emb_dir, photo_folder, 
+                                     '{}-*'.format(photo_filename)))
     sketch_paths = np.random.choice(sketch_paths, size=size)
     return sketch_paths.tolist()
 
@@ -324,4 +324,5 @@ if __name__ == '__main__':
             'optimizer' : optimizer.state_dict(),
             'type': model_type,
             'strict': args.strict,
+            'rdm_lambda': args.rdm_lambda,
         }, is_best, folder=args.out_dir)
