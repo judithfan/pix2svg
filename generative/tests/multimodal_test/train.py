@@ -34,7 +34,8 @@ from utils import AverageMeter
 from utils import EMBED_NET_TYPE, CONV_EMBED_NET_TYPE
 
 
-def rdm_regularize(model, photo_emb_dir, sketch_emb_dir, n_samples=10, use_cuda=False):
+def rdm_regularize(model, photo_emb_dir, sketch_emb_dir, n_classes=10, 
+                   n_samples=10, use_cuda=False):
     """Regularize by calculating the euclidean distance between a 
     ground truth RDM on photos and a RDM on sketches across 125 classes
     with n_samples from each class. Notably, this RDM is computed on top
@@ -45,6 +46,7 @@ def rdm_regularize(model, photo_emb_dir, sketch_emb_dir, n_samples=10, use_cuda=
                           per class
     :param sketch_emb_dir: directory with sketch embeddings with folders
                            per class
+    :param n_classes: number of classes across photos/sketches (default: 10)
     :param n_samples: number of samples per sketch/image class (default: 10)
     :param use_cuda: True if we want to cast cuda tensor types
     """
@@ -52,11 +54,12 @@ def rdm_regularize(model, photo_emb_dir, sketch_emb_dir, n_samples=10, use_cuda=
     n_samples = max(min(n_samples, 1), 100)
     folders = os.listdir(photo_emb_dir)
     assert len(folders) == 125
+    folders = np.random.choice(folders, size=n_classes, replace=False)
 
     dists = 0
     # first loop across classes and for each class we will
     # calculate RDMs
-    for i in range(125):
+    for i in range(n_classes):
         photo_embs = np.zeros((n_samples, 4096))
         sketch_embs = np.zeros((n_samples, 4096))
         # for each sample, we are going to sample a photo path, and find
@@ -69,8 +72,8 @@ def rdm_regularize(model, photo_emb_dir, sketch_emb_dir, n_samples=10, use_cuda=
             sketch_embs[j, :] = np.load(sketch_paths[0])
 
         # convert to torch (we will always be in volatile mode)
-        photo_embs = Variable(torch.from_numpy(photo_embs).type(dtype), volatile=True)
-        sketch_embs = Variable(torch.from_numpy(sketch_embs).type(dtype), volatile=True)
+        photo_embs = Variable(torch.from_numpy(photo_embs).type(dtype))
+        sketch_embs = Variable(torch.from_numpy(sketch_embs).type(dtype))
 
         # probably don't need to do batch-based processing
         photo_embs = model.photo_adaptor(photo_embs)
@@ -84,7 +87,7 @@ def rdm_regularize(model, photo_emb_dir, sketch_emb_dir, n_samples=10, use_cuda=
         rdm_sim = pearsonr(photo_rdm.view(-1), sketch_rdm.view(-1))
         dists += (1 - rdm_sim)  # always positive
 
-    return dists
+    return dists / n_classes
 
 
 def pearsonr(x, y):
@@ -253,7 +256,7 @@ if __name__ == '__main__':
             if args.rdm_lambda > 0:
                 model.eval()
                 rdm_dists = rdm_regularize(model, args.photo_emb_dir, args.sketch_emb_dir, 
-                                           n_samples=10, use_cuda=args.cuda)
+                                           n_classes=5, n_samples=10, use_cuda=args.cuda)
                 regularization = args.rdm_lambda * rdm_dists
                 # we may be interested in tracking the regularization
                 reg_meter.update(regularization.data[0], photos.size(0))
