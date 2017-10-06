@@ -22,8 +22,7 @@ from utils import cosine_similarity
 # images in pairs of 4; we want pairs of (photo, some_sketch) where 
 # the some_sketch can be anything.
 sys.path.append('..')
-from multimodal_test.generators import MultiModalTrainGenerator
-from multimodal_test.generators import MultiModalTestGenerator
+from multimodal_test.generators import MultiModalApplyGenerator
 from multimodal_test.generators import (SAME_PHOTO_EX, SAME_CLASS_EX, 
                                         DIFF_CLASS_EX, NOISE_EX)
 
@@ -51,15 +50,10 @@ if __name__ == '__main__':
     if args.cuda:
         model.cuda()
     
-    if args.train:
-        generator = MultiModalTrainGenerator(args.photo_emb_dir, args.sketch_emb_dir,
-                                             batch_size=args.batch_size, strict=False, 
-                                             use_cuda=args.cuda)
-    else:
-        generator = MultiModalTestGenerator(args.photo_emb_dir, args.sketch_emb_dir, 
-                                            noise_emb_dir=args.noise_emb_dir,
-                                            batch_size=args.batch_size, strict=False, 
-                                            use_cuda=args.cuda)
+    generator = MultiModalApplyGenerator(args.photo_emb_dir, args.sketch_emb_dir, 
+                                         noise_emb_dir=args.noise_emb_dir,
+                                         batch_size=args.batch_size, strict=strict, 
+                                         train=args.train, use_cuda=args.cuda)
     examples = generator.make_generator()
     count = 0  # track number of examples seen
     distances = np.zeros((generator.size, 2))  # store distances between test examples here

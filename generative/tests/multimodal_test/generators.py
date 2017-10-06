@@ -160,11 +160,13 @@ class MultiModalTrainGenerator(object):
             type_batch = None
 
 
-class MultiModalTestGenerator(object):
+class MultiModalApplyGenerator(object):
     """This data generator returns (photo, sketch, label) where label
     is 0 or 1: same object, different object. This is very similar to 
     the MultiModalTrainGenerator but it has no class imbalance 
-    constraints and also includes a noise directory.
+    constraints and also includes a noise directory. While MultiModalTrainGenerator
+    is intended for use in PyTorch training, this can still be used for
+    training data but just for inference.
 
     :param photo_emb_dir: pass to photo embedding directories
     :param sketch_emb_dir: pass to sketch embedding directories
@@ -179,19 +181,23 @@ class MultiModalTestGenerator(object):
                    same class diff photo and same class same photo near each other.
     """
     def __init__(self, photo_emb_dir, sketch_emb_dir, noise_emb_dir=None,
-                 batch_size=32, strict=False, use_cuda=False):
+                 batch_size=32, train=False, strict=False, use_cuda=False):
         self.photo_emb_dir = photo_emb_dir
         self.sketch_emb_dir = sketch_emb_dir
         self.noise_emb_dir = noise_emb_dir
         self.batch_size = batch_size
         self.use_cuda = use_cuda
         self.strict = strict
+        self.train = train
         self.size = self.get_size()
 
     def get_size(self):
         categories = os.listdir(self.sketch_emb_dir)
         n_categories = len(categories)
-        categories = categories[int(n_categories * 0.8):]
+        if self.train:
+            categories = categories[:int(n_categories * 0.8)]
+        else:
+            categories = categories[int(n_categories * 0.8):]
         sketch_paths = [path for path in list_files(self.sketch_emb_dir, ext='npy') 
                         if os.path.dirname(path).split('/')[-1] in categories]
         return len(sketch_paths) * 4
