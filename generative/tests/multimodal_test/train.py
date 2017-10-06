@@ -191,6 +191,8 @@ def get_same_photo_sketch_from_photo(photo_path, sketch_emb_dir, size=1):
 
 if __name__ == '__main__':
     import argparse
+    import matplotlib.pyplot as plt
+
     parser = argparse.ArgumentParser()
     parser.add_argument('photo_emb_dir', type=str)
     parser.add_argument('sketch_emb_dir', type=str)
@@ -278,6 +280,8 @@ if __name__ == '__main__':
                       (100. * batch_idx * args.batch_size) / train_generator.size,
                       loss_meter.avg, reg_meter.avg, acc_meter.avg))
 
+        return loss_meter.avg, acc_meter.avg
+
 
     def test(epoch):
         acc_meter = AverageMeter()
@@ -305,21 +309,23 @@ if __name__ == '__main__':
         print('Test Epoch: {}\tLoss: {:.6f}\tAcc: {:.6f}'.format(
               epoch, loss_meter.avg, acc_meter.avg))
 
-        return acc_meter.avg
+        return loss_meter.avg, acc_meter.avg
 
 
     print('')
     best_acc = 0
+    save_loss = np.zeros((args.epochs, 2))
+    save_acc = np.zeros((args.epochs, 2))
     for epoch in range(1, args.epochs + 1):
-        train(epoch)
-        acc = test(epoch)
+        loss_tr, acc_tr = train(epoch)
+        loss_te, acc_te = test(epoch)
 
         train_generator, test_generator = reset_generators()
         train_examples = train_generator.make_generator()
         test_examples = test_generator.make_generator()
 
-        is_best = acc > best_acc
-        best_acc = max(acc, best_acc)
+        is_best = acc_te > best_acc
+        best_acc = max(acc_te, best_acc)
 
         save_checkpoint({
             'state_dict': model.state_dict(),
@@ -329,3 +335,14 @@ if __name__ == '__main__':
             'strict': args.strict,
             'rdm_lambda': args.rdm_lambda,
         }, is_best, folder=args.out_dir)
+
+        save_loss[epoch - 1, 0] = loss_tr
+        save_loss[epoch - 1, 1] = loss_te
+        save_acc[epoch - 1, 0] = acc_tr
+        save_acc[epoch - 1, 1] = acc_te
+
+        # save the losses and accuracies
+        np.save(os.path.join(args.out_dir, 'save_loss.npy'), 
+                save_loss[:epoch])
+        np.save(os.path.join(args.out_dir, 'save_loss.npy'), 
+                save_acc[:epoch])

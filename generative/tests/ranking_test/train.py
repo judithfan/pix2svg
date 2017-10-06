@@ -84,6 +84,8 @@ if __name__ == "__main__":
                       (100. * batch_idx * args.batch_size) / train_generator.size, 
                       loss_meter.avg))
 
+        return loss_meter.avg
+
 
     def test(epoch):
         loss_meter = AverageMeter()
@@ -108,19 +110,26 @@ if __name__ == "__main__":
 
 
     best_loss = sys.maxint
+    save_loss = np.zeros((args.epochs, 2))
     for epoch in range(1, args.epochs + 1):
-        train(epoch)
-        loss = test(epoch)
+        loss_tr = train(epoch)
+        loss_te = test(epoch)
         
         train_generator, test_generator = reset_generators()
         train_examples = train_generator.make_generator()
         test_examples = test_generator.make_generator()
 
-        is_best = loss < best_loss
-        best_loss = min(loss, best_loss)
+        is_best = loss_te < best_loss
+        best_loss = min(loss_te, best_loss)
 
         save_checkpoint({
             'state_dict': model.state_dict(),
             'best_loss': best_loss,
             'optimizer' : optimizer.state_dict(),
         }, is_best, folder=args.out_dir)
+
+        save_loss[epoch - 1, 0] = loss_tr
+        save_loss[epoch - 1, 1] = loss_te
+        # save the losses
+        np.save(os.path.join(args.out_dir, 'save_loss.npy'), 
+                save_loss[:epoch])
