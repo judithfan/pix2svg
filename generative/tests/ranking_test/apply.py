@@ -52,7 +52,7 @@ if __name__ == '__main__':
     
     generator = MultiModalApplyGenerator(args.photo_emb_dir, args.sketch_emb_dir, 
                                          noise_emb_dir=args.noise_emb_dir,
-                                         batch_size=args.batch_size, strict=strict, 
+                                         batch_size=args.batch_size, strict=False, 
                                          train=args.train, use_cuda=args.cuda)
     examples = generator.make_generator()
     count = 0  # track number of examples seen

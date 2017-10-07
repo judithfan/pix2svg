@@ -213,7 +213,10 @@ class MultiModalApplyGenerator(object):
         # test is composed of sketches from different categories. This 
         # clearly distinguishes which sketches and photos are being used
         # to train and which are for testing.
-        categories = categories[int(n_categories * 0.8):]
+        if self.train:
+            categories = categories[:int(n_categories * 0.8)]
+        else:
+            categories = categories[int(n_categories * 0.8):]
         photo_paths = [path for path in list_files(self.photo_emb_dir, ext='npy') 
                        if os.path.dirname(path).split('/')[-1] in categories]
         sketch_paths = [path for path in list_files(self.sketch_emb_dir, ext='npy') 

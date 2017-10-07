@@ -6,6 +6,9 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
+import os
+import shutil
+
 import numpy as np
 
 import torch
@@ -63,7 +66,7 @@ def exagg_ranking_loss(dists, use_cuda=False):
     we stretch it out, we can pull apart the distributions."""
     dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
     p = dists.size()[1]
-    discount = torch.Tensor([1, 10, 15, 18])
+    discount = torch.Tensor([1, 10, 15, 18]).type(dtype)
     discount = discount.unsqueeze(0).repeat(dists.size()[0], 1)
     discount = Variable(discount)
     dists = torch.sum(dists / discount, dim=1)
