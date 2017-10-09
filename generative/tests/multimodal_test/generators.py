@@ -31,20 +31,28 @@ class MultiModalTrainGenerator(object):
                    noise and diff photo same class are about the same. Ideally, 
                    we want to have noise + diff class be about the same, and have
                    same class diff photo and same class same photo near each other.
+    :param train: if train is false, then, do inference on the test categories. 
+                  Note that this test set is different than MultiModalApplyGenerator.
     """
-    def __init__(self, photo_emb_dir, sketch_emb_dir,
+    def __init__(self, photo_emb_dir, sketch_emb_dir, train=True,
                  batch_size=32, use_cuda=False, strict=False):
         self.photo_emb_dir = photo_emb_dir
         self.sketch_emb_dir = sketch_emb_dir
         self.batch_size = batch_size
         self.use_cuda = use_cuda
         self.strict = strict
+        self.train = train
         self.size = self.get_size()
 
     def get_size(self):
+        # this function is used to get the number of images that will be returned
+        # via this generator.
         categories = os.listdir(self.sketch_emb_dir)
         n_categories = len(categories)
-        categories = categories[:int(n_categories * 0.8)]
+        if self.train:
+            categories = categories[:int(n_categories * 0.8)]
+        else:
+            categories = categories[int(n_categories * 0.8):]
         sketch_paths = [path for path in list_files(self.sketch_emb_dir, ext='npy') 
                         if os.path.dirname(path).split('/')[-1] in categories]
         return len(sketch_paths)
@@ -60,7 +68,10 @@ class MultiModalTrainGenerator(object):
         # test is composed of sketches from different categories. This 
         # clearly distinguishes which sketches and photos are being used
         # to train and which are for testing.
-        categories = categories[:int(n_categories * 0.8)]
+        if self.train:
+            categories = categories[:int(n_categories * 0.8)]
+        else:
+            categories = categories[int(n_categories * 0.8):]
         photo_paths = [path for path in list_files(self.photo_emb_dir, ext='npy') 
                        if os.path.dirname(path).split('/')[-1] in categories]
         sketch_paths = [path for path in list_files(self.sketch_emb_dir, ext='npy') 
@@ -74,7 +85,7 @@ class MultiModalTrainGenerator(object):
         random.shuffle(sketch_paths)
         n_paths = len(sketch_paths)
 
-        # if strict, we treat same_class pairs as negatives, meaning we want to 
+        # if strict, we treat same_class pairs as explicit negatives, meaning we want to 
         # only treat same_photo as positive. This theoretically should preserve
         # more finer grain details in our embedding.
         if self.strict: 
@@ -129,12 +140,14 @@ class MultiModalTrainGenerator(object):
 
             if photo_batch.shape[0] == self.batch_size:
                 # this is for training, so volatile is False
-                photo_batch = Variable(torch.from_numpy(photo_batch)).type(dtype)
-                sketch_batch = Variable(torch.from_numpy(sketch_batch)).type(dtype)
-                label_batch = Variable(torch.from_numpy(np.array(label_batch)), 
-                                       requires_grad=False).type(dtype)
-                type_batch = Variable(torch.from_numpy(np.array(type_batch)), 
-                                      requires_grad=False).type(dtype)
+                photo_batch = Variable(torch.from_numpy(photo_batch).type(dtype),
+                                       volatile=not self.train)
+                sketch_batch = Variable(torch.from_numpy(sketch_batch).type(dtype),
+                                        volatile=not self.train)
+                label_batch = Variable(torch.from_numpy(np.array(label_batch)).type(dtype), 
+                                       requires_grad=False)
+                type_batch = Variable(torch.from_numpy(np.array(type_batch)).type(dtype), 
+                                      requires_grad=False)
                 
                 # yield data so we can continue to query the same object
                 yield (photo_batch, sketch_batch, label_batch, type_batch)
@@ -146,12 +159,14 @@ class MultiModalTrainGenerator(object):
         # return any remaining data
         # since n_data may not be divisible by batch_size
         if photo_batch is not None:
-            photo_batch = Variable(torch.from_numpy(photo_batch)).type(dtype)
-            sketch_batch = Variable(torch.from_numpy(sketch_batch)).type(dtype)
-            label_batch = Variable(torch.from_numpy(np.array(label_batch)), 
-                                   requires_grad=False).type(dtype)
-            type_batch = Variable(torch.from_numpy(np.array(type_batch)), 
-                                  requires_grad=False).type(dtype)
+            photo_batch = Variable(torch.from_numpy(photo_batch).type(dtype),
+                                   volatile=not self.train)
+            sketch_batch = Variable(torch.from_numpy(sketch_batch).type(dtype),
+                                    volatile=not self.train)
+            label_batch = Variable(torch.from_numpy(np.array(label_batch)).type(dtype), 
+                                   requires_grad=False)
+            type_batch = Variable(torch.from_numpy(np.array(type_batch)).type(dtype), 
+                                  requires_grad=False)
  
             yield (photo_batch, sketch_batch, label_batch, type_batch)
             photo_batch = None
@@ -179,6 +194,8 @@ class MultiModalApplyGenerator(object):
                    noise and diff photo same class are about the same. Ideally, 
                    we want to have noise + diff class be about the same, and have
                    same class diff photo and same class same photo near each other.
+    :param train: This is only used for inference but if train=True, then we can 
+                  do inference on the training set.
     """
     def __init__(self, photo_emb_dir, sketch_emb_dir, noise_emb_dir=None,
                  batch_size=32, train=False, strict=False, use_cuda=False):

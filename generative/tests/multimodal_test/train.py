@@ -26,7 +26,6 @@ from sklearn.metrics import accuracy_score
 from precompute_vgg import list_files
 
 from generators import MultiModalTrainGenerator
-from generators import MultiModalApplyGenerator
 
 from model import EmbedNet, ConvEmbedNet
 from model import save_checkpoint
@@ -189,11 +188,12 @@ def get_same_photo_sketch_from_photo(photo_path, sketch_emb_dir, size=1):
     return sketch_paths.tolist()
 
 
-def print_and_log(message, log_path):
+def print_and_log(message, log_path, create_file=False):
     """Print to sys.stdout and to file"""
     print(message)
-    with open(log_path, 'a') as fp:
-        print(message, fp)
+    mode = 'w' if create_file else 'a'
+    with open(log_path, mode) as fp:
+        print(message, file=fp)
 
 
 if __name__ == '__main__':
@@ -220,10 +220,10 @@ if __name__ == '__main__':
 
     def reset_generators():
         train_generator = MultiModalTrainGenerator(args.photo_emb_dir, args.sketch_emb_dir,
-                                                   batch_size=args.batch_size,
+                                                   batch_size=args.batch_size, train=True,
                                                    strict=args.strict, use_cuda=args.cuda)
-        test_generator = MultiModalApplyGenerator(args.photo_emb_dir, args.sketch_emb_dir,
-                                                  batch_size=args.batch_size, 
+        test_generator = MultiModalTrainGenerator(args.photo_emb_dir, args.sketch_emb_dir,
+                                                  batch_size=args.batch_size, train=False,
                                                   strict=args.strict, use_cuda=args.cuda)
         return train_generator, test_generator
 
@@ -244,6 +244,7 @@ if __name__ == '__main__':
 
     # define where to print logs
     log_path = os.path.join(args.out_dir, 'train.log')
+    new_log_file = True
 
 
     def train(epoch):
@@ -285,10 +286,12 @@ if __name__ == '__main__':
             optimizer.step()
 
             if batch_idx % args.log_interval == 0:
-                print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tReg: {:.6f}\tAcc: {:.6f}'.format(
+                print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tRDM: {:.6f}\tAcc: {:.6f}'.format(
                               epoch, batch_idx * args.batch_size, train_generator.size,
                               (100. * batch_idx * args.batch_size) / train_generator.size,
-                              loss_meter.avg, reg_meter.avg, acc_meter.avg), log_path)
+                              loss_meter.avg, reg_meter.avg, acc_meter.avg), log_path,
+                              create_file=new_log_file)
+                new_log_file = False
 
         return loss_meter.avg, acc_meter.avg
 
