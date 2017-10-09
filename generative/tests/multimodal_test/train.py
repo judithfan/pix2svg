@@ -189,6 +189,13 @@ def get_same_photo_sketch_from_photo(photo_path, sketch_emb_dir, size=1):
     return sketch_paths.tolist()
 
 
+def print_and_log(message, log_path):
+    """Print to sys.stdout and to file"""
+    print(message)
+    with open(log_path, 'a') as fp:
+        print(message, fp)
+
+
 if __name__ == '__main__':
     import argparse
     import matplotlib.pyplot as plt
@@ -235,6 +242,9 @@ if __name__ == '__main__':
     if args.cuda:
         model.cuda()
 
+    # define where to print logs
+    log_path = os.path.join(args.out_dir, 'train.log')
+
 
     def train(epoch):
         loss_meter = AverageMeter()
@@ -275,10 +285,10 @@ if __name__ == '__main__':
             optimizer.step()
 
             if batch_idx % args.log_interval == 0:
-                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tReg: {:.6f}\tAcc: {:.6f}'.format(
-                      epoch, batch_idx * args.batch_size, train_generator.size,
-                      (100. * batch_idx * args.batch_size) / train_generator.size,
-                      loss_meter.avg, reg_meter.avg, acc_meter.avg))
+                print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tReg: {:.6f}\tAcc: {:.6f}'.format(
+                              epoch, batch_idx * args.batch_size, train_generator.size,
+                              (100. * batch_idx * args.batch_size) / train_generator.size,
+                              loss_meter.avg, reg_meter.avg, acc_meter.avg), log_path)
 
         return loss_meter.avg, acc_meter.avg
 
@@ -306,8 +316,8 @@ if __name__ == '__main__':
             loss_meter.update(loss.data[0], photos.size(0))
 
         # no need to track regularization here...
-        print('Test Epoch: {}\tLoss: {:.6f}\tAcc: {:.6f}'.format(
-              epoch, loss_meter.avg, acc_meter.avg))
+        print_and_log('Test Epoch: {}\tLoss: {:.6f}\tAcc: {:.6f}'.format(
+                      epoch, loss_meter.avg, acc_meter.avg), log_path)
 
         return loss_meter.avg, acc_meter.avg
 

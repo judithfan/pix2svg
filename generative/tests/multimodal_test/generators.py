@@ -217,6 +217,7 @@ class MultiModalApplyGenerator(object):
             categories = categories[:int(n_categories * 0.8)]
         else:
             categories = categories[int(n_categories * 0.8):]
+        
         photo_paths = [path for path in list_files(self.photo_emb_dir, ext='npy') 
                        if os.path.dirname(path).split('/')[-1] in categories]
         sketch_paths = [path for path in list_files(self.sketch_emb_dir, ext='npy') 
