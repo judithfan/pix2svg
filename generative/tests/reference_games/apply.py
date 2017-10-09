@@ -9,8 +9,9 @@ import torch
 from generators import ReferenceGameEmbeddingGenerator
 
 sys.path.append('..')
-import ranking_test.utils as rk_utils
-import multimodal_test.utils as mm_utils
+import ranking_test.model as rk_utils
+import multimodal_test.model as mm_utils
+from multimodal_test.utils import cosine_similarity
 
 
 if __name__ == "__main__":

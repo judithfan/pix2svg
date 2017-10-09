@@ -1,7 +1,5 @@
 """Given a trained multimodal model, generate embeddings."""
 
-"""Given a trained multimodal model, save embeddings to some folder"""
-
 from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
@@ -51,9 +49,9 @@ if __name__ == '__main__':
     mimic_dir(args.photo_mmemb_dir, args.photo_emb_dir)
     mimic_dir(args.sketch_mmemb_dir, args.sketch_emb_dir)
 
-    photo_paths = glob(os.path.join(photo_emb_dir, '*.npy'))
-    sketch_paths = glob(os.path.join(sketch_emb_dir, '*.npy'))
-
+    photo_paths = glob(os.path.join(args.photo_emb_dir, '*/*.npy'))
+    sketch_paths = glob(os.path.join(args.sketch_emb_dir, '*/*.npy'))
+    
     n_photos = len(photo_paths)
     n_sketches = len(sketch_paths)
 
