@@ -2,6 +2,9 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
+import os
+import numpy as np
+
 from generators import L2TrainGenerator
 from model import L2EmbedNet
 
@@ -11,6 +14,8 @@ from torch.autograd import Variable
 
 from utils import pearsonr, corrcoef
 from utils import list_files, get_same_photo_sketch_from_photo
+from utils import AverageMeter
+from model import save_checkpoint
 
 
 def rdm_regularize(model, photo_emb_dir, sketch_emb_dir, n_classes=10, 
@@ -35,7 +40,7 @@ def rdm_regularize(model, photo_emb_dir, sketch_emb_dir, n_classes=10,
     :param use_cuda: True if we want to cast cuda tensor types
     """
     dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
-    n_samples = max(min(n_samples, 1), 100)
+    n_samples = min(max(n_samples, 1), 100)
     folders = os.listdir(photo_emb_dir)
     assert len(folders) == 125
     folders = np.random.choice(folders, size=n_classes, replace=False)
@@ -61,8 +66,8 @@ def rdm_regularize(model, photo_emb_dir, sketch_emb_dir, n_classes=10,
             photo_embs[j, :] = np.load(photo_paths[j])
             sketch_embs[j, :] = np.load(sketch_paths[0])
 
-        photo_centroid_embs[i, :] = np.mean(photo_embs, dim=1)
-        sketch_centroid_embs[i, :] = np.mean(sketch_embs, dim=1)
+        photo_centroid_embs[i, :] = np.mean(photo_embs, axis=0)
+        sketch_centroid_embs[i, :] = np.mean(sketch_embs, axis=0)
 
         # convert to torch (we will always be in volatile mode)
         photo_embs = Variable(torch.from_numpy(photo_embs).type(dtype))
@@ -126,11 +131,15 @@ if __name__ == '__main__':
     test_examples = test_generator.make_generator()
 
     model = L2EmbedNet()
+    if args.cuda:
+        model.cuda()
+    
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
 
     def train(epoch):
         loss_meter = AverageMeter()
+        reg_meter = AverageMeter()
         model.train()
         batch_idx = 0
         
@@ -142,10 +151,11 @@ if __name__ == '__main__':
                 break
 
             optimizer.zero_grad()
-            loss = model(photos, sketches)
+            outputs = model(photos, sketches)
+            loss = torch.mean(outputs)
             loss_meter.update(loss.data[0], photos.size(0)) 
 
-            if args.rdm_lambda > 0:
+            if (args.rdm_diag_lambda + args.rdm_xterm_lambda > 0):
                 model.eval()
                 regularization = rdm_regularize(model, args.photo_emb_dir, args.sketch_emb_dir, 
                                                 n_classes=5, n_samples=10, diag_lambda=args.rdm_diag_lambda,
@@ -158,12 +168,10 @@ if __name__ == '__main__':
             
             loss.backward()
             optimizer.step()
-
-            if batch_idx % args.log_interval == 0:
-                print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tRDM: {:.6f}'.format(
-                              epoch, batch_idx * args.batch_size, train_generator.size,
-                              (100. * batch_idx * args.batch_size) / train_generator.size,
-                              loss_meter.avg, reg_meter.avg), log_path)
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tRDM: {:.6f}'.format(
+                  epoch, batch_idx * args.batch_size, train_generator.size,
+                  (100. * batch_idx * args.batch_size) / train_generator.size,
+                  loss_meter.avg, reg_meter.avg))
 
 
     def test(epoch):
@@ -178,12 +186,13 @@ if __name__ == '__main__':
             except StopIteration:
                 break
             
-            loss = model(photos, sketches)
+            outputs = model(photos, sketches)
+            loss = torch.mean(outputs)
             loss_meter.update(loss.data[0], photos.size(0))
 
         # no need to track regularization here...
-        print_and_log('Test Epoch: {}\tLoss: {:.6f}'.format(
-                      epoch, loss_meter.avg), log_path)
+        # -- it would just waste computation.
+        print('Test Epoch: {}\tLoss: {:.6f}'.format(epoch, loss_meter.avg))
 
         return loss_meter.avg
 

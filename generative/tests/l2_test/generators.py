@@ -11,6 +11,9 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 
+from utils import list_files
+from utils import get_photo_from_sketch_path
+
 
 class L2TrainGenerator(object):
     def __init__(self, photo_emb_dir, sketch_emb_dir, train=True,
