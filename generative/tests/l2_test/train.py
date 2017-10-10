@@ -213,5 +213,4 @@ if __name__ == '__main__':
             'state_dict': model.state_dict(),
             'best_loss': best_loss,
             'optimizer' : optimizer.state_dict(),
-            'rdm_lambda': args.rdm_lambda,
         }, is_best, folder=args.out_dir)
