@@ -248,6 +248,7 @@ if __name__ == '__main__':
 
 
     def train(epoch):
+        global new_log_file
         loss_meter = AverageMeter()
         reg_meter = AverageMeter()
         acc_meter = AverageMeter()
