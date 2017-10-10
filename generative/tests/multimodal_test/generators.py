@@ -116,7 +116,7 @@ class MultiModalTrainGenerator(object):
             elif sample_ixs[i] == SAME_CLASS_EX:
                 photo_path = get_same_class_photo_from_sketch(
                     sketch_path, self.photo_emb_dir)
-                label = 0 if self.strict else 1
+                label = 0
             elif sample_ixs[i] == DIFF_CLASS_EX:
                 photo_path = get_diff_class_photo_from_sketch(
                     sketch_path, self.photo_emb_dir, categories)
