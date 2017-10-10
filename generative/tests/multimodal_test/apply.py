@@ -22,6 +22,8 @@ from generators import MultiModalApplyGenerator
 from generators import (SAME_PHOTO_EX, SAME_CLASS_EX, 
                         DIFF_CLASS_EX, NOISE_EX)
 
+DISTANCES = ['correlation', 'cosine', 'euclidean']
+
 
 if __name__ == '__main__':
     import argparse
@@ -31,14 +33,18 @@ if __name__ == '__main__':
     parser.add_argument('noise_emb_dir', type=str)
     parser.add_argument('distance_path', type=str, help='where to save distances.')
     parser.add_argument('model_path', type=str, help='where to find trained model.')
+    parser.add_argument('--distance', type=int, default='correlation')
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--train', action='store_true', default=False)
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
+    assert args.distance in DISTANCES
 
     model = load_checkpoint(args.model_path, use_cuda=args.cuda)
-    strict = torch.load(args.model_path)['strict']
+    checkpoint = torch.load(args.model_path)
+    strict = checkpoint['strict'] if 'strict' in checkpoint else False
+
     model.eval()
     if args.cuda:
         model.cuda()
@@ -60,10 +66,17 @@ if __name__ == '__main__':
         photos = model.photo_adaptor(photos)
         sketches = model.sketch_adaptor(sketches)
 
-        # compute pearson correlation
-        photos = photos - torch.mean(photos, dim=1, keepdim=True)
-        sketches = sketches - torch.mean(sketches, dim=1, keepdim=True)
-        dists = cosine_similarity(photos, sketches, dim=1)
+        if args.distance == 'correlation':
+            # compute pearson correlation
+            photos = photos - torch.mean(photos, dim=1, keepdim=True)
+            sketches = sketches - torch.mean(sketches, dim=1, keepdim=True)
+            dists = cosine_similarity(photos, sketches, dim=1)
+        elif args.distance == 'cosine':
+            dists = cosine_similarity(photos, sketches, dim=1)
+        elif args.distance == 'euclidean':
+            dists = torch.norm(photos - sketches, p=2, dim=1)
+        else:
+            raise Exception('distance [%s] not recognized' % args.distance)
         
         dists_np = float(dists.cpu().data.numpy()[0])
         dists_type = int(types.cpu().data.numpy()[0])
