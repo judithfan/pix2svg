@@ -50,7 +50,7 @@ if __name__ == '__main__':
     distances = np.zeros((generator.size, 2))  # store distances between test examples here
     while True:
         try:
-            photos, sketches, _, types = examples.next()
+            photos, sketches, types = examples.next()
             examples_size = len(photos)
         except StopIteration:
             break

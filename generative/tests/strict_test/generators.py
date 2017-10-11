@@ -182,7 +182,6 @@ class ApplyGenerator(object):
         self.noise_emb_dir = noise_emb_dir
         self.batch_size = batch_size
         self.use_cuda = use_cuda
-        self.strict = strict
         self.train = train
         self.size = self.get_size()
 
