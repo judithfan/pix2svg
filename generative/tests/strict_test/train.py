@@ -35,8 +35,8 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', type=int, default=10)
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--epochs', type=int, default=10)
-    parser.add_argument('--cuda', action='store_true', default=False)
     parser.add_argument('--hard', action='store_true', default=False)
+    parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 

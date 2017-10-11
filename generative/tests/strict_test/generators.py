@@ -178,3 +178,34 @@ def sample_photo_from_photo_path(photo_path, photo_emb_dir, same_class=False):
         photo_paths = glob(os.path.join(photo_emb_dir, category, '*'))
 
     return np.random.choice(photo_paths)
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('photo_emb_dir', type=str)
+    parser.add_argument('sketch_emb_dir', type=str)
+    parser.add_argument('--hard', action='store_true', default=False)
+    parser.add_argument('--cuda', action='store_true', default=False)
+    args = parser.parse_args()
+    args.cuda = args.cuda and torch.cuda.is_available()
+
+    Generator = HardGenerator if args.hard else EasyGenerator
+    generator = Generator(args.photo_emb_dir, args.sketch_emb_dir,
+                          batch_size=args.batch_size, train=True,
+                          use_cuda=args.cuda)
+    examples = generator.make_generator()
+
+    print("Testing generator of size %d." % generator.size)
+    photos1, sketches1, labels1 = train_examples.next()
+    photos2, sketches2, labels2 = train_examples.next()
+
+    print('---------------')
+    print('Photos batch 1:', photos1)
+    print('Sketches batch 1:', sketches1)
+    print('Labels batch 1:', labels1)
+    print('---------------')
+    print('Photos batch 2:', photos2)
+    print('Sketches batch 2:', sketches2)
+    print('Labels batch 2:', labels2)
