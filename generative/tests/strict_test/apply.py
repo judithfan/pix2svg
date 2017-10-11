@@ -16,10 +16,9 @@ import torch
 from torch.autograd import Variable
 
 # load internal functions
-sys.path.append('..')
 from model import cosine_similarity
 from model import load_checkpoint
-from multimodal_test.generators import MultiModalApplyGenerator
+from generators import ApplyGenerator
 
 
 if __name__ == '__main__':
@@ -43,10 +42,9 @@ if __name__ == '__main__':
     if args.cuda:
         model.cuda()
 
-    generator = MultiModalApplyGenerator(args.photo_emb_dir, args.sketch_emb_dir, 
-                                         noise_emb_dir=args.noise_emb_dir,
-                                         batch_size=args.batch_size, strict=True, 
-                                         train=args.train, use_cuda=args.cuda)
+    generator = ApplyGenerator(args.photo_emb_dir, args.sketch_emb_dir, 
+                               args.noise_emb_dir, batch_size=args.batch_size,  
+                               train=args.train, use_cuda=args.cuda)
     examples = generator.make_generator()
     count = 0  # track number of examples seen
     distances = np.zeros((generator.size, 2))  # store distances between test examples here
