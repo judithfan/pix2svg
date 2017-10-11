@@ -50,7 +50,7 @@ if __name__ == '__main__':
     distances = np.zeros((generator.size, 2))  # store distances between test examples here
     while True:
         try:
-            photos, sketches, _, types = examples.next()
+            photos, sketches = examples.next()
             examples_size = len(photos)
         except StopIteration:
             break
@@ -64,7 +64,6 @@ if __name__ == '__main__':
         dists = cosine_similarity(photos, sketches, dim=1)
         
         dists_np = float(dists.cpu().data.numpy()[0])
-        dists_type = int(types.cpu().data.numpy()[0])
 
         distances[count:count + examples_size, 0] = dists_np
         distances[count:count + examples_size, 1] = dists_type
