@@ -13,8 +13,8 @@ import torch.nn.functional as F
 class EmbedNet(nn.Module):
     def __init__(self):
         super(EmbedNet, self).__init__()
-        self.photo_adaptor = AdaptorNet(4096, 2048, 1000)
-        self.sketch_adaptor = AdaptorNet(4096, 2048, 1000)
+        self.photo_adaptor = AdaptorNet()
+        self.sketch_adaptor = AdaptorNet()
         self.fusenet = FuseClassifier()
 
     def forward(self, photo_emb, sketch_emb):
@@ -24,20 +24,20 @@ class EmbedNet(nn.Module):
 
 
 class AdaptorNet(nn.Module):
-    def __init__(self, in_dim, hid_dim, out_dim):
+    def __init__(self):
         super(AdaptorNet, self).__init__()
-        self.fc1 = nn.Linear(in_dim, hid_dim)
-        self.fc2 = nn.Linear(hid_dim, out_dim)
-        self.fc3 = nn.Linear(out_dim, out_dim)
-        self.drop1 = nn.Dropout(p=0.5)
-        self.drop2 = nn.Dropout(p=0.2)
+        self.fc1 = nn.Linear(4096, 4096)
+        self.fc2 = nn.Linear(4096, 4096)
+        self.fc3 = nn.Linear(4096, 2048)
+        self.fc4 = nn.Linear(2048, 1000)
+        # self.drop1 = nn.Dropout(p=0.5)
+        # self.drop2 = nn.Dropout(p=0.2)
 
     def forward(self, x):
-        x = F.elu(self.fc1(x))
-        x = self.drop1(x)
-        x = F.elu(self.fc2(x))
-        x = self.drop2(x)
-        x = self.fc3(x)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc3(x))
+        x = self.fc4(x)
         return x
 
 

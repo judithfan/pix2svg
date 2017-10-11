@@ -2,9 +2,16 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
+import torch
+import torch.optim as optim
+import torch.nn.functional as F
+
+import numpy as np
+from sklearn.metrics import accuracy_score
+
 from model import EmbedNet
+from model import save_checkpoint
 from generators import EasyGenerator, HardGenerator
-from utils import AverageMeter
 
 
 class AverageMeter(object):
