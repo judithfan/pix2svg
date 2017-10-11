@@ -257,9 +257,11 @@ class ApplyGenerator(object):
             if batch_idx == 0:
                 photo_batch = photo
                 sketch_batch = sketch
+                type_batch = [sample_ixs[i]]
             else:
                 photo_batch = np.vstack((photo_batch, photo))
                 sketch_batch = np.vstack((sketch_batch, sketch))
+                type_batch.append(sample_ixs[i])
 
             batch_idx += 1
 
@@ -267,9 +269,12 @@ class ApplyGenerator(object):
                 # this is for training, so volatile is False
                 photo_batch = Variable(torch.from_numpy(photo_batch)).type(dtype)
                 sketch_batch = Variable(torch.from_numpy(sketch_batch)).type(dtype)
-                
+                type_batch = np.array(type_batch)
+                type_batch = Variable(torch.from_numpy(type_batch).type(dtype), 
+                                      requires_grad=False)
+
                 # yield data so we can continue to query the same object
-                yield (photo_batch, sketch_batch)
+                yield (photo_batch, sketch_batch, type_batch)
                 batch_idx = 0
 
         # return any remaining data
@@ -277,8 +282,10 @@ class ApplyGenerator(object):
         if batch_idx > 0:
             photo_batch = Variable(torch.from_numpy(photo_batch)).type(dtype)
             sketch_batch = Variable(torch.from_numpy(sketch_batch)).type(dtype)
- 
-            yield (photo_batch, sketch_batch)
+            type_batch = np.array(type_batch)
+            type_batch = Variable(torch.from_numpy(type_batch).type(dtype), 
+                                  requires_grad=False)
+            yield (photo_batch, sketch_batch, type_batch)
 
 
 def sample_sketch_from_photo_path(photo_path, sketch_emb_dir, deterministic=False):
