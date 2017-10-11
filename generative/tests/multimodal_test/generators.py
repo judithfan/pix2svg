@@ -58,6 +58,9 @@ class MultiModalTrainGenerator(object):
         return len(sketch_paths)
 
     def make_generator(self):
+        np.random.seed(42)
+        random.seed(42)
+
         dtype = torch.cuda.FloatTensor if self.use_cuda else torch.FloatTensor
         # note that everytime this is called, it will return slightly different
         # pairs since not all pairs are used in 1 epoch. But it will never

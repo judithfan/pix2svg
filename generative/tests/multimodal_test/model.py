@@ -98,8 +98,8 @@ class ConvAdaptorNet(nn.Module):
 class FuseClassifier(nn.Module):
     def forward(self, e1, e2):
         # center cosine similarity (pearson coefficient)
-        e1 = e1 - torch.mean(e1, dim=1, keepdim=True)
-        e2 = e2 - torch.mean(e2, dim=1, keepdim=True)
+        # e1 = e1 - torch.mean(e1, dim=1, keepdim=True)
+        # e2 = e2 - torch.mean(e2, dim=1, keepdim=True)
         e = cosine_similarity(e1, e2, dim=1).unsqueeze(1)
         return F.sigmoid(e)
 

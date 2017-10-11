@@ -94,7 +94,7 @@ class EasyGenerator(object):
             sketch2 = np.load(sketch2_path)
 
             photo_group = np.vstack((photo1, photo2, photo1, photo2))
-            sketch_group = np.vstack((sketch1, sketch2, sketch1, sketch2))
+            sketch_group = np.vstack((sketch1, sketch2, sketch2, sketch1))
             label_group = np.array((1, 1, 0, 0))
 
             if batch_idx == 0:
@@ -155,7 +155,7 @@ class HardGenerator(EasyGenerator):
 
 
 def sample_sketch_from_photo_path(photo_path, sketch_emb_dir):
-    photo_name, photo_ext = os.splitext(os.path.basename(photo_path))
+    photo_name, photo_ext = os.path.splitext(os.path.basename(photo_path))
     photo_folder = os.path.dirname(photo_path).split('/')[-1]
 
     sketch_paths = glob(os.path.join(sketch_emb_dir, photo_folder, 
@@ -165,7 +165,7 @@ def sample_sketch_from_photo_path(photo_path, sketch_emb_dir):
 
 
 def sample_photo_from_photo_path(photo_path, photo_emb_dir, same_class=False):
-    photo_name, photo_ext = os.splitext(os.path.basename(photo_path))
+    photo_name, photo_ext = os.path.splitext(os.path.basename(photo_path))
     photo_folder = os.path.dirname(photo_path).split('/')[-1]
 
     if same_class:
@@ -193,13 +193,13 @@ if __name__ == "__main__":
 
     Generator = HardGenerator if args.hard else EasyGenerator
     generator = Generator(args.photo_emb_dir, args.sketch_emb_dir,
-                          batch_size=args.batch_size, train=True,
+                          batch_size=1, train=True,
                           use_cuda=args.cuda)
     examples = generator.make_generator()
 
     print("Testing generator of size %d." % generator.size)
-    photos1, sketches1, labels1 = train_examples.next()
-    photos2, sketches2, labels2 = train_examples.next()
+    photos1, sketches1, labels1 = examples.next()
+    photos2, sketches2, labels2 = examples.next()
 
     print('---------------')
     print('Photos batch 1:', photos1)
