@@ -29,36 +29,21 @@ class AdaptorNet(nn.Module):
     def __init__(self):
         super(AdaptorNet, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(4096, 4096),
-            nn.BatchNorm1d(4096),
-            nn.ReLU(True),
-            nn.Dropout(0.5),
-            nn.Linear(4096, 4096),
-            nn.BatchNorm1d(4096),
-            nn.ReLU(True),
-            nn.Dropout(0.5),
-            nn.Linear(4096, 4096),
-            nn.BatchNorm1d(4096),
-            nn.ReLU(True),
-            nn.Dropout(0.5),
-            nn.Linear(4096, 4096),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+            nn.MaxPool2d(2, stride=2, dilation=1),
+            nn.Linear(65536, 4096),
             nn.BatchNorm1d(4096),
             nn.ReLU(True),
             nn.Dropout(0.5),
             nn.Linear(4096, 2048),
             nn.BatchNorm1d(2048),
             nn.ReLU(True),
-            nn.Dropout(0.2),
-            nn.Linear(2048, 2048),
-            nn.BatchNorm1d(2048),
-            nn.ReLU(True),
-            nn.Dropout(0.2),
+            nn.Dropout(0.5),
             nn.Linear(2048, 1000),
         )
 
     def forward(self, x):
-        x = self.net(x)
-        return x
+        return self.net(x)
 
 
 class FuseClassifier(nn.Module):

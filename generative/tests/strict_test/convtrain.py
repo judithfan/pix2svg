@@ -9,8 +9,8 @@ import torch.nn.functional as F
 import numpy as np
 from sklearn.metrics import accuracy_score
 
-from deepmodel import EmbedNet
-from deepmodel import save_checkpoint
+from convmodel import EmbedNet
+from convmodel import save_checkpoint
 from generators import EasyGenerator, HardGenerator
 
 from model import AverageMeter
