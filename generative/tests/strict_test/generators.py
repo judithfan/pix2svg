@@ -313,7 +313,7 @@ def sample_photo_from_photo_path(photo_path, photo_emb_dir, blacklist=[], same_c
         photo_paths = list(set(photo_paths) - set(blacklist))
         photo_paths.remove(photo_path)
     else:
-        categories = glob(os.path.join(self.photo_emb_dir, '*'))
+        categories = os.listdir(photo_emb_dir)
         categories.remove(photo_folder)
         category = np.random.choice(categories)
         # no need to worry about blacklist here
