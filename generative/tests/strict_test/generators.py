@@ -170,17 +170,15 @@ class ApplyGenerator(object):
     :param photo_emb_dir: pass to photo embedding directories
     :param sketch_emb_dir: pass to sketch embedding directories
     :param noise_emb_dir: mix in noise samples in negatives.
-    :param batch_size: number to return at a time
     :param use_cuda: if True, make CUDA compatible object.
     :param train: This is only used for inference but if train=True, then we can 
                   do inference on the training set.
     """
     def __init__(self, photo_emb_dir, sketch_emb_dir, noise_emb_dir,
-                 batch_size=32, train=False, use_cuda=False):
+                 train=False, use_cuda=False):
         self.photo_emb_dir = photo_emb_dir
         self.sketch_emb_dir = sketch_emb_dir
         self.noise_emb_dir = noise_emb_dir
-        self.batch_size = batch_size
         self.use_cuda = use_cuda
         self.train = train
         self.size = self.get_size()
@@ -203,9 +201,7 @@ class ApplyGenerator(object):
         return train_photos, test_photos
 
     def get_size(self):
-        train, test = self.train_test_split()
-        size = len(train) if self.train else len(test)
-        return size * 4  # we will be returning 4 kinds of pairs
+        return 2160962 if self.train else 390000
 
     def make_generator(self):
         dtype = torch.cuda.FloatTensor if self.use_cuda else torch.FloatTensor
@@ -218,92 +214,98 @@ class ApplyGenerator(object):
         # bleed into training images
         blacklist_paths = test_photo_paths if self.train else train_photo_paths
 
-        # we don't care about class imbalance here, so we should loop each
-        # photo and generate 1 of each of the following:
+        # categories that a photo could be
+        categories = os.listdir(self.photo_emb_dir)
+        n_categories = len(categories)
+
+        # we don't care about class imbalance here or order of showing examples, 
+        # so we should loop each photo and generate 1 of each of the following:
         # - 1) (photo, same_photo sketch)
         # - 2) (photo, same_class sketch)
         # - 3) (photo, diff_class sketch)
         # - 4) (photo, noise)
-        sample_ixs = ([SAME_PHOTO_EX] * n_photos + 
-                      [SAME_CLASS_EX] * n_photos + 
-                      [DIFF_CLASS_EX] * n_photos +
-                      [NOISE_EX] * n_photos)
-        photo_paths = photo_paths * 4
-        assert len(sample_ixs) == len(photo_paths)
 
-        # None is how we keep track of batches.
-        batch_idx = 0
-
-        for i in xrange(len(photo_paths)):
+        for i in xrange(n_photos):  # loop through each photo
             photo_path = photo_paths[i]
+            photo = volatile_load(photo_path, dtype)
 
-            # handle what type of example this is.
-            if sample_ixs[i] == SAME_PHOTO_EX:
-                sketch_path = sample_sketch_from_photo_path(photo_path, self.sketch_emb_dir)
-            elif sample_ixs[i] == SAME_CLASS_EX:
-                _photo_path = sample_photo_from_photo_path(photo_path, self.photo_emb_dir,
-                                                           blacklist=blacklist_paths, same_class=True)
-                sketch_path = sample_sketch_from_photo_path(_photo_path, self.sketch_emb_dir)
-            elif sample_ixs[i] == DIFF_CLASS_EX:
-                _photo_path = sample_photo_from_photo_path(photo_path, self.photo_emb_dir, same_class=False)
-                sketch_path = sample_sketch_from_photo_path(_photo_path, self.sketch_emb_dir)
-            elif sample_ixs[i] == NOISE_EX:
-                sketch_path = sample_sketch_from_photo_path(photo_path, self.noise_emb_dir)
+            # find all matching sketches for this photo.
+            sketch_paths = sample_sketch_from_photo_path(photo_path, self.sketch_emb_dir, return_all=True)
+            noise_paths = sample_sketch_from_photo_path(photo_path, self.noise_emb_dir, return_all=True)
+            photo_same_class_paths = sample_photo_from_photo_path(photo_path, self.photo_emb_dir, same_class=True,
+                                                                  blacklist=blacklist_paths, return_all=True)
+            n_sketches = len(sketch_paths)
+            n_noises = len(noise_paths)
+            n_photos_same_class = len(photo_same_class_paths)
+            n_photos_diff_class = len(photo_diff_class_paths)
 
-            photo = np.load(photo_path)
-            sketch = np.load(sketch_path)
+            # we loop through and find all the sketches that match with the current photo. 
+            # We first yield all of the matching (p, s) pairs.
+            for j in xrange(n_sketches):
+                sketch_path = sketch_paths[j]
+                sketch = volatile_load(sketch_path, dtype)
+                yield (photo, sketch, photo_path, sketch_path, SAME_PHOTO_EX)
 
-            if batch_idx == 0:
-                photo_batch = photo
-                sketch_batch = sketch
-                type_batch = [sample_ixs[i]]
-            else:
-                photo_batch = np.vstack((photo_batch, photo))
-                sketch_batch = np.vstack((sketch_batch, sketch))
-                type_batch.append(sample_ixs[i])
+            # we do the same for noise.
+            for j in xrange(n_noises):
+                noise_path = noise_paths[j]
+                sketch = volatile_load(noise_path, dtype)
+                yield (photo, sketch, photo_path, noise_path, NOISE_EX)
 
-            batch_idx += 1
+            # we find all the photos of the class. we loop through 1 sketch for each other 
+            # of those photos and yield (p, s, pairs)
+            for j in xrange(n_photos_same_class):
+                _photo_path = photo_same_class_paths[j]
+                _sketch_path = sample_sketch_from_photo_path(_photo_path, self.sketch_emb_dir)
+                sketch = volatile_load(_sketch_path, dtype)
+                yield (photo, sketch, photo_path, _sketch_path, SAME_CLASS_EX)
 
-            if batch_idx == self.batch_size:
-                # this is for training, so volatile is False
-                photo_batch = Variable(torch.from_numpy(photo_batch)).type(dtype)
-                sketch_batch = Variable(torch.from_numpy(sketch_batch)).type(dtype)
-                type_batch = np.array(type_batch)
-                type_batch = Variable(torch.from_numpy(type_batch).type(dtype), 
-                                      requires_grad=False)
-
-                # yield data so we can continue to query the same object
-                yield (photo_batch, sketch_batch, type_batch)
-                batch_idx = 0
-
-        # return any remaining data
-        # since n_data may not be divisible by batch_size
-        if batch_idx > 0:
-            photo_batch = Variable(torch.from_numpy(photo_batch)).type(dtype)
-            sketch_batch = Variable(torch.from_numpy(sketch_batch)).type(dtype)
-            type_batch = np.array(type_batch)
-            type_batch = Variable(torch.from_numpy(type_batch).type(dtype), 
-                                  requires_grad=False)
-            yield (photo_batch, sketch_batch, type_batch)
+            # for photos of a different category, we will sample 1 photo for 
+            # each other category; and for each of those photos, we will sample 1 sketch.
+            for j in xrange(n_categories):
+                _photo_paths = glob(os.path.join(photo_emb_dir, categories[j], '*'))
+                _photo_path = np.random.choice(photo_paths)
+                _sketch_path = sample_sketch_from_photo_path(_photo_path, self.sketch_emb_dir)
+                sketch = volatile_load(_sketch_path, dtype)
+                yield (photo, sketch, photo_path, _sketch_path, DIFF_CLASS_EX)
 
 
-def sample_sketch_from_photo_path(photo_path, sketch_emb_dir, deterministic=False):
+def volatile_load(path, dtype):
+    obj = np.load(path)[np.newaxis, :]
+    obj = Variable(torch.from_numpy(obj), volatile=True).type(dtype)
+    return obj
+            
+
+def sample_sketch_from_photo_path(photo_path, sketch_emb_dir, deterministic=False,
+                                  return_all=False):
+    """Find a corresponding sketch for each photo.
+
+    :param photo_path: string path to photo
+    :param sketch_emb_dir: path to folder of all sketches
+    :param return_all: if True, return all match sketches, else sample 1
+    :param deterministic: if True, return the 1st matching sketch, else sample 1
+    """
     photo_name, photo_ext = os.path.splitext(os.path.basename(photo_path))
     photo_folder = os.path.dirname(photo_path).split('/')[-1]
 
     sketch_paths = glob(os.path.join(sketch_emb_dir, photo_folder, 
                         '{name}-*{ext}'.format(name=photo_name, ext=photo_ext)))
+    if return_all:
+        return sketch_paths
+
     sketch_path = sketch_paths[0] if deterministic else np.random.choice(sketch_paths)
     return sketch_path
 
 
-def sample_photo_from_photo_path(photo_path, photo_emb_dir, blacklist=[], same_class=True):
+def sample_photo_from_photo_path(photo_path, photo_emb_dir, blacklist=[], 
+                                 same_class=True, return_all=False):
     """Get another photo that is related to the present photo is some way.
 
     :param blacklist: add photo_paths in here that you want to ignore 
                       i.e. that are from the testing set.
     :param same_class: whether the photo to return is from the same class 
                        as the input photo or not.
+    :param return_all: if True, return all match sketches, else sample 1
     """
     photo_name, photo_ext = os.path.splitext(os.path.basename(photo_path))
     photo_folder = os.path.dirname(photo_path).split('/')[-1]
@@ -318,6 +320,9 @@ def sample_photo_from_photo_path(photo_path, photo_emb_dir, blacklist=[], same_c
         category = np.random.choice(categories)
         # no need to worry about blacklist here
         photo_paths = glob(os.path.join(photo_emb_dir, category, '*'))
+
+    if return_all:
+        return photo_paths
 
     return np.random.choice(photo_paths)
 

@@ -1,7 +1,5 @@
-"""Given a trained multimodal model, plot the distributions for
-each of our (photo, sketch) pairs. We can do this for the 
-training and testing sets. We will also be evaluating against 
-(photo, noise) pairs.
+"""What are some examples of (photo, sketch) pairs that are 
+scoring extremely low or extremely high.
 """
 
 from __future__ import division
@@ -10,6 +8,7 @@ from __future__ import absolute_import
 
 import os
 import sys
+import json
 import numpy as np
 
 import torch
@@ -27,7 +26,7 @@ if __name__ == '__main__':
     parser.add_argument('photo_emb_dir', type=str)
     parser.add_argument('sketch_emb_dir', type=str)
     parser.add_argument('noise_emb_dir', type=str)
-    parser.add_argument('distance_path', type=str, help='where to save distances.')
+    parser.add_argument('json_path', type=str, help='where to save probabilities.')
     parser.add_argument('model_path', type=str, help='where to find trained model.')
     parser.add_argument('--train', action='store_true', default=False)
     parser.add_argument('--cuda', action='store_true', default=False)
@@ -45,28 +44,28 @@ if __name__ == '__main__':
                                args.noise_emb_dir, train=args.train, use_cuda=args.cuda)
     examples = generator.make_generator()
     count = 0  # track number of examples seen
-    distances = np.zeros((generator.size, 2))  # store distances between test examples here
+    
+    results = []
+   
     while True:
         try:
-            photo, sketch, _, _, pairtype = examples.next()
+            photo, sketch, photo_path, sketch_path, pairtype = examples.next()
             examples_size = len(photos)
         except StopIteration:
             break
        
-        photo = model.photo_adaptor(photo)
-        sketch = model.sketch_adaptor(sketch)
+        pred_proba = model(photo, sketch)
+        pred_proba = float(pred_proba.cpu().data.numpy()[0])
+        label = pairtype == 0  # only (photo, matching sketch) is a positive example
 
-        # compute pearson correlation
-        photo = photo - torch.mean(photo, dim=1, keepdim=True)
-        sketch = sketch - torch.mean(sketch, dim=1, keepdim=True)
-        dist = cosine_similarity(photo, sketch, dim=1)
-        dist_np = float(dist.cpu().data.numpy()[0])
-
-        distances[count, 0] = dist_np
-        distances[count, 1] = pairtype
+        r = {'photo': photo_path,
+             'sketch': sketch_path,
+             'proba': pred_proba,
+             'label': label}
+        results.append(r)
 
         count += 1
-        print('Compute Distance [{}/{}].'.format(count, generator.size))
+        print('Compute prediction [{}/{}].'.format(count, generator.size))
 
-    np.save(args.distance_path, distances)
-    print('Distances saved to %s.' % args.distance_path)
+    with open(args.json_path, 'w') as fp:
+        json.dump(results, fp)
