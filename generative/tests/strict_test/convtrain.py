@@ -13,7 +13,7 @@ from convmodel import EmbedNet
 from convmodel import save_checkpoint
 from generators import EasyGenerator, HardGenerator
 
-from model import AverageMeter
+from train import AverageMeter
 
 
 if __name__ == "__main__":

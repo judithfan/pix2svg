@@ -13,7 +13,7 @@ from deepmodel import EmbedNet
 from deepmodel import save_checkpoint
 from generators import EasyGenerator, HardGenerator
 
-from model import AverageMeter
+from train import AverageMeter
 
 
 if __name__ == "__main__":
