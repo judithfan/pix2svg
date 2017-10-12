@@ -93,10 +93,10 @@ class EasyGenerator(object):
                                                          deterministic=False)
 
             # load all of these into numpy
-            photo1 = np.load(photo1_path)
-            sketch1 = np.load(sketch1_path)
-            photo2 = np.load(photo2_path)
-            sketch2 = np.load(sketch2_path)
+            photo1 = np.load(photo1_path)[np.newaxis, ...]
+            sketch1 = np.load(sketch1_path)[np.newaxis, ...]
+            photo2 = np.load(photo2_path)[np.newaxis, ...]
+            sketch2 = np.load(sketch2_path)[np.newaxis, ...]
 
             photo_group = np.vstack((photo1, photo2, photo1, photo2))
             sketch_group = np.vstack((sketch1, sketch2, sketch2, sketch1))

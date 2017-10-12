@@ -28,10 +28,18 @@ class EmbedNet(nn.Module):
 class AdaptorNet(nn.Module):
     def __init__(self):
         super(AdaptorNet, self).__init__()
-        self.net = nn.Sequential(
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+        self.cnn = nn.Sequential(
+            nn.Conv2d(128, 32, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(True),
             nn.MaxPool2d(2, stride=2, dilation=1),
-            nn.Linear(65536, 4096),
+            # nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1),
+            # nn.BatchNorm2d(32),
+            # nn.ReLU(True),
+            # nn.MaxPool2d(2, stride=2, dilation=1),
+        )
+        self.net = nn.Sequential(
+            nn.Linear(32 * 28 * 28, 4096),
             nn.BatchNorm1d(4096),
             nn.ReLU(True),
             nn.Dropout(0.5),
@@ -43,6 +51,8 @@ class AdaptorNet(nn.Module):
         )
 
     def forward(self, x):
+        x = self.cnn(x)
+        x = x.view(-1, 32 * 28 * 28)
         return self.net(x)
 
 
