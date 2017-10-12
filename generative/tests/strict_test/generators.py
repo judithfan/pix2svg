@@ -237,7 +237,6 @@ class ApplyGenerator(object):
             n_sketches = len(sketch_paths)
             n_noises = len(noise_paths)
             n_photos_same_class = len(photo_same_class_paths)
-            n_photos_diff_class = len(photo_diff_class_paths)
 
             # we loop through and find all the sketches that match with the current photo. 
             # We first yield all of the matching (p, s) pairs.
@@ -263,7 +262,7 @@ class ApplyGenerator(object):
             # for photos of a different category, we will sample 1 photo for 
             # each other category; and for each of those photos, we will sample 1 sketch.
             for j in xrange(n_categories):
-                _photo_paths = glob(os.path.join(photo_emb_dir, categories[j], '*'))
+                _photo_paths = glob(os.path.join(self.photo_emb_dir, categories[j], '*'))
                 _photo_path = np.random.choice(photo_paths)
                 _sketch_path = sample_sketch_from_photo_path(_photo_path, self.sketch_emb_dir)
                 sketch = volatile_load(_sketch_path, dtype)

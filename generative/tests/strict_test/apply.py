@@ -49,7 +49,6 @@ if __name__ == '__main__':
     while True:
         try:
             photo, sketch, _, _, pairtype = examples.next()
-            examples_size = len(photos)
         except StopIteration:
             break
        

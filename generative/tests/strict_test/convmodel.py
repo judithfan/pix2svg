@@ -29,8 +29,8 @@ class AdaptorNet(nn.Module):
     def __init__(self):
         super(AdaptorNet, self).__init__()
         self.cnn = nn.Sequential(
-            nn.Conv2d(128, 32, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(32),
+            nn.Conv2d(512, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
             nn.ReLU(True),
             nn.MaxPool2d(2, stride=2, dilation=1),
             # nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1),
@@ -39,20 +39,20 @@ class AdaptorNet(nn.Module):
             # nn.MaxPool2d(2, stride=2, dilation=1),
         )
         self.net = nn.Sequential(
-            nn.Linear(32 * 28 * 28, 4096),
+            nn.Linear(64 * 14 * 14, 4096),
             nn.BatchNorm1d(4096),
             nn.ReLU(True),
             nn.Dropout(0.5),
-            nn.Linear(4096, 2048),
-            nn.BatchNorm1d(2048),
-            nn.ReLU(True),
-            nn.Dropout(0.5),
-            nn.Linear(2048, 1000),
+            # nn.Linear(4096, 2048),
+            # nn.BatchNorm1d(2048),
+            # nn.ReLU(True),
+            # nn.Dropout(0.5),
+            nn.Linear(4096, 1000),
         )
 
     def forward(self, x):
         x = self.cnn(x)
-        x = x.view(-1, 32 * 28 * 28)
+        x = x.view(-1, 64 * 14 * 14)
         return self.net(x)
 
 

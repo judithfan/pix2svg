@@ -16,7 +16,7 @@ from torch.autograd import Variable
 
 # load internal functions
 from model import cosine_similarity
-from model import load_checkpoint
+from deepmodel import load_checkpoint
 from generators import ApplyGenerator
 
 
@@ -50,7 +50,6 @@ if __name__ == '__main__':
     while True:
         try:
             photo, sketch, photo_path, sketch_path, pairtype = examples.next()
-            examples_size = len(photos)
         except StopIteration:
             break
        
