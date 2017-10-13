@@ -16,7 +16,7 @@ from torch.autograd import Variable
 
 # load internal functions
 from model import cosine_similarity
-from deepmodel import load_checkpoint
+from convmodel import load_checkpoint
 from generators import ApplyGenerator
 
 

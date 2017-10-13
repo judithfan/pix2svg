@@ -9,8 +9,8 @@ import torch
 from generators import ReferenceGameEmbeddingGenerator
 
 sys.path.append('..')
-from strict_test.model import load_checkpoint
-from strict_test.model import cosine_similarity
+from strict_test.convmodel import load_checkpoint
+from strict_test.convmodel import cosine_similarity
 
 
 if __name__ == "__main__":

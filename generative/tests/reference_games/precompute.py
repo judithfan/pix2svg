@@ -25,9 +25,9 @@ from torch.autograd import Variable
 import torchvision.models as models
 import torchvision.transforms as transforms
 
-from generator import list_files
-from generator import preprocessing
-from generator import alpha_composite_with_color
+from generators import list_files
+from generators import preprocessing
+from generators import alpha_composite_with_color
 
 
 def extract_features(x, cnn, ix, classifier=False):
@@ -41,7 +41,7 @@ def extract_features(x, cnn, ix, classifier=False):
         features = list(cnn.features)[:ix + 1]
         for i in range(len(features)):
             x = features[i](x)
-        x = x.view(x.size(0), -1)
+        # x = x.view(x.size(0), -1)
     return x
 
 
