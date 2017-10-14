@@ -159,7 +159,7 @@ class HardGenerator(EasyGenerator):
         return train_photos, test_photos
 
 
-class ApplyGenerator(object):
+class EasyApplyGenerator(object):
     """This data generator returns (photo, sketch) and is meant to be used
     only for inference. This is distinct than passing `train=False` as a 
     parameter because it returns noise and other types of (photo, sketch) pairs.
@@ -267,6 +267,32 @@ class ApplyGenerator(object):
                 _sketch_path = sample_sketch_from_photo_path(_photo_path, self.sketch_emb_dir)
                 sketch = volatile_load(_sketch_path, dtype)
                 yield (photo, sketch, photo_path, _sketch_path, DIFF_CLASS_EX)
+
+
+class HardApplyGenerator(EasyApplyGenerator):
+
+    def train_test_split(self):
+        """Returns the photos to be used in training and the photos to 
+        be used in testing. The photos will be randomly sorted.
+        """
+        categories = glob(os.path.join(self.photo_emb_dir, '*'))
+        split = int(0.8 * len(categories))
+
+        train_photos, test_photos = [], []
+        for i, cat in enumerate(categories):
+            paths = glob(os.path.join(cat, '*'))
+            if i < split:
+                train_photos += paths
+            else:
+                test_photos += paths
+
+        random.shuffle(train_photos)
+        random.shuffle(test_photos)
+
+        return train_photos, test_photos
+
+    def get_size(self):
+        return 2300360 if self.train else 575121
 
 
 def volatile_load(path, dtype):

@@ -18,7 +18,8 @@ from torch.autograd import Variable
 # load internal functions
 from convmodel import cosine_similarity
 from convmodel import load_checkpoint
-from generators import ApplyGenerator
+from generators import EasyApplyGenerator
+from generators import HardApplyGenerator
 
 
 if __name__ == '__main__':
@@ -30,6 +31,7 @@ if __name__ == '__main__':
     parser.add_argument('distance_path', type=str, help='where to save distances.')
     parser.add_argument('model_path', type=str, help='where to find trained model.')
     parser.add_argument('--train', action='store_true', default=False)
+    parser.add_argument('--hard', action='store_true', default=False)
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
@@ -41,6 +43,7 @@ if __name__ == '__main__':
     if args.cuda:
         model.cuda()
 
+    ApplyGenerator = HardApplyGenerator if args.hard else EasyApplyGenerator
     generator = ApplyGenerator(args.photo_emb_dir, args.sketch_emb_dir, 
                                args.noise_emb_dir, train=args.train, use_cuda=args.cuda)
     examples = generator.make_generator()
