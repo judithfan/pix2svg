@@ -22,7 +22,7 @@ d <- raw %>%
   mutate(gameid = str_sub(gsub("-", "", gameID), start = -12)) %>%
   mutate(sketchLabel = sprintf('%s_%s', gameid, trialNum)) %>%
   filter(iteration == 'pilot1') %>% # Just use pilot 1 for now
-  select(sketchLabel, condition, target, Distractor1, Distractor2, Distractor3, mean_intensity, pose) 
+  select(sketchLabel, condition, target, Distractor1, Distractor2, Distractor3, mean_intensity, pose, targetDomain) 
 d$context = apply(d %>% select(Distractor1, Distractor2, Distractor3), 1, 
                   function(x) paste(sort(x), collapse="_"))
 d.ordered = d %>% 
@@ -58,6 +58,17 @@ tmp %>%
     ggtitle('sketch similarity in FAR condition') +
     scale_fill_colorblind()
 
+# break apart FAR by domain
+tmp %>%
+  ggplot(aes(x = similarity, fill = contextElement)) +
+  geom_density(alpha = .5) +
+  theme_few() +
+  theme(aspect.ratio = 1) +
+  xlim(-1, 1) +
+  ggtitle('sketch similarity in FAR condition') +
+  facet_wrap(~ targetDomain) +
+  scale_fill_colorblind()
+
 # plot density when comparing CLOSE conditions
 tmp = d.similarity %>% 
   mutate(contextElement = case_when(contextElement == 'Target' ~ 'target',
@@ -72,3 +83,14 @@ tmp %>%
     xlim(-1, 1) +
     ggtitle('sketch similarity in CLOSE condition') +
     scale_fill_colorblind()
+
+# break apart CLOSE by domain
+tmp %>%
+  ggplot(aes(x = similarity, fill = contextElement)) +
+  geom_density(alpha = .5) +
+  theme_few() +
+  theme(aspect.ratio = 1) +
+  xlim(-1, 1) +
+  ggtitle('sketch similarity in CLOSE condition') +
+  facet_wrap(~ targetDomain) +
+  scale_fill_colorblind()
