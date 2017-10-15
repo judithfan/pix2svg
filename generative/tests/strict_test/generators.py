@@ -23,7 +23,7 @@ class EasyGenerator(object):
         (photo1, sketch1), 
         (photo2, sketch2), 
         (photo1, sketch2), 
-        (photo2, sketch1)
+        (photo2, sketch1),
 
     where photo2 is a photo of the same class.
     Each batch will be composed of a number of these 4-pair structs.
@@ -203,6 +203,9 @@ class EasyApplyGenerator(object):
     def get_size(self):
         return 2160962 if self.train else 390000
 
+    def gen_categories(self):
+        return os.listdir(self.photo_emb_dir)
+
     def make_generator(self):
         dtype = torch.cuda.FloatTensor if self.use_cuda else torch.FloatTensor
         
@@ -215,7 +218,7 @@ class EasyApplyGenerator(object):
         blacklist_paths = test_photo_paths if self.train else train_photo_paths
 
         # categories that a photo could be
-        categories = os.listdir(self.photo_emb_dir)
+        categories = self.gen_categories()
         n_categories = len(categories)
 
         # we don't care about class imbalance here or order of showing examples, 
@@ -292,7 +295,12 @@ class HardApplyGenerator(EasyApplyGenerator):
         return train_photos, test_photos
 
     def get_size(self):
-        return 2300360 if self.train else 575121
+        return 2360720 if self.train else 340242
+
+    def gen_categories(self):
+        categories = os.listdir(self.photo_emb_dir)
+        split = int(0.8 * len(categories))
+        return categories[:split] if self.train else categories[split:]
 
 
 def volatile_load(path, dtype):
