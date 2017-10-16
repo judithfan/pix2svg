@@ -3,6 +3,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 import sys
+import csv
 import json
 import torch
 
@@ -11,6 +12,44 @@ from generators import ReferenceGameEmbeddingGenerator
 sys.path.append('..')
 from strict_test.convmodel import load_checkpoint
 from strict_test.convmodel import cosine_similarity
+
+
+def sketch_to_render_dict():
+    data = []
+    with open('./data/sketchpad_basic_merged_group_data.csv') as fp:
+        reader = csv.reader(fp)
+        for row in reader:
+            data.append(row)
+
+    header = data[0]
+    data = data[1:]
+
+    gameID_ix = header.index('gameID')
+    trialNum_ix = header.index('trialNum')
+    target_ix = header.index('target')
+    Distractor1_ix = header.index('Distractor1')
+    Distractor2_ix = header.index('Distractor2')
+    Distractor3_ix = header.index('Distractor3')
+    pose_ix = header.index('pose')
+
+    lookup = {}
+
+    for row in data:
+        sketch_name = 'gameID_{id}_trial_{trial}.npy'.format(
+            id=row[gameID_ix], trial=row[trialNum_ix])
+        if row[pose_ix] != 'NA':
+            target_name = '{cat}_{id:04d}.npy'.format(
+                cat=row[target_ix], id=int(row[pose_ix]))
+            distractor_names = [
+                '{cat}_{id:04d}.npy'.format(cat=row[Distractor1_ix], id=int(row[pose_ix])),
+                '{cat}_{id:04d}.npy'.format(cat=row[Distractor2_ix], id=int(row[pose_ix])),
+                '{cat}_{id:04d}.npy'.format(cat=row[Distractor3_ix], id=int(row[pose_ix])),
+            ]
+            lookup[sketch_name] = (target_name, distractor_names)
+        else:
+            lookup[sketch_name] = None
+
+    return lookup
 
 
 if __name__ == '__main__':
@@ -23,6 +62,9 @@ if __name__ == '__main__':
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
+
+    # define lookup
+    match_lookup = sketch_to_render_dict()
 
     # define data generator
     generator = ReferenceGameEmbeddingGenerator(args.sketch_emb_dir, args.render_emb_dir, 
@@ -45,10 +87,23 @@ if __name__ == '__main__':
             sketch_path, sketch, render_path, render = examples.next()
         except StopIteration:
             break
+
+        sketch_basename = os.path.basename(sketch_path)
+        render_basename = os.path.basename(render_path)
        
+        lookup_row = match_lookup[sketch_basename]
+        if lookup_row is None:
+            continue
+
+        if '_'.join(render_path.split('_')[2:]) == lookup_row[0]:
+            label = 1
+        elif '_'.join(render_path.split('_')[2:]) in lookup_row[1]:
+            label = 0
+        else:
+            raise Exception('what... lookup failed.')
+
         pred_proba = model(render, sketch)
         pred_proba = float(pred_proba.cpu().data.numpy()[0])
-        label = pairtype == 0  # only (photo, matching sketch) is a positive example
 
         r = {'render': render_path,
              'sketch': sketch_path,
