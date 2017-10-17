@@ -2,6 +2,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
+import os
 import sys
 import csv
 import json
@@ -90,20 +91,23 @@ if __name__ == '__main__':
 
         sketch_basename = os.path.basename(sketch_path)
         render_basename = os.path.basename(render_path)
-       
+      
         if sketch_basename not in match_lookup:
+            print('Bad sketch name found: %s.' % sketch_basename)
             continue
 
         lookup_row = match_lookup[sketch_basename]
         if lookup_row is None:
+            print('Bad sketch name found: %s.' % sketch_basename)
             continue
-
-        if '_'.join(render_path.split('_')[2:]) == lookup_row[0]:
+        
+        if '_'.join(render_basename.split('_')[2:]) == lookup_row[0]:
             label = 1
-        elif '_'.join(render_path.split('_')[2:]) in lookup_row[1]:
-            label = 0
+        # elif '_'.join(render_basename.split('_')[2:]) in lookup_row[1]:
+        #     label = 0
         else:
-            raise Exception('what... lookup failed.')
+            label = 0
+            # raise Exception('what... lookup failed.')
 
         pred_proba = model(render, sketch)
         pred_proba = float(pred_proba.cpu().data.numpy()[0])
