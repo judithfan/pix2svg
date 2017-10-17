@@ -91,6 +91,9 @@ if __name__ == '__main__':
         sketch_basename = os.path.basename(sketch_path)
         render_basename = os.path.basename(render_path)
        
+        if sketch_basename not in match_lookup:
+            continue
+
         lookup_row = match_lookup[sketch_basename]
         if lookup_row is None:
             continue

@@ -159,6 +159,60 @@ class HardGenerator(EasyGenerator):
         return train_photos, test_photos
 
 
+class FourClassGenerator(EasyGenerator):
+    """Instead of training on all 125 classes, train on the 4 classes 
+    that are relevant to the sketchpad_basic dataset.
+
+        (1) bird: chicken, duck, owl, penguin, seagull, songbird, swan, wading_bird
+        (2) car: car, pickup_truck
+        (3) dog: dog
+        (4) chair: chair
+
+    This is still a EasyGenerator derivative b/c we train on images 
+    from all classes and test it on all classes. There is no equivalent
+    HardGenerator since we only have 4 classes here already.
+    """
+    def train_test_split(self):
+        bird_paths = sum([glob(os.path.join(self.photo_emb_dir, 'chicken', '*')),
+                          glob(os.path.join(self.photo_emb_dir, 'duck', '*')),
+                          glob(os.path.join(self.photo_emb_dir, 'owl', '*')),
+                          glob(os.path.join(self.photo_emb_dir, 'penguin', '*')),
+                          glob(os.path.join(self.photo_emb_dir, 'seagull', '*')),
+                          glob(os.path.join(self.photo_emb_dir, 'songbird', '*')),
+                          glob(os.path.join(self.photo_emb_dir, 'swan', '*')),
+                          glob(os.path.join(self.photo_emb_dir, 'wading_bird', '*'))], [])
+        car_paths = sum([glob(os.path.join(self.photo_emb_dir, 'car', '*')),
+                         glob(os.path.join(self.photo_emb_dir, 'pickup_truck', '*'))], [])
+        dog_paths = glob(os.path.join(self.photo_emb_dir, 'dog', '*'))
+        chair_paths = glob(os.path.join(self.photo_emb_dir, 'chair', '*'))
+
+        # balance classes in a probabilistic fashion. this means different
+        # instances of this will have different training examples
+        n_paths = min((len(bird_paths), len(car_paths), len(dog_paths), len(chair_paths)))
+        bird_paths = np.random.choice(bird_paths, size=n_paths, replace=False)
+        car_paths = np.random.choice(car_paths, size=n_paths, replace=False)
+        dog_paths = np.random.choice(dog_paths, size=n_paths, replace=False)
+        chair_paths = np.random.choice(chair_paths, size=n_paths, replace=False)
+
+        cat_to_paths = {'bird': bird_paths,
+                        'car': car_paths,
+                        'dog': dog_paths,
+                        'chair': chair_paths}
+
+        train_photos = []
+        test_photos = []
+        for cat in cat_to_paths.keys():
+            paths = cat_to_paths[cat]
+            split = int(0.8 * len(paths))
+            train_photos += paths[:split]
+            test_photos += paths[split:]
+
+        random.shuffle(train_photos)
+        random.shuffle(test_photos)
+
+        return train_photos, test_photos
+
+
 class EasyApplyGenerator(object):
     """This data generator returns (photo, sketch) and is meant to be used
     only for inference. This is distinct than passing `train=False` as a 
