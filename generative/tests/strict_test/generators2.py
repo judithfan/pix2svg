@@ -100,7 +100,7 @@ class DropStrokeGenerator(object):
         photo = np.load(path)[np.newaxis, :, :]
         return torch.from_numpy(photo)
 
-    def load_sketch(self, path, drop_proba=0.5, drop_num=1):
+    def load_sketch(self, path, drop_proba=0.5):
         stroke_info = []
         with open(path, 'rb') as fp:
             reader = csv.reader(fp)
@@ -129,14 +129,15 @@ class DropStrokeGenerator(object):
         return image
 
 
-    def dropstroke(stroke_header, stroke_info, drop_num=1):
+    def dropstroke(stroke_header, stroke_info):
         stroke_ids = stroke_info[:, stroke_header.index('strokeID')].astype(np.int)
         n_strokes = max(stroke_ids)
+        n_drop = n_strokes // 2
         # pick start point to drop
-        stroke_ix = random.choice(range(n_strokes - drop_num))
+        stroke_ix = random.choice(range(n_strokes - n_drop))
 
         ixkeep = np.logical_or(stroke_ids < stroke_ix,
-                               stroke_ids > (stroke_ix + drop_num))
+                               stroke_ids > (stroke_ix + n_drop))
         return stroke_info[:, ixkeep]
 
     def gen_vgg_emb(self, x):
