@@ -1,6 +1,6 @@
 import numpy as np
 from svgpathtools import svg2paths, Path, Line, wsvg
-from rdp import rdp
+#from rdp import rdp
 from svg.path import parse_path
 
 
