@@ -194,10 +194,10 @@ class FourClassGenerator(EasyGenerator):
         dog_paths = np.random.choice(dog_paths, size=n_paths, replace=False)
         chair_paths = np.random.choice(chair_paths, size=n_paths, replace=False)
 
-        cat_to_paths = {'bird': bird_paths,
-                        'car': car_paths,
-                        'dog': dog_paths,
-                        'chair': chair_paths}
+        cat_to_paths = {'bird': bird_paths.tolist(),
+                        'car': car_paths.tolist(),
+                        'dog': dog_paths.tolist(),
+                        'chair': chair_paths.tolist()}
 
         train_photos = []
         test_photos = []
