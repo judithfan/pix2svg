@@ -81,8 +81,20 @@ class ReferenceGameGenerator(object):
         self.dtype = dtype = (torch.cuda.FloatTensor 
                               if use_cuda else torch.FloatTensor)
 
+        with open('./incorrect_trial_paths.txt') as fp:
+            incorrect_sketch_paths = fp.readlines()
+            incorrect_sketch_paths = [os.path.join(sketch_dir, i) for i in incorrect_sketch_paths]
+
+        with open('./invalid_trial_paths.txt') as fp:
+            invalid_sketch_paths = fp.readlines()
+            invalid_sketch_paths = [os.path.join(sketch_dir, i) for i in invalid_sketch_paths]
+
+        ignore_sketch_paths = incorrect_sketch_paths + invalid_sketch_paths
+        self.ignore_sketch_paths = ignore_sketch_paths
+
     def make_generator(self):
         sketch_paths = [path for path in list_files(self.sketch_dir, ext='png')]
+        sketch_paths = list(set(sketch_paths) - set(self.ignore_sketch_paths))
         render_paths = [path for path in list_files(self.render_dir, ext='png')]
 
         n_sketches = len(sketch_paths)
@@ -130,8 +142,23 @@ class ReferenceGameEmbeddingGenerator(object):
         self.dtype = dtype = (torch.cuda.FloatTensor 
                               if use_cuda else torch.FloatTensor)
 
+        with open('./incorrect_trial_paths.txt') as fp:
+            incorrect_sketch_paths = fp.readlines()
+            incorrect_sketch_paths = [os.path.join(sketch_dir, os.path.splitext(i)[0] + '.npy')
+                                      for i in incorrect_sketch_paths]
+
+        with open('./invalid_trial_paths.txt') as fp:
+            invalid_sketch_paths = fp.readlines()
+            invalid_sketch_paths = [os.path.join(sketch_dir, os.path.splitext(i)[0] + '.npy')
+                                    for i in invalid_sketch_paths]
+
+        ignore_sketch_paths = incorrect_sketch_paths + invalid_sketch_paths
+        self.ignore_sketch_paths = ignore_sketch_paths
+
     def make_generator(self):
         sketch_paths = [path for path in list_files(self.sketch_dir, ext='npy')]
+        # ignore paths that are bad paths
+        sketch_paths = list(set(sketch_paths) - set(self.ignore_sketch_paths))
         render_paths = [path for path in list_files(self.render_dir, ext='npy')]
 
         n_sketches = len(sketch_paths)
