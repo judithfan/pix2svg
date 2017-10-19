@@ -69,14 +69,10 @@ class ReferenceGenerator(object):
 
         # target_lookup returns list of sketches given a particular render
         self.target_lookup = target_lookup
-        # category_lookup returns list of sketches given a category of renders
-        self.category_lookup = category_lookup
-        # sketch_lookup returns a render given a sketch
-        self.sketch_lookup = sketch_lookup
         # distractor lookup returns distractor renderings given render+sketch
         self.distractor_lookup = distractor_lookup
         
-        self.size = int(target_lookup.keys() * 0.8)
+        self.size = int(len(target_lookup.keys()) * 0.8)
         if not train:
             self.size = len(target_lookup.keys()) - self.size
     
@@ -119,24 +115,28 @@ class ReferenceGenerator(object):
     def train_test_split(self):
         render_paths = self.target_lookup.keys()
         render_cats = [self.cat_to_group[i.split('_')[0]] for i in render_paths]
-        path_to_cat = zip(render_paths, render_cats)
+        path_to_cat = dict(zip(render_paths, render_cats))
 
         train_paths = [i for i in render_paths if path_to_cat[i] != 'bird']
         test_paths = [i for i in render_paths if path_to_cat[i] == 'bird']
         random.shuffle(train_paths)
         random.shuffle(test_paths)
 
-        return train_photos, test_photos
+        return train_paths, test_paths
 
     def try_generator(self):
         train_paths, test_paths = self.train_test_split()
         render_paths = train_paths if self.train else test_paths
-
-        render1_path = random.choice(render_paths[i])
-        sketch1_path = random.choice(self.target_lookup[render1_path])
-        key = '{target}+{sketch}'.format(target=render1_path, sketch=sketch1_path)
-        render2_path = random.choice(self.distractor_lookup[key])
-        sketch2_path = random.choice(self.target_lookup[render2_category])
+        
+        while True:
+            render1_path = random.choice(render_paths)
+            sketch1_path = random.choice(self.target_lookup[render1_path])
+            key = '{target}+{sketch}'.format(target=render1_path, sketch=sketch1_path)
+            render2_path = random.choice(self.distractor_lookup[key])
+            if render2_path not in self.target_lookup:
+                continue
+            sketch2_path = random.choice(self.target_lookup[render2_path])
+            break
 
         return {
             'render1': render1_path,
@@ -152,16 +152,26 @@ class ReferenceGenerator(object):
 
         batch_idx = 0  # keep track of when to start new batch
         for i in range(self.size):
-            # define (p1, s1), (p1, s2), (p2, s1), (p2, s2) paths
-            render1_path = render_paths[i]
-            sketch1_path = random.choice(self.target_lookup[render1_path])
-            # build key to lookup distractor renderings from render
-            key = '{target}+{sketch}'.format(target=render1_path, sketch=sketch1_path)
-            # this tells us the category of a distractor. here we care that the distractor
-            # is an object of the same pose.
-            render2_path = random.choice(self.distractor_lookup[key])
-            # pick the sketch path that was by the same person as sketch1
-            sketch2_path = random.choice(self.target_lookup[render2_category])
+            while True:
+                # define (p1, s1), (p1, s2), (p2, s1), (p2, s2) paths
+                render1_path = render_paths[i]
+                sketch1_path = random.choice(self.target_lookup[render1_path])
+                # build key to lookup distractor renderings from render
+                key = '{target}+{sketch}'.format(target=render1_path, sketch=sketch1_path)
+                # this tells us the category of a distractor. here we care that the distractor
+                # is an object of the same pose.
+                render2_path = random.choice(self.distractor_lookup[key])
+                if render2_path not in self.target_lookup:
+                    continue
+                # pick the sketch path that was by the same person as sketch1
+                sketch2_path = random.choice(self.target_lookup[render2_category])
+                break
+
+            # add full path
+            render1_path = glob(os.path.join(self.render_emb_dir, '*' + render1_path))[0]
+            sketch1_path = os.path.join(self.sketch_emb_dir, sketch1_path)
+            render2_path = glob(os.path.join(self.render_emb_dir, '*' + render2_path))[0]
+            sketch2_path = os.path.join(self.sketch_emb_dir, sketch2_path)
 
             # load paths into numpy
             render1 = np.load(render1_path)[np.newaxis, ...]
@@ -204,6 +214,7 @@ class ReferenceGenerator(object):
 
 if __name__ == "__main__":
     import argparse
+    parser = argparse.ArgumentParser()
     parser.add_argument('n', type=int, help='number of images to sample.')
     args = parser.parse_args()
 
@@ -220,14 +231,17 @@ if __name__ == "__main__":
 
     emb_to_raw_path = lambda path: path.replace('_conv_4_2', '').replace('.npy', '.png')
 
-    for i in xrange(args.n)
+    for i in xrange(args.n):
         files = generator.try_generator()
-        render1 = emb_to_raw_path(files['render1'])
-        sketch1 = emb_to_raw_path(files['sketch1'])
-        render2 = emb_to_raw_path(files['render2'])
-        sketch2 = emb_to_raw_path(files['sketch2'])
-
-        shutil.copy(render1, './tmp_example%d/render1.png' % i)
-        shutil.copy(sketch1, './tmp_example%d/sketch1.png' % i)
-        shutil.copy(render2, './tmp_example%d/render2.png' % i)
-        shutil.copy(sketch2, './tmp_example%d/sketch2.png' % i)
+        render1 = emb_to_raw_path(os.path.join(render_emb_dir, '*' + files['render1']))
+        sketch1 = emb_to_raw_path(os.path.join(sketch_emb_dir, files['sketch1']))
+        render2 = emb_to_raw_path(os.path.join(render_emb_dir, '*' + files['render2']))
+        sketch2 = emb_to_raw_path(os.path.join(sketch_emb_dir, files['sketch2']))
+       
+        render1 = glob(render1)[0]
+        render2 = glob(render2)[0]
+        
+        shutil.copy(render1, './tmp/example%d/render1.png' % i)
+        shutil.copy(sketch1, './tmp/example%d/sketch1.png' % i)
+        shutil.copy(render2, './tmp/example%d/render2.png' % i)
+        shutil.copy(sketch2, './tmp/example%d/sketch2.png' % i)
