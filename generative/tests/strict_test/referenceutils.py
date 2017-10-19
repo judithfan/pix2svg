@@ -5,6 +5,7 @@ from __future__ import absolute_import
 import os
 import re
 import csv
+import shutil
 import random
 import numpy as np
 from glob import glob
@@ -127,11 +128,27 @@ class ReferenceGenerator(object):
 
         return train_photos, test_photos
 
+    def try_generator(self):
+        train_paths, test_paths = self.train_test_split()
+        render_paths = train_paths if self.train else test_paths
+
+        render1_path = random.choice(render_paths[i])
+        sketch1_path = random.choice(self.target_lookup[render1_path])
+        key = '{target}+{sketch}'.format(target=render1_path, sketch=sketch1_path)
+        render2_path = random.choice(self.distractor_lookup[key])
+        sketch2_path = random.choice(self.target_lookup[render2_category])
+
+        return {
+            'render1': render1_path,
+            'sketch1': sketch1_path,
+            'render2': render2_path,
+            'sketch2': sketch2_path,
+        }
+
     def make_generator(self):
         dtype = torch.cuda.FloatTensor if self.use_cuda else torch.FloatTensor
         train_paths, test_paths = self.train_test_split()
         render_paths = train_paths if self.train else test_paths
-        blacklist_paths = test_paths if self.train else train_paths
 
         batch_idx = 0  # keep track of when to start new batch
         for i in range(self.size):
@@ -183,3 +200,34 @@ class ReferenceGenerator(object):
                                    requires_grad=False).type(dtype)
 
             yield (render_batch, sketch_batch, label_batch)
+
+
+if __name__ == "__main__":
+    import argparse
+    parser.add_argument('n', type=int, help='number of images to sample.')
+    args = parser.parse_args()
+
+    render_emb_dir = '/data/jefan/sketchpad_basic_extract/subordinate_allrotations_6_minified_conv_4_2'
+    sketch_emb_dir = '/data/jefan/sketchpad_basic_extract/sketch_conv_4_2/'
+    generator = ReferenceGenerator(render_emb_dir, sketch_emb_dir, train=True)
+
+    if os.path.exists('./tmp'):
+        shutil.rmtree('./tmp')
+    os.makedirs('./tmp')
+
+    for i in xrange(args.n):
+        os.makedirs('./tmp/example%d' % i)
+
+    emb_to_raw_path = lambda path: path.replace('_conv_4_2', '').replace('.npy', '.png')
+
+    for i in xrange(args.n)
+        files = generator.try_generator()
+        render1 = emb_to_raw_path(files['render1'])
+        sketch1 = emb_to_raw_path(files['sketch1'])
+        render2 = emb_to_raw_path(files['render2'])
+        sketch2 = emb_to_raw_path(files['sketch2'])
+
+        shutil.copy(render1, './tmp_example%d/render1.png' % i)
+        shutil.copy(sketch1, './tmp_example%d/sketch1.png' % i)
+        shutil.copy(render2, './tmp_example%d/render2.png' % i)
+        shutil.copy(sketch2, './tmp_example%d/sketch2.png' % i)
