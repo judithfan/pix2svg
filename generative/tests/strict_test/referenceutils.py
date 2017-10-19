@@ -10,6 +10,9 @@ import random
 import numpy as np
 from glob import glob
 
+import torch
+from torch.autograd import Variable
+
 
 class ReferenceGenerator(object):
     def __init__(self, render_emb_dir, sketch_emb_dir, train=True,
@@ -71,7 +74,8 @@ class ReferenceGenerator(object):
         self.target_lookup = target_lookup
         # distractor lookup returns distractor renderings given render+sketch
         self.distractor_lookup = distractor_lookup
-        
+        import pdb; pdb.set_trace()      
+ 
         self.size = int(len(target_lookup.keys()) * 0.8)
         if not train:
             self.size = len(target_lookup.keys()) - self.size
@@ -164,9 +168,9 @@ class ReferenceGenerator(object):
                 if render2_path not in self.target_lookup:
                     continue
                 # pick the sketch path that was by the same person as sketch1
-                sketch2_path = random.choice(self.target_lookup[render2_category])
+                sketch2_path = random.choice(self.target_lookup[render2_path])
                 break
-
+            print(i) 
             # add full path
             render1_path = glob(os.path.join(self.render_emb_dir, '*' + render1_path))[0]
             sketch1_path = os.path.join(self.sketch_emb_dir, sketch1_path)
