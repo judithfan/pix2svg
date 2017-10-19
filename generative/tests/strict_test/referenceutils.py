@@ -61,14 +61,11 @@ class ReferenceGenerator(object):
                     # of that being the same. So we match a given target with distractors
                     # that are near by poses (within 18% each direction).
                     for i in xrange(-2, 3):
-                        _pose_ix = max(min(pose_ix + i, 0), 39)
+                        pose = min(max(int(row[pose_ix]) + i, 0), 39)
                         _distractor_names = [
-                            '{cat}_{id:04d}.npy'.format(cat=row[distractor1_ix], 
-                                                        id=int(row[_pose_ix])),
-                            '{cat}_{id:04d}.npy'.format(cat=row[distractor2_ix], 
-                                                        id=int(row[_pose_ix])),
-                            '{cat}_{id:04d}.npy'.format(cat=row[distractor3_ix], 
-                                                        id=int(row[_pose_ix])),
+                            '{cat}_{id:04d}.npy'.format(cat=row[distractor1_ix], id=pose), 
+                            '{cat}_{id:04d}.npy'.format(cat=row[distractor2_ix], id=pose),
+                            '{cat}_{id:04d}.npy'.format(cat=row[distractor3_ix], id=pose),
                         ]
                         distractor_names += _distractor_names
                     distractor_names = list(set(distractor_names))
@@ -85,7 +82,6 @@ class ReferenceGenerator(object):
         self.target_lookup = target_lookup
         # distractor lookup returns distractor renderings given render+sketch
         self.distractor_lookup = distractor_lookup
-        import pdb; pdb.set_trace()      
  
         self.size = int(len(target_lookup.keys()) * 0.8)
         if not train:
