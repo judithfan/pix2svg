@@ -39,8 +39,6 @@ class ReferenceGenerator(object):
         pose_ix = header.index('pose')
 
         target_lookup = {}
-        sketch_lookup = {}
-        category_lookup = {}
         distractor_lookup = {}
         count = 0
 
@@ -64,14 +62,6 @@ class ReferenceGenerator(object):
                         target_lookup[target_name].append(sketch_name)
                     else:
                         target_lookup[target_name] = [sketch_name]
-
-                    sketch_lookup[sketch_name] = target_name
-
-                    if target_category in category_lookup:
-                        category_lookup[target_category].append(sketch_name)
-                    else:
-                        category_lookup[target_category] = [sketch_name]
-
                     joint_name = '{target}+{sketch}'.format(target=target_name, sketch=sketch_name)
                     distractor_lookup[joint_name] = distractor_names
                     count += 1
@@ -90,10 +80,47 @@ class ReferenceGenerator(object):
             self.size = len(target_lookup.keys()) - self.size
     
     def train_test_split(self):
+        cat_to_group = {
+            'basset': 'dog',
+            'beetle': 'car',
+            'bloodhound': 'dog',
+            'bluejay': 'bird',
+            'bluesedan': 'car',
+            'bluesport': 'car',
+            'brown': 'car',
+            'bullmastiff': 'dog',
+            'chihuahua': 'dog',
+            'crow': 'bird',
+            'cuckoo': 'bird',
+            'doberman': 'dog',
+            'goldenretriever': 'dog',
+            'hatchback': 'car',
+            'inlay': 'chair',
+            'knob': 'chair',
+            'leather': 'chair',
+            'nightingale': 'bird',
+            'pigeon': 'bird',
+            'pug': 'dog',
+            'redantique': 'car',
+            'redsport': 'car',
+            'robin': 'bird',
+            'sling': 'chair',
+            'sparrow': 'bird',
+            'squat': 'chair',
+            'straight': 'chair',
+            'tomtit': 'bird',
+            'waiting': 'chair',
+            'weimaraner': 'dog',
+            'white': 'car',
+            'woven': 'chair',
+        }
+
         render_paths = self.target_lookup.keys()
-        split = int(0.8 * len(render_paths))
-        train_paths = render_paths[:split]
-        test_paths = render_paths[split:]
+        render_cats = [cat_to_group[i.split('_')[0]] for i in render_paths]
+        path_to_cat = zip(render_paths, render_cats)
+
+        train_paths = [i for i in render_paths if path_to_cat[i] != 'bird']
+        test_paths = [i for i in render_paths if path_to_cat[i] == 'bird']
         random.shuffle(train_paths)
         random.shuffle(test_paths)
 
@@ -112,16 +139,11 @@ class ReferenceGenerator(object):
             sketch1_path = random.choice(self.target_lookup[render1_path])
             # build key to lookup distractor renderings from render
             key = '{target}+{sketch}'.format(target=render1_path, sketch=sketch1_path)
-            # this tells us the category of a distractor
-            render2_category = random.choice(self.distractor_lookup[key]).split('_')[0]
+            # this tells us the category of a distractor. here we care that the distractor
+            # is an object of the same pose.
+            render2_path = random.choice(self.distractor_lookup[key]).split('_')[0]
             # pick the sketch path that was by the same person as sketch1
-            sketch2_paths = self.category_lookup[render2_category]
-            sketch1_gameid = sketch1_path.split('_')[1]
-            r = re.compile("gameID_{}_trial_.*".format(sketch1_gameid))
-            sketch2_path = filter(r.match, sketch2_paths)
-            assert len(sketch2_path) == 1
-            sketch2_path = sketch2_path[0]
-            render2_path = self.sketch_lookup[sketch2_path]
+            sketch2_path = random.choice(self.target_lookup[render2_category])
 
             # load paths into numpy
             render1 = np.load(render1_path)[np.newaxis, ...]
