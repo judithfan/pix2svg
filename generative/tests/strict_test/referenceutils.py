@@ -83,10 +83,6 @@ class ReferenceGenerator(object):
         # distractor lookup returns distractor renderings given render+sketch
         self.distractor_lookup = distractor_lookup
  
-        self.size = int(len(target_lookup.keys()) * 0.8)
-        if not train:
-            self.size = len(target_lookup.keys()) - self.size
-    
         self.cat_to_group = {
             'basset': 'dog',
             'beetle': 'car',
@@ -122,6 +118,8 @@ class ReferenceGenerator(object):
             'woven': 'chair',
         }
 
+        train_paths, test_paths = self.train_test_split()
+        self.size = len(train_paths) if self.train else len(test_paths)
 
     def train_test_split(self):
         render_paths = self.target_lookup.keys()
@@ -164,7 +162,6 @@ class ReferenceGenerator(object):
         dtype = torch.cuda.FloatTensor if self.use_cuda else torch.FloatTensor
         train_paths, test_paths = self.train_test_split()
         render_paths = train_paths if self.train else test_paths
-
         batch_idx = 0  # keep track of when to start new batch
         for i in range(self.size):
             # define (p1, s1), (p1, s2), (p2, s1), (p2, s2) paths
