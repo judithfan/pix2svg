@@ -54,14 +54,25 @@ class ReferenceGenerator(object):
                     target_category = row[target_ix]
                     target_name = '{cat}_{id:04d}.npy'.format(
                         cat=row[target_ix], id=int(row[pose_ix]))
-                    distractor_names = [
-                        '{cat}_{id:04d}.npy'.format(cat=row[distractor1_ix], 
-                                                    id=int(row[pose_ix])),
-                        '{cat}_{id:04d}.npy'.format(cat=row[distractor2_ix], 
-                                                    id=int(row[pose_ix])),
-                        '{cat}_{id:04d}.npy'.format(cat=row[distractor3_ix], 
-                                                    id=int(row[pose_ix])),
-                    ]
+                    
+                    distractor_names = []
+                    # because we can't guarantee distractors to have been used as 
+                    # the target in another trial, we need to increase the probability
+                    # of that being the same. So we match a given target with distractors
+                    # that are near by poses (within 18% each direction).
+                    for i in xrange(-2, 3):
+                        _pose_ix = max(min(pose_ix + i, 0), 39)
+                        _distractor_names = [
+                            '{cat}_{id:04d}.npy'.format(cat=row[distractor1_ix], 
+                                                        id=int(row[_pose_ix])),
+                            '{cat}_{id:04d}.npy'.format(cat=row[distractor2_ix], 
+                                                        id=int(row[_pose_ix])),
+                            '{cat}_{id:04d}.npy'.format(cat=row[distractor3_ix], 
+                                                        id=int(row[_pose_ix])),
+                        ]
+                        distractor_names += _distractor_names
+                    distractor_names = list(set(distractor_names))
+
                     if target_name in target_lookup:
                         target_lookup[target_name].append(sketch_name)
                     else:
@@ -136,9 +147,13 @@ class ReferenceGenerator(object):
             render1_path = random.choice(render_paths)
             sketch1_path = random.choice(self.target_lookup[render1_path])
             key = '{target}+{sketch}'.format(target=render1_path, sketch=sketch1_path)
-            render2_path = random.choice(self.distractor_lookup[key])
-            if render2_path not in self.target_lookup:
-                continue
+            distractor_paths = self.distractor_lookup[key]
+            distractor_paths = [path for path in distractor_paths 
+                                if path in self.target_lookup]
+            if len(distractor_paths) == 0:
+                continue  # skip path
+            
+            render2_path = random.choice(distractor_paths)
             sketch2_path = random.choice(self.target_lookup[render2_path])
             break
 
@@ -156,21 +171,23 @@ class ReferenceGenerator(object):
 
         batch_idx = 0  # keep track of when to start new batch
         for i in range(self.size):
-            while True:
-                # define (p1, s1), (p1, s2), (p2, s1), (p2, s2) paths
-                render1_path = render_paths[i]
-                sketch1_path = random.choice(self.target_lookup[render1_path])
-                # build key to lookup distractor renderings from render
-                key = '{target}+{sketch}'.format(target=render1_path, sketch=sketch1_path)
-                # this tells us the category of a distractor. here we care that the distractor
-                # is an object of the same pose.
-                render2_path = random.choice(self.distractor_lookup[key])
-                if render2_path not in self.target_lookup:
-                    continue
-                # pick the sketch path that was by the same person as sketch1
-                sketch2_path = random.choice(self.target_lookup[render2_path])
-                break
-            print(i) 
+            # define (p1, s1), (p1, s2), (p2, s1), (p2, s2) paths
+            render1_path = render_paths[i]
+            sketch1_path = random.choice(self.target_lookup[render1_path])
+            # build key to lookup distractor renderings from render
+            key = '{target}+{sketch}'.format(target=render1_path, sketch=sketch1_path)
+            # this tells us the category of a distractor. here we care that the distractor
+            # is an object of the same pose.
+            distractor_paths = self.distractor_lookup[key]
+            # only keep distractor paths where the path is in the target_lookup
+            distractor_paths = [path for path in distractor_paths 
+                                if path in self.target_lookup]
+            if len(distractor_paths) == 0:
+                continue  # skip path
+            render2_path = random.choice(distractor_paths)
+            # pick the sketch path that was by the same person as sketch1
+            sketch2_path = random.choice(self.target_lookup[render2_path])
+
             # add full path
             render1_path = glob(os.path.join(self.render_emb_dir, '*' + render1_path))[0]
             sketch1_path = os.path.join(self.sketch_emb_dir, sketch1_path)
