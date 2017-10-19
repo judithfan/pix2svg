@@ -39,13 +39,17 @@ class ReferenceGenerator(object):
         pose_ix = header.index('pose')
 
         target_lookup = {}
+        sketch_lookup = {}
+        category_lookup = {}
         distractor_lookup = {}
+        count = 0
 
         for row in csv_data:
             if row[condition_ix] == 'closer':  # only care about close trials
                 if row[pose_ix] != 'NA':
                     sketch_name = 'gameID_{id}_trial_{trial}.npy'.format(
                         id=row[gameid_ix], trial=row[trialnum_ix])
+                    target_category = row[target_ix]
                     target_name = '{cat}_{id:04d}.npy'.format(
                         cat=row[target_ix], id=int(row[pose_ix]))
                     distractor_names = [
@@ -61,12 +65,24 @@ class ReferenceGenerator(object):
                     else:
                         target_lookup[target_name] = [sketch_name]
 
+                    sketch_lookup[sketch_name] = target_name
+
+                    if target_category in category_lookup:
+                        category_lookup[target_category].append(sketch_name)
+                    else:
+                        category_lookup[target_category] = [sketch_name]
+
                     joint_name = '{target}+{sketch}'.format(target=target_name, sketch=sketch_name)
                     distractor_lookup[joint_name] = distractor_names
-        
-        # target_lookup returns list of sketches given photo
+                    count += 1
+
+        # target_lookup returns list of sketches given a particular render
         self.target_lookup = target_lookup
-        # distractor lookup returns distractor photo given photo+sketch
+        # category_lookup returns list of sketches given a category of renders
+        self.category_lookup = category_lookup
+        # sketch_lookup returns a render given a sketch
+        self.sketch_lookup = sketch_lookup
+        # distractor lookup returns distractor renderings given render+sketch
         self.distractor_lookup = distractor_lookup
         
         self.size = int(target_lookup.keys() * 0.8)
@@ -93,21 +109,19 @@ class ReferenceGenerator(object):
         for i in range(self.size):
             # define (p1, s1), (p1, s2), (p2, s1), (p2, s2) paths
             render1_path = render_paths[i]
-            sketch1_path = os.path.join(self.sketch_emb_dir, 
-                                        random.choice(self.target_lookup[os.basename(render1_path)]))
+            sketch1_path = random.choice(self.target_lookup[render1_path])
             # build key to lookup distractor renderings from render
-            key = '{target}+{sketch}'.format(target=os.path.basename(render1_path),
-                                             sketch=os.path.basename(sketch1_path))
-            render2_path = os.path.join(self.render_emb_dir, 
-                                        random.choice(self.distractor_lookup[key]))
+            key = '{target}+{sketch}'.format(target=render1_path, sketch=sketch1_path)
+            # this tells us the category of a distractor
+            render2_category = random.choice(self.distractor_lookup[key]).split('_')[0]
             # pick the sketch path that was by the same person as sketch1
-            sketch2_paths = self.target_lookup[os.basename(render2_path)]
-            sketch1_basepath = os.path.basename(sketch1_path)
-            sketch1_gameid = sketch1_basepath.split('_')[1]
+            sketch2_paths = self.category_lookup[render2_category]
+            sketch1_gameid = sketch1_path.split('_')[1]
             r = re.compile("gameID_{}_trial_.*".format(sketch1_gameid))
             sketch2_path = filter(r.match, sketch2_paths)
             assert len(sketch2_path) == 1
-            sketch2_path = os.path.join(self.sketch_emb_dir, sketch2_path[0])
+            sketch2_path = sketch2_path[0]
+            render2_path = self.sketch_lookup[sketch2_path]
 
             # load paths into numpy
             render1 = np.load(render1_path)[np.newaxis, ...]
