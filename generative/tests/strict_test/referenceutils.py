@@ -79,8 +79,7 @@ class ReferenceGenerator(object):
         if not train:
             self.size = len(target_lookup.keys()) - self.size
     
-    def train_test_split(self):
-        cat_to_group = {
+        self.cat_to_group = {
             'basset': 'dog',
             'beetle': 'car',
             'bloodhound': 'dog',
@@ -115,8 +114,10 @@ class ReferenceGenerator(object):
             'woven': 'chair',
         }
 
+
+    def train_test_split(self):
         render_paths = self.target_lookup.keys()
-        render_cats = [cat_to_group[i.split('_')[0]] for i in render_paths]
+        render_cats = [self.cat_to_group[i.split('_')[0]] for i in render_paths]
         path_to_cat = zip(render_paths, render_cats)
 
         train_paths = [i for i in render_paths if path_to_cat[i] != 'bird']
@@ -141,7 +142,7 @@ class ReferenceGenerator(object):
             key = '{target}+{sketch}'.format(target=render1_path, sketch=sketch1_path)
             # this tells us the category of a distractor. here we care that the distractor
             # is an object of the same pose.
-            render2_path = random.choice(self.distractor_lookup[key]).split('_')[0]
+            render2_path = random.choice(self.distractor_lookup[key])
             # pick the sketch path that was by the same person as sketch1
             sketch2_path = random.choice(self.target_lookup[render2_category])
 
