@@ -30,7 +30,7 @@ if __name__ == "__main__":
     args.cuda = args.cuda and torch.cuda.is_available()
 
     # choose the right generator
-    assert args.generator in set('cross', 'intra', 'pose')
+    assert args.generator in ['cross', 'intra', 'pose']
     if args.generator == 'cross':
         ReferenceGenerator = ThreeClassGenerator
     elif args.generator == 'intra':

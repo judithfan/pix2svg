@@ -127,7 +127,7 @@ class ThreeClassGenerator(object):
             'dog': [],
             'chair': [],
         }
-        for k, v in self.cat_to_group.iteritems():
+        for k, v in cat_to_group.iteritems():
             group_to_cat[v].append(k)
 
         self.cat_to_group = cat_to_group
@@ -148,7 +148,7 @@ class ThreeClassGenerator(object):
 
         return train_paths, test_paths
 
-    def gen_distractor_paths(key):
+    def gen_distractor_paths(self, key):
         distractor_paths = self.distractor_lookup[key]
         distractor_paths = [path for path in distractor_paths 
                             if path in self.target_lookup]
@@ -268,7 +268,7 @@ class FourClassGenerator(ThreeClassGenerator):
         self.cat_pool = train_cats if self.train else test_cats
         return train_paths, test_paths
 
-    def gen_distractor_paths(key):
+    def gen_distractor_paths(self, key):
         distractor_paths = self.distractor_lookup[key]
         # ignore distractor types that are not in the training/testing pool
         distractor_paths = [path for path in distractor_paths 
@@ -311,7 +311,7 @@ if __name__ == "__main__":
     parser.add_argument('generator', type=str, help='cross|intra|pose')
     args = parser.parse_args()
 
-    assert args.generator in set('cross', 'intra', 'pose')
+    assert args.generator in ['cross', 'intra', 'pose']
 
     render_emb_dir = '/data/jefan/sketchpad_basic_extract/subordinate_allrotations_6_minified_conv_4_2'
     sketch_emb_dir = '/data/jefan/sketchpad_basic_extract/sketch_conv_4_2/'
