@@ -297,7 +297,7 @@ class PoseGenerator(ThreeClassGenerator):
         render_paths = np.array(render_paths)
 
         train_ix = np.where(render_poses < 25)[0]
-        test_ix = np.where(render_poses > 30)[0]
+        test_ix = np.where(render_poses > 25)[0]
 
         train_paths = render_paths[train_ix].tolist()
         test_paths = render_paths[test_ix].tolist()
@@ -309,7 +309,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('n', type=int, help='number of images to sample.')
     parser.add_argument('generator', type=str, help='cross|intra|pose')
+    parser.add_argument('--test', action='store_true', help='if True, sample from test set')
     args = parser.parse_args()
+    args.train = not args.test
 
     assert args.generator in ['cross', 'intra', 'pose']
 
@@ -317,11 +319,11 @@ if __name__ == "__main__":
     sketch_emb_dir = '/data/jefan/sketchpad_basic_extract/sketch_conv_4_2/'
 
     if args.generator == 'cross':
-        generator = ThreeClassGenerator(render_emb_dir, sketch_emb_dir, train=True)
+        generator = ThreeClassGenerator(render_emb_dir, sketch_emb_dir, train=args.train)
     elif args.generator == 'intra':
-        generator = FourClassGenerator(render_emb_dir, sketch_emb_dir, train=True)
+        generator = FourClassGenerator(render_emb_dir, sketch_emb_dir, train=args.train)
     elif args.generator == 'pose':
-        generator = PoseGenerator(render_emb_dir, sketch_emb_dir, train=True)
+        generator = PoseGenerator(render_emb_dir, sketch_emb_dir, train=args.train)
     else:
         raise Exception('How did you get here?')
 
