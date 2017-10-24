@@ -20,10 +20,11 @@ class ThreeClassGenerator(object):
     to measure cross-class generalization in sketchpad.
     """
     def __init__(self, render_emb_dir, sketch_emb_dir, train=True,
-                 batch_size=10, use_cuda=False):
+                 batch_size=10, return_paths=False, use_cuda=False):
         self.render_emb_dir = render_emb_dir
         self.sketch_emb_dir = sketch_emb_dir
         self.batch_size = batch_size
+        self.return_paths = return_paths  # optionally return paths
         self.use_cuda = use_cuda
         self.train = train
 
@@ -213,14 +214,21 @@ class ThreeClassGenerator(object):
             sketch_group = np.vstack((sketch1, sketch2, sketch2, sketch1))
             label_group = np.array((1, 1, 0, 0))
 
+            render_paths = [render1_path, render2_path, render1_path, render2_path]
+            sketch_paths = [sketch1_path, sketch2_path, sketch2_path, sketch1_path]
+
             if batch_idx == 0:
                 render_batch = render_group
                 sketch_batch = sketch_group
                 label_batch = label_group
+                rpath_batch = render_paths
+                spath_batch = sketch_paths
             else:
                 render_batch = np.vstack((render_batch, render_group))
                 sketch_batch = np.vstack((sketch_batch, sketch_group))
                 label_batch = np.concatenate((label_batch, label_group))
+                rpath_batch += render_paths
+                spath_batch += sketch_paths
 
             batch_idx += 1
 
@@ -229,8 +237,10 @@ class ThreeClassGenerator(object):
                 sketch_batch = Variable(torch.from_numpy(sketch_batch)).type(dtype)
                 label_batch = Variable(torch.from_numpy(label_batch), 
                                        requires_grad=False).type(dtype)
-
-                yield (render_batch, sketch_batch, label_batch)
+                if self.return_paths:
+                    yield (render_batch, rpath_batch, sketch_batch, spath_batch, label_batch)
+                else:
+                    yield (render_batch, sketch_batch, label_batch)
                 batch_idx = 0
 
         if batch_idx > 0:
@@ -239,7 +249,10 @@ class ThreeClassGenerator(object):
             label_batch = Variable(torch.from_numpy(label_batch), 
                                    requires_grad=False).type(dtype)
 
-            yield (render_batch, sketch_batch, label_batch)
+            if self.return_paths:
+                yield (render_batch, rpath_batch, sketch_batch, spath_batch, label_batch)
+            else:
+                yield (render_batch, sketch_batch, label_batch)
 
 
 class FourClassGenerator(ThreeClassGenerator):
