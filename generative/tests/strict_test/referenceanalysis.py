@@ -58,14 +58,15 @@ if __name__ == '__main__':
         except StopIteration:
             break
        
-        pred_proba = model(render, sketch)
-        pred_proba = float(pred_proba.cpu().data.numpy()[0])
+        pred_proba = model(render, sketch).cpu().data.squeeze(1)
+        label = label.cpu().data
 
-        r = {'render': render_path,
-             'sketch': sketch_path,
-             'proba': pred_proba,
-             'label': label}
-        results.append(r)
+        for i in range(4):
+            r = {'render': render_path[i],
+                 'sketch': sketch_path[i],
+                 'proba': pred_proba[i],
+                 'label': label[i]}
+            results.append(r)
 
         count += 1
         print('Compute prediction [{}/{}].'.format(count, generator.size))
