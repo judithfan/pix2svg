@@ -34,6 +34,17 @@ class ThreeClassGenerator(object):
             for row in reader:
                 csv_data.append(row)
 
+        with open('../reference_games/incorrect_trial_paths.txt') as fp:
+            incorrect_sketches = fp.readlines()
+            incorrect_sketches = [os.path.splitext(i)[0] + '.npy' for i in incorrect_sketches]
+
+        with open('../reference_games/invalid_trial_paths.txt') as fp:
+            invalid_sketches = fp.readlines()
+            invalid_sketches = [os.path.splitext(i)[0] + '.npy' for i in invalid_sketches]
+
+        # we should ignore these
+        ignore_sketches = incorrect_sketches + invalid_sketches
+
         header = csv_data[0]
         csv_data = csv_data[1:]
 
@@ -56,6 +67,12 @@ class ThreeClassGenerator(object):
                 if row[pose_ix] != 'NA':
                     sketch_name = 'gameID_{id}_trial_{trial}.npy'.format(
                         id=row[gameid_ix], trial=row[trialnum_ix])
+
+                    # don't put bad sketches in our lookup...
+                    # the generator code below should handle the rest.
+                    if sketch_name in ignore_sketches:
+                        continue
+
                     target_category = row[target_ix]
                     target_name = '{cat}_{id:04d}.npy'.format(
                         cat=row[target_ix], id=int(row[pose_ix]))
