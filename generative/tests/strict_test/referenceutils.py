@@ -14,7 +14,11 @@ import torch
 from torch.autograd import Variable
 
 
-class ReferenceGenerator(object):
+class ThreeClassGenerator(object):
+    """This takes all in images in 3 classes and uses them as 
+    training; it keeps the last class for testing. This is meant
+    to measure cross-class generalization in sketchpad.
+    """
     def __init__(self, render_emb_dir, sketch_emb_dir, train=True,
                  batch_size=10, use_cuda=False):
         self.render_emb_dir = render_emb_dir
@@ -83,7 +87,7 @@ class ReferenceGenerator(object):
         # distractor lookup returns distractor renderings given render+sketch
         self.distractor_lookup = distractor_lookup
  
-        self.cat_to_group = {
+        cat_to_group = {
             'basset': 'dog',
             'beetle': 'car',
             'bloodhound': 'dog',
@@ -117,6 +121,17 @@ class ReferenceGenerator(object):
             'white': 'car',
             'woven': 'chair',
         }
+        group_to_cat = {
+            'car': [],
+            'bird': [],
+            'dog': [],
+            'chair': [],
+        }
+        for k, v in self.cat_to_group.iteritems():
+            group_to_cat[v].append(k)
+
+        self.cat_to_group = cat_to_group
+        self.group_to_cat = group_to_cat
 
         train_paths, test_paths = self.train_test_split()
         self.size = len(train_paths) if self.train else len(test_paths)
@@ -133,6 +148,12 @@ class ReferenceGenerator(object):
 
         return train_paths, test_paths
 
+    def gen_distractor_paths(key):
+        distractor_paths = self.distractor_lookup[key]
+        distractor_paths = [path for path in distractor_paths 
+                            if path in self.target_lookup]
+        return distractor_paths
+
     def try_generator(self):
         train_paths, test_paths = self.train_test_split()
         render_paths = train_paths if self.train else test_paths
@@ -141,9 +162,7 @@ class ReferenceGenerator(object):
             render1_path = random.choice(render_paths)
             sketch1_path = random.choice(self.target_lookup[render1_path])
             key = '{target}+{sketch}'.format(target=render1_path, sketch=sketch1_path)
-            distractor_paths = self.distractor_lookup[key]
-            distractor_paths = [path for path in distractor_paths 
-                                if path in self.target_lookup]
+            distractor_paths = self.gen_distractor_paths(key)
             if len(distractor_paths) == 0:
                 continue  # skip path
             
@@ -171,10 +190,7 @@ class ReferenceGenerator(object):
             key = '{target}+{sketch}'.format(target=render1_path, sketch=sketch1_path)
             # this tells us the category of a distractor. here we care that the distractor
             # is an object of the same pose.
-            distractor_paths = self.distractor_lookup[key]
-            # only keep distractor paths where the path is in the target_lookup
-            distractor_paths = [path for path in distractor_paths 
-                                if path in self.target_lookup]
+            distractor_paths = self.gen_distractor_paths(key)
             if len(distractor_paths) == 0:
                 continue  # skip path
             render2_path = random.choice(distractor_paths)
@@ -226,15 +242,88 @@ class ReferenceGenerator(object):
             yield (render_batch, sketch_batch, label_batch)
 
 
+class FourClassGenerator(ThreeClassGenerator):
+    """This takes the majority of images in 4 classes and uses them as 
+    training while keeping the minority for testing. The way we 
+    choose the majority is by taking images in 6/8 subclasses of each 
+    class i.e. sparrow of bird. This is meant to measure intra-class 
+    generalization in sketchpad."""
+    
+    def train_test_split(self):
+        group_to_cat = self.group_to_cat
+
+        train_cats, test_cats = [], []
+        for v in group_to_cat.itervalues():
+            assert len(v) == 8
+            train_cats += v[:6]
+            test_cats += v[6:]
+
+        render_paths = self.target_lookup.keys()
+        train_paths = [i for i in render_paths if i.split('_')[0] in train_cats]
+        test_paths = [i for i in render_paths if i.split('_')[0] in test_cats]
+
+        random.shuffle(train_paths)
+        random.shuffle(test_paths)
+
+        self.cat_pool = train_cats if self.train else test_cats
+        return train_paths, test_paths
+
+    def gen_distractor_paths(key):
+        distractor_paths = self.distractor_lookup[key]
+        # ignore distractor types that are not in the training/testing pool
+        distractor_paths = [path for path in distractor_paths 
+                            if path in self.target_lookup and 
+                            path.split('_')[0] in self.cat_pool]
+        return distractor_paths   
+
+
+class PoseGenerator(ThreeClassGenerator):
+    """This is also a FourClassGenerator but splits majority and minority
+    based on the pose (aka only consider N/M poses for training). This is 
+    an easier problem than FourClassGenerator and does not make as strong 
+    of a statement. This is meant to measure pose invariance.
+
+    How we split by pose is important. We must remember to leave a gap 
+    between training poses and test poses of a significant angle margin.
+    """
+
+    # no need to edit gen_distractors_paths b/c the way I am pulling 
+    # distractors will always return distractors of the same pose.
+    
+    def train_test_split(self):
+        render_paths = self.target_lookup.keys()
+        render_poses = [int(os.path.splitext(i.split('_')[1])[0]) for i in render_paths]
+        render_poses = np.array(render_poses)
+        render_paths = np.array(render_paths)
+
+        train_ix = np.where(render_poses < 25)[0]
+        test_ix = np.where(render_poses > 30)[0]
+
+        train_paths = render_paths[train_ix].tolist()
+        test_paths = render_paths[test_ix].tolist()
+        return train_paths, test_paths
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('n', type=int, help='number of images to sample.')
+    parser.add_argument('generator', type=str, help='cross|intra|pose')
     args = parser.parse_args()
+
+    assert args.generator in set('cross', 'intra', 'pose')
 
     render_emb_dir = '/data/jefan/sketchpad_basic_extract/subordinate_allrotations_6_minified_conv_4_2'
     sketch_emb_dir = '/data/jefan/sketchpad_basic_extract/sketch_conv_4_2/'
-    generator = ReferenceGenerator(render_emb_dir, sketch_emb_dir, train=True)
+
+    if args.generator == 'cross':
+        generator = ThreeClassGenerator(render_emb_dir, sketch_emb_dir, train=True)
+    elif args.generator == 'intra':
+        generator = FourClassGenerator(render_emb_dir, sketch_emb_dir, train=True)
+    elif args.generator == 'pose':
+        generator = PoseGenerator(render_emb_dir, sketch_emb_dir, train=True)
+    else:
+        raise Exception('How did you get here?')
 
     if os.path.exists('./tmp'):
         shutil.rmtree('./tmp')

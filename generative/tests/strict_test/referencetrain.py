@@ -11,7 +11,7 @@ from sklearn.metrics import accuracy_score
 
 from convmodel import EmbedNet
 from convmodel import save_checkpoint
-from referenceutils import ReferenceGenerator
+from referenceutils import ThreeClassGenerator, FourClassGenerator, PoseGenerator
 
 from train import AverageMeter
 
@@ -21,12 +21,24 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('out_dir', type=str)
+    parser.add_argument('generator', type=str, help='cross|intra|pose')
     parser.add_argument('--batch_size', type=int, default=25)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
+
+    # choose the right generator
+    assert args.generator in set('cross', 'intra', 'pose')
+    if args.generator == 'cross':
+        ReferenceGenerator = ThreeClassGenerator
+    elif args.generator == 'intra':
+        ReferenceGenerator = FourClassGenerator
+    elif args.generator == 'pose':
+        ReferenceGenerator = PoseGenerator
+    else:
+        raise Exception('How did you get here?')
 
     render_emb_dir = '/data/jefan/sketchpad_basic_extract/subordinate_allrotations_6_minified_conv_4_2'
     sketch_emb_dir = '/data/jefan/sketchpad_basic_extract/sketch_conv_4_2/'
