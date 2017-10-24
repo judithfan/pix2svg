@@ -231,21 +231,21 @@ class ThreeClassGenerator(object):
             sketch_group = np.vstack((sketch1, sketch2, sketch2, sketch1))
             label_group = np.array((1, 1, 0, 0))
 
-            render_paths = [render1_path, render2_path, render1_path, render2_path]
-            sketch_paths = [sketch1_path, sketch2_path, sketch2_path, sketch1_path]
+            rpaths = [render1_path, render2_path, render1_path, render2_path]
+            spaths = [sketch1_path, sketch2_path, sketch2_path, sketch1_path]
 
             if batch_idx == 0:
                 render_batch = render_group
                 sketch_batch = sketch_group
                 label_batch = label_group
-                rpath_batch = render_paths
-                spath_batch = sketch_paths
+                rpath_batch = rpaths
+                spath_batch = spaths
             else:
                 render_batch = np.vstack((render_batch, render_group))
                 sketch_batch = np.vstack((sketch_batch, sketch_group))
                 label_batch = np.concatenate((label_batch, label_group))
-                rpath_batch += render_paths
-                spath_batch += sketch_paths
+                rpath_batch += rpaths
+                spath_batch += spaths
 
             batch_idx += 1
 

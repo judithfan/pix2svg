@@ -23,7 +23,6 @@ if __name__ == '__main__':
     parser.add_argument('json_path', type=str, help='where to save probabilities.')
     parser.add_argument('model_path', type=str, help='where to find trained model.')
     parser.add_argument('--train', action='store_true', default=False)
-    parser.add_argument('--hard', action='store_true', default=False)
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
