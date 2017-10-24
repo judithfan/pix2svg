@@ -56,19 +56,20 @@ def sketch_to_render_dict():
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('sketch_emb_dir', type=str, help='path to sketches')
-    parser.add_argument('render_emb_dir', type=str, help='path to renderings')
     parser.add_argument('json_path', type=str, help='path to where to dump json')
     parser.add_argument('model_dir', type=str, help='path to trained model')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
+    render_emb_dir = '/data/jefan/sketchpad_basic_extract/subordinate_allrotations_6_minified_conv_4_2'
+    sketch_emb_dir = '/data/jefan/sketchpad_basic_extract/sketch_conv_4_2/'
+
     # define lookup
     match_lookup = sketch_to_render_dict()
 
     # define data generator
-    generator = ReferenceGameEmbeddingGenerator(args.sketch_emb_dir, args.render_emb_dir, 
+    generator = ReferenceGameEmbeddingGenerator(sketch_emb_dir, render_emb_dir, 
                                                 use_cuda=args.cuda)
     examples = generator.make_generator() 
     print('Built generator.')
