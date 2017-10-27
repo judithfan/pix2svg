@@ -109,6 +109,7 @@ ipynb/
 **outputs**/
 **data/
 **trained_models**/
+**notebooks/
 generative/tests/style_test/outputs/*
 generative/tests/objective_test/features*
 generative/tests/objective_test/outputs/*
