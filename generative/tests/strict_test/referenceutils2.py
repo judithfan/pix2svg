@@ -67,7 +67,7 @@ class ThreeClassGenerator(object):
     """
 
     def __init__(self, train=True, batch_size=10, use_cuda=False):
-        self.data_dir = '/data/jefan/sketchpad_basic_fixedpose'
+        self.data_dir = '/data/jefan/sketchpad_basic_fixedpose_conv_4_2'
         self.batch_size = batch_size
         self.use_cuda = use_cuda
         self.train = train
@@ -99,8 +99,8 @@ class ThreeClassGenerator(object):
         gameid_ix = header.index('gameID')
         trialnum_ix = header.index('trialNum')
         target_ix = header.index('target')
-        distractors_ix = [header.index('Distractor1')
-                          header.index('Distractor2')
+        distractors_ix = [header.index('Distractor1'),
+                          header.index('Distractor2'),
                           header.index('Distractor3')]
 
         for row in csv_data:
@@ -110,33 +110,38 @@ class ThreeClassGenerator(object):
 
             sketch_base = 'gameID_{id}_trial_{trial}'.format(
                 id=row[gameid_ix], trial=row[trialnum_ix])
-            sketch_name = '{sketch}.npy'.format(sketch_base)
+            sketch_name = '{sketch}.npy'.format(sketch=sketch_base)
 
             # we ignore sketches that were in bad games
             if sketch_name.replace('.npy', '.png\n') in bad_games:
                 continue
 
             # dog/car/chair/bird
-            target_category = CATEGORY_LOOKUP[row[target_ix]]
+            target_category = row[target_ix]
             target_name = '{sketch}_{category}.npy'.format(sketch=sketch_base,
                                                            category=target_category)
             target2distractors[target_name] = []
 
             for ix in distractors_ix:
-                distractor_category = CATEGORY_LOOKUP[row[ix]]
+                distractor_category = row[ix]
                 distractor_name = '{sketch}_{category}.npy'.format(sketch=sketch_base, 
                                                                    category=distractor_category)
-                # find sketch corresponding to this game
-                distractor_sketch_regex = 'gameID_{id}_trial_*_{category}.npy'.format(id=row[gameid_ix],
+                # find distractor as the main target in another trial of the same game
+                distractor_target_regex = 'gameID_{id}_trial_*_{category}.npy'.format(id=row[gameid_ix], 
                                                                                       category=distractor_category)
-                matches = glob(os.path.join(self.data_dir, 'sketch', distractor_sketch_regex))
+                matches = glob(os.path.join(self.data_dir, 'target', distractor_target_regex))
                 assert len(matches) == 1
-
-                distractor_sketch_name = matches[0]
+                distractor_target_name = matches[0]
+                distractor_target_name = os.path.basename(distractor_target_name)
+                distractor_target_id = distractor_target_name.split('_')[-2]
+                
+                # find sketch for matching target
+                distractor_sketch_name = 'gameID_{id}_trial_{trial}.npy'.format(id=row[gameid_ix],
+                                                                                trial=distractor_target_id)
                 distractor2sketch[distractor_name] = distractor_sketch_name
                 target2distractors[target_name].append(distractor_name)
 
-            cat2target[target_category].append(target_name)
+            cat2target[CATEGORY_LOOKUP[target_category]].append(target_name)
             target2sketch[target_name] = sketch_name
 
         self.cat2target = cat2target
@@ -268,14 +273,16 @@ if __name__ == "__main__":
     for i in xrange(args.n):
         os.makedirs('./tmp/example%d' % i)
 
-    emb_to_raw_path = lambda path: path.replace('_conv_4_2', '').replace('.npy', '.png')
+    emb_to_raw_path = lambda path: path.replace('.npy', '.png')
+    render_dir = '/data/jefan/sketchpad_basic_fixedpose/*'
+    sketch_dir = '/data/jefan/sketchpad_basic_fixedpose/sketch'
 
     for i in xrange(args.n):
         files = generator.try_generator()
-        render1 = emb_to_raw_path(os.path.join(render_emb_dir, '*' + files['render1']))
-        sketch1 = emb_to_raw_path(os.path.join(sketch_emb_dir, files['sketch1']))
-        render2 = emb_to_raw_path(os.path.join(render_emb_dir, '*' + files['render2']))
-        sketch2 = emb_to_raw_path(os.path.join(sketch_emb_dir, files['sketch2']))
+        render1 = emb_to_raw_path(os.path.join(render_dir, files['render1']))
+        sketch1 = emb_to_raw_path(os.path.join(sketch_dir, files['sketch1']))
+        render2 = emb_to_raw_path(os.path.join(render_dir, files['render2']))
+        sketch2 = emb_to_raw_path(os.path.join(sketch_dir, files['sketch2']))
        
         render1 = glob(render1)[0]
         render2 = glob(render2)[0]
