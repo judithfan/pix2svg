@@ -42,10 +42,9 @@ class ReferenceGame2EmbeddingGenerator(object):
 
         sketch_paths = glob(os.path.join(self.data_dir, 'sketch', '*.npy'))
         sketch_paths = list(set(sketch_paths) - set(bad_games))
-        render_paths = glob(os.path.join(self.data_dir, 'target', '*.npy')) + \
-                       glob(os.path.join(self.data_dir, 'distractor1', '*.npy')) + \
-                       glob(os.path.join(self.data_dir, 'distractor2', '*.npy')) + \
-                       glob(os.path.join(self.data_dir, 'distractor3', '*.npy'))
+        # only 32 unique objects, so no need to look through too much.
+        render_paths = glob(os.path.join(self.data_dir, 'target', 
+                                         'gameID_9903-d6e6a9ff-a878-4bee-b2d5-26e2e239460a_trial_*.npy'))
         self.generator = itertools.product(sketch_paths, render_paths)
         self.size = len(sketch_paths) * len(render_paths)
 
