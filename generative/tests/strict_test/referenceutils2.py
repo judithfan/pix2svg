@@ -93,7 +93,9 @@ class ThreeClassGenerator(object):
         target2distractors = {}
         # map from distractor to sketch
         distractor2sketch = {}
-        
+        # map target/distractor/sketch to folder
+        path2folder = {}
+
         # indexes for different data items that might be useful
         condition_ix = header.index('condition')
         gameid_ix = header.index('gameID')
@@ -122,7 +124,10 @@ class ThreeClassGenerator(object):
                                                            category=target_category)
             target2distractors[target_name] = []
 
-            for ix in distractors_ix:
+            path2folder[sketch_name] = os.path.join(self.data_dir, 'sketch')
+            path2folder[target_name] = os.path.join(self.data_dir, 'target')
+
+            for k, ix in enumerate(distractors_ix):
                 distractor_category = row[ix]
                 distractor_name = '{sketch}_{category}.npy'.format(sketch=sketch_base, 
                                                                    category=distractor_category)
@@ -140,6 +145,8 @@ class ThreeClassGenerator(object):
                                                                                 trial=distractor_target_id)
                 distractor2sketch[distractor_name] = distractor_sketch_name
                 target2distractors[target_name].append(distractor_name)
+                path2folder[distractor_name] = os.path.join(self.data_dir, 'distractor%d' % (k+1))
+                path2folder[distractor_sketch_name] = os.path.join(self.data_dir, 'sketch')
 
             cat2target[CATEGORY_LOOKUP[target_category]].append(target_name)
             target2sketch[target_name] = sketch_name
@@ -148,6 +155,10 @@ class ThreeClassGenerator(object):
         self.target2sketch = target2sketch
         self.distractor2sketch = distractor2sketch
         self.target2distractors = target2distractors
+        self.path2folder = path2folder
+
+        train_paths, test_paths = self.train_test_split()
+        self.size = len(train_paths) if self.train else len(test_paths)
 
     def train_test_split(self):
         cat2target = self.cat2target
@@ -188,11 +199,16 @@ class ThreeClassGenerator(object):
             sketch1_path = self.target2sketch[render1_path]
             render2_path = random.choice(self.target2distractors[render1_path])
             sketch2_path = self.distractor2sketch[render2_path]
+            # render folders
+            render1_dir = self.path2folder[render1_path]
+            sketch1_dir = self.path2folder[sketch1_path]
+            render2_dir = self.path2folder[render2_path]
+            sketch2_dir = self.path2folder[sketch2_path]
             # load paths into numpy
-            render1 = np.load(render1_path)[np.newaxis, ...]
-            sketch1 = np.load(sketch1_path)[np.newaxis, ...]
-            render2 = np.load(render2_path)[np.newaxis, ...]
-            sketch2 = np.load(sketch2_path)[np.newaxis, ...]
+            render1 = np.load(os.path.join(render1_dir, render1_path))[np.newaxis, ...]
+            sketch1 = np.load(os.path.join(sketch1_dir, sketch1_path))[np.newaxis, ...]
+            render2 = np.load(os.path.join(render2_dir, render2_path))[np.newaxis, ...]
+            sketch2 = np.load(os.path.join(sketch2_dir, sketch2_path))[np.newaxis, ...]
             # organize into 4 pairs
             render_group = np.vstack((render1, render2, render1, render2))
             sketch_group = np.vstack((sketch1, sketch2, sketch2, sketch1))
