@@ -34,7 +34,7 @@ class ReferenceGame2EmbeddingGenerator(object):
         self.dtype = dtype = (torch.cuda.FloatTensor 
                               if use_cuda else torch.FloatTensor)
 
-        with open(os.path.join(self.data_dir, './incorrect_trial_paths.txt')) as fp:
+        with open(os.path.join(self.data_dir, 'incorrect_trial_paths_pilot2.txt')) as fp:
             bad_games = fp.readlines()
             bad_games = [os.path.join(self.data_dir, 'sketch', 
                                       i.replace('.png\n', '.npy')) 

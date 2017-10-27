@@ -256,7 +256,7 @@ class FourClassGenerator(ThreeClassGenerator):
         train_paths, test_paths = [], []
         for paths in cat2target.itervalues():
             n = len(paths)
-            n_train = (n * 0.80) // 1
+            n_train = int((n * 0.80) // 1)
             train_paths += paths[:n_train]
             test_paths += paths[n_train:]
 
