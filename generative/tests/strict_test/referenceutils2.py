@@ -249,13 +249,17 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('n', type=int, help='number of images to sample.')
-    parser.add_argument('generator', type=str, help='cross|intra|pose')
+    parser.add_argument('generator', type=str, help='cross|intra')
     parser.add_argument('--test', action='store_true', help='if True, sample from test set')
     args = parser.parse_args()
     args.train = not args.test
 
-    assert args.generator in ['cross', 'intra', 'pose']
-    generator = ThreeClassGenerator(train=args.train, batch_size=1)
+    assert args.generator in ['cross', 'intra']
+
+    if args.generator == 'cross':
+        generator = ThreeClassGenerator(train=args.train, batch_size=1)
+    elif args.generator == 'intra':
+        generator = FourClassGenerator(train=args.train, batch_size=1)
 
     if os.path.exists('./tmp'):
         shutil.rmtree('./tmp')
