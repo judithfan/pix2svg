@@ -6,6 +6,8 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
+import os
+import shutil
 import numpy as np
 from PIL import Image
 
@@ -115,22 +117,23 @@ def obscure(image, color=255, filter_size=75):
 
 
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('dir', type=str, help='directory of images')
-    parser.add_argument('--color', type=int, help='0|1|...|254|255', default=255)  # 127
-    parser.add_argument('--filter_size', type=int, default=75)  # 50
-    parser.add_argument('--transparent', action='store_true', default=False)
+    data_dir = '/data/jefan/sketchpad_basic_fixedpose_conv_4_2_augmented'
+    files = os.listdir(os.path.join(data_dir, 'sketch'))
 
-    files = os.listdir(args.dir)
-    for path in files:
-        path = os.path.join(args.dir, path)
-        image = load(path, transparent=args.transparent)
-        crops = obscure(image, color=args.color, filter_size=args.filter_size)
-
+    for ix, path in enumerate(files):
+        sketch = load(os.path.join(data_dir, path), transparent=True)
+        crops = obscure(sketch, color=255, filter_size=75)
         base, extention = os.path.splitext(path)
+
         for i, crop in enumerate(crops):
             im = Image.fromarray(crop)
             save_path = '{base}_crop_{ix}{extension}'.format(
                 base=base, ix=i, extension=extension)
-            im.save(save_path)
+            
+            im.save(os.path.join(data_dir, save_path))
+            for name in ['target', 'distractor1', 'distractor2', 'distractor3']:
+                shutil.copy(os.path.join(data_dir, name, path), 
+                            os.path.join(data_dir, name, save_path))
+
+        print('Progress: [{}/{}] files finished augmentation regime.'.format(
+            ix+1, len(files)))
