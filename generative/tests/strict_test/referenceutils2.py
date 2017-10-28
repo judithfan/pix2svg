@@ -66,8 +66,9 @@ class ThreeClassGenerator(object):
     :param use_cuda: whether to use CUDA objects or not
     """
 
-    def __init__(self, train=True, batch_size=10, use_cuda=False):
-        self.data_dir = '/data/jefan/sketchpad_basic_fixedpose_conv_4_2'
+    def __init__(self, train=True, batch_size=10, use_cuda=False,
+                 data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2'):
+        self.data_dir = data_dir
         self.batch_size = batch_size
         self.use_cuda = use_cuda
         self.train = train

@@ -82,7 +82,6 @@ if __name__ == '__main__':
 
     for i in range(n_images):
         print('Loading image [{}/{}]'.format(i + 1, n_images))
-
         image_torch = Image.open(image_paths[i])
         if args.transparent:
             image_torch = alpha_composite_with_color(image_torch)
