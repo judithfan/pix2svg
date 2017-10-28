@@ -9,6 +9,7 @@ from __future__ import absolute_import
 import os
 import shutil
 import numpy as np
+from glob import glob
 from PIL import Image
 
 from torch.autograd import Variable
@@ -117,23 +118,29 @@ def obscure(image, color=255, filter_size=75):
 
 
 if __name__ == "__main__":
-    data_dir = '/data/jefan/sketchpad_basic_fixedpose_conv_4_2_augmented'
+    data_dir = '/data/jefan/sketchpad_basic_fixedpose_augmented'
     files = os.listdir(os.path.join(data_dir, 'sketch'))
 
     for ix, path in enumerate(files):
-        sketch = load(os.path.join(data_dir, path), transparent=True)
+        sketch = load(os.path.join(data_dir, 'sketch', path), transparent=True)
         crops = obscure(sketch, color=255, filter_size=75)
-        base, extention = os.path.splitext(path)
+        base, extension = os.path.splitext(path)
 
         for i, crop in enumerate(crops):
             im = Image.fromarray(crop)
             save_path = '{base}_crop_{ix}{extension}'.format(
                 base=base, ix=i, extension=extension)
+            im.save(os.path.join(data_dir, 'sketch', save_path))
             
-            im.save(os.path.join(data_dir, save_path))
             for name in ['target', 'distractor1', 'distractor2', 'distractor3']:
-                shutil.copy(os.path.join(data_dir, name, path), 
-                            os.path.join(data_dir, name, save_path))
+                find_name = glob(os.path.join(data_dir, name, os.path.splitext(path)[0] + '_*.png'))
+                find_name = [t for t in find_name if 'crop' not in t]
+                assert len(find_name) == 1
+                find_name = find_name[0]
+                copy_name = '{base}_crop_{ix}{extension}'.format(
+                    base=os.path.splitext(find_name)[0], ix=i, extension=extension)
+                shutil.copy(find_name, copy_name)
+
 
         print('Progress: [{}/{}] files finished augmentation regime.'.format(
             ix+1, len(files)))
