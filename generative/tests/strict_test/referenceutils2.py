@@ -295,9 +295,11 @@ if __name__ == "__main__":
     assert args.generator in ['cross', 'intra']
 
     if args.generator == 'cross':
-        generator = ThreeClassGenerator(train=args.train, batch_size=1)
+        generator = ThreeClassGenerator(train=args.train, batch_size=1,
+                                        data_dir='/data/jefan/sketchpad_basic_fixedpose_augmented_conv_4_2')
     elif args.generator == 'intra':
-        generator = FourClassGenerator(train=args.train, batch_size=1)
+        generator = FourClassGenerator(train=args.train, batch_size=1,
+                                       data_dir='/data/jefan/sketchpad_basic_fixedpose_augmented_conv_4_2')
 
     if os.path.exists('./tmp'):
         shutil.rmtree('./tmp')
