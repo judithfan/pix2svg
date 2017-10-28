@@ -11,7 +11,7 @@ from sklearn.metrics import accuracy_score
 
 from convmodel import EmbedNet
 from convmodel import save_checkpoint
-from referenceutils2 import ThreeClassGenerator, FourClassGenerator
+from referenceutils2 import ThreeClassPreloadedGenerator, FourClassPreloadedGenerator
 
 from train import AverageMeter
 
@@ -32,9 +32,9 @@ if __name__ == "__main__":
     # choose the right generator
     assert args.generator in ['cross', 'intra']
     if args.generator == 'cross':
-        Generator = ThreeClassGenerator
+        Generator = ThreeClassPreloadedGenerator
     elif args.generator == 'intra':
-        Generator = FourClassGenerator
+        Generator = FourClassPreloadedGenerator
 
     def reset_generators():
         train_generator = Generator(train=True, batch_size=args.batch_size, use_cuda=args.cuda,
