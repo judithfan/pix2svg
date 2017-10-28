@@ -118,7 +118,8 @@ class ThreeClassGenerator(object):
 
             # _row_gameid = row_gamid sans crop
             _row_gameid = row_gameid
-            if '-crop' in row_gameid:
+            is_crop = '-crop' in row_gameid
+            if is_crop:
                 ii = row_gameid.index('-crop')
                 _row_gameid = row_gameid[:ii]
 
@@ -143,23 +144,23 @@ class ThreeClassGenerator(object):
                 distractor_category = row[ix]
                 distractor_name = '{sketch}_{category}.npy'.format(sketch=sketch_base, 
                                                                    category=distractor_category)
-                # find distractor as the main target in another trial of the same game
-                # -- notice that we can find either the whole target image or a cropped 
-                #    version of it. let's randomly pick one.
-                distractor_target_regex1 = 'gameID_{id}_trial_*_{category}.npy'.format(
-                    id=_row_gameid, category=distractor_category)
-                distractor_target_regex2 = 'gameID_{id}-crop*_trial_*_{category}.npy'.format(
-                    id=_row_gameid, category=distractor_category)
+                if is_crop:
+                    # if the current sketch is a crop, then find a distractor sketch which is
+                    # also a crop; we can't guarantee same crop location
+                    distractor_target_regex = 'gameID_{id}-crop*_trial_*_{category}.npy'.format(
+                        id=_row_gameid, category=distractor_category)
+                    matches = glob(os.path.join(self.data_dir, 'target', distractor_target_regex))
+                    distractor_target_name = random.choice(matches)
+                else:
+                    distractor_target_regex = 'gameID_{id}_trial_*_{category}.npy'.format(
+                        id=_row_gameid, category=distractor_category)
+                    matches = glob(os.path.join(self.data_dir, 'target', distractor_target_regex))
+                    assert len(matches) == 1
+                    distractor_target_name = matches[0]
 
-                matches1 = glob(os.path.join(self.data_dir, 'target', distractor_target_regex1))
-                matches2 = glob(os.path.join(self.data_dir, 'target', distractor_target_regex2))
-                matches = matches1 + matches2
-
-                distractor_target_name = random.choice(matches)
                 distractor_target_name = os.path.basename(distractor_target_name)
                 # find sketch for matching target
                 distractor_sketch_name = '_'.join(distractor_target_name.split('_')[:-1]) + '.npy'
-                
                 # ssave of all of this information so we can look it up later
                 distractor2sketch[distractor_name] = distractor_sketch_name
                 target2distractors[target_name].append(distractor_name)
