@@ -106,7 +106,8 @@ class ThreeClassGenerator(object):
                           header.index('Distractor2'),
                           header.index('Distractor3')]
 
-        for row in csv_data:
+        for ir, row in enumerate(csv_data):
+            print('Initializing row [{}/{}]'.format(ir + 1, len(csv_data)))
             # we only care about closer cases right now
             if row[condition_ix] != 'closer':
                 continue
@@ -260,6 +261,30 @@ class ThreeClassGenerator(object):
             yield (render_batch, sketch_batch, label_batch)
 
 
+class ThreeClassPreloadedGenerator(ThreeClassGenerator):
+    """ThreeClassGenerator takes a long to build the dictionaries. 
+    Preload them."""
+
+    def __init__(self, train=True, batch_size=10, use_cuda=False,
+                 data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2'):
+        self.data_dir = data_dir
+        self.batch_size = batch_size
+        self.use_cuda = use_cuda
+        self.train = train
+
+        with open(os.path.join(self.data_dir, 'preloaded.pkl'), 'r') as fp:
+            data = cPickle.load(fp)
+
+        self.cat2target = data['cat2target']
+        self.target2sketch = data['target2sketch']
+        self.distractor2sketch = data['distractor2sketch']
+        self.target2distractors = data['target2distractors']
+        self.path2folder = data['path2folder']
+
+        train_paths, test_paths = self.train_test_split()
+        self.size = len(train_paths) if train else len(test_paths)
+
+
 class FourClassGenerator(ThreeClassGenerator):
     """This takes the majority of images in 4 classes and uses them as 
     training while keeping the minority for testing. The way we 
@@ -268,6 +293,23 @@ class FourClassGenerator(ThreeClassGenerator):
     generalization in sketchpad.
     """
     
+    def train_test_split(self):
+        cat2target = self.cat2target
+        train_paths, test_paths = [], []
+        for paths in cat2target.itervalues():
+            n = len(paths)
+            n_train = int((n * 0.80) // 1)
+            train_paths += paths[:n_train]
+            test_paths += paths[n_train:]
+
+        random.shuffle(train_paths)
+        random.shuffle(test_paths)
+
+        return train_paths, test_paths
+
+
+class FourClassPreloadedGenerator(ThreeClassPreloadedGenerator):
+
     def train_test_split(self):
         cat2target = self.cat2target
         train_paths, test_paths = [], []
@@ -295,11 +337,13 @@ if __name__ == "__main__":
     assert args.generator in ['cross', 'intra']
 
     if args.generator == 'cross':
-        generator = ThreeClassGenerator(train=args.train, batch_size=1,
-                                        data_dir='/data/jefan/sketchpad_basic_fixedpose_augmented_conv_4_2')
+        generator = ThreeClassPreloadedGenerator(
+		train=args.train, batch_size=1,
+                data_dir='/data/jefan/sketchpad_basic_fixedpose_augmented_conv_4_2')
     elif args.generator == 'intra':
-        generator = FourClassGenerator(train=args.train, batch_size=1,
-                                       data_dir='/data/jefan/sketchpad_basic_fixedpose_augmented_conv_4_2')
+        generator = FourClassPreloadedGenerator(\
+		train=args.train, batch_size=1,
+                data_dir='/data/jefan/sketchpad_basic_fixedpose_augmented_conv_4_2')
 
     if os.path.exists('./tmp'):
         shutil.rmtree('./tmp')
@@ -309,8 +353,8 @@ if __name__ == "__main__":
         os.makedirs('./tmp/example%d' % i)
 
     emb_to_raw_path = lambda path: path.replace('.npy', '.png')
-    render_dir = '/data/jefan/sketchpad_basic_fixedpose/*'
-    sketch_dir = '/data/jefan/sketchpad_basic_fixedpose/sketch'
+    render_dir = '/data/jefan/sketchpad_basic_fixedpose_augmented/*'
+    sketch_dir = '/data/jefan/sketchpad_basic_fixedpose_augmented/sketch'
 
     for i in xrange(args.n):
         files = generator.try_generator()
