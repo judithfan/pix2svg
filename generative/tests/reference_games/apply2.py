@@ -21,7 +21,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    generator = ReferenceGame2EmbeddingGenerator(use_cuda=args.cuda)
+    generator = ReferenceGame2EmbeddingGenerator(data_dir='/data/jefan/sketchpad_basic_fixedpose_fc7', use_cuda=args.cuda)
     examples = generator.make_generator() 
     print('Built generator.')
 
@@ -39,7 +39,7 @@ if __name__ == "__main__":
             sketch_emb_path, sketch_emb, render_emb_path, render_emb = examples.next()
         except StopIteration:
             break
-
+        
         # pass sketch and render in VGG (fc7) and then get MM embeddings
         # this is the same for our ranking model (luckily)
         sketch_emb = model.sketch_adaptor(sketch_emb)
