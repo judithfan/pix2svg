@@ -12,6 +12,7 @@ import re
 import csv
 import shutil
 import random
+import cPickle
 import numpy as np
 from glob import glob
 from collections import defaultdict
@@ -156,9 +157,8 @@ class ThreeClassGenerator(object):
 
                 distractor_target_name = random.choice(matches)
                 distractor_target_name = os.path.basename(distractor_target_name)
-                distractor_target_id = distractor_target_name.split('_')[-2]
                 # find sketch for matching target
-                distractor_sketch_name = '_'.join(distractor_target_name.split('_')[:-1])
+                distractor_sketch_name = '_'.join(distractor_target_name.split('_')[:-1]) + '.npy'
                 
                 # ssave of all of this information so we can look it up later
                 distractor2sketch[distractor_name] = distractor_sketch_name
@@ -174,6 +174,13 @@ class ThreeClassGenerator(object):
         self.distractor2sketch = distractor2sketch
         self.target2distractors = target2distractors
         self.path2folder = path2folder
+    
+        with open(os.path.join(self.data_dir, 'preloaded.pkl'), 'wb') as fp:
+            cPickle.dump({'cat2target': cat2target, 
+                          'target2sketch': target2sketch,
+                          'distractor2sketch': distractor2sketch,
+                          'target2distractors': target2distractors,
+                          'path2folder': path2folder}, fp)
 
         train_paths, test_paths = self.train_test_split()
         self.size = len(train_paths) if self.train else len(test_paths)
@@ -330,20 +337,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('n', type=int, help='number of images to sample.')
     parser.add_argument('generator', type=str, help='cross|intra')
+    parser.add_argument('--augmented', action='store_true')
     parser.add_argument('--test', action='store_true', help='if True, sample from test set')
     args = parser.parse_args()
     args.train = not args.test
 
     assert args.generator in ['cross', 'intra']
+    key = '_augmented' if args.augmented else ''
 
     if args.generator == 'cross':
-        generator = ThreeClassPreloadedGenerator(
+        generator = ThreeClassGenerator(
 		train=args.train, batch_size=1,
-                data_dir='/data/jefan/sketchpad_basic_fixedpose_augmented_conv_4_2')
+                data_dir='/data/jefan/sketchpad_basic_fixedpose%s_conv_4_2' % key)
     elif args.generator == 'intra':
-        generator = FourClassPreloadedGenerator(\
+        generator = FourClassGenerator(\
 		train=args.train, batch_size=1,
-                data_dir='/data/jefan/sketchpad_basic_fixedpose_augmented_conv_4_2')
+                data_dir='/data/jefan/sketchpad_basic_fixedpose%s_conv_4_2' % key)
 
     if os.path.exists('./tmp'):
         shutil.rmtree('./tmp')
@@ -353,8 +362,8 @@ if __name__ == "__main__":
         os.makedirs('./tmp/example%d' % i)
 
     emb_to_raw_path = lambda path: path.replace('.npy', '.png')
-    render_dir = '/data/jefan/sketchpad_basic_fixedpose_augmented/*'
-    sketch_dir = '/data/jefan/sketchpad_basic_fixedpose_augmented/sketch'
+    render_dir = '/data/jefan/sketchpad_basic_fixedpose%s/*' % key
+    sketch_dir = '/data/jefan/sketchpad_basic_fixedpose%s/sketch' % key
 
     for i in xrange(args.n):
         files = generator.try_generator()
@@ -362,7 +371,7 @@ if __name__ == "__main__":
         sketch1 = emb_to_raw_path(os.path.join(sketch_dir, files['sketch1']))
         render2 = emb_to_raw_path(os.path.join(render_dir, files['render2']))
         sketch2 = emb_to_raw_path(os.path.join(sketch_dir, files['sketch2']))
-       
+
         render1 = glob(render1)[0]
         render2 = glob(render2)[0]
         
