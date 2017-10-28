@@ -131,7 +131,7 @@ if __name__ == "__main__":
 
     with open(os.path.join(data_dir, 'incorrect_trial_paths_pilot2.txt')) as fp:
         bad_games = fp.readlines()
-        bad_games = [i.replace('.png\n', '.npy') for i in bad_games]
+        bad_games = [i.replace('.png\n', '.png') for i in bad_games]
         new_bad_games = []
 
     with open(os.path.join(data_dir, 'sketchpad_basic_pilot2_group_data.csv')) as fp:
@@ -145,7 +145,7 @@ if __name__ == "__main__":
         csv_data = csv_data[1:]
 
     for ix, row in enumerate(csv_data):
-        path = 'gameID_{id}_trial_{trial}.npy'.format(id=row[1], trial=row[2])
+        path = 'gameID_{id}_trial_{trial}.png'.format(id=row[1], trial=row[2])
         sketch = load(os.path.join(data_dir, 'sketch', path), transparent=True)
         crops = obscure(sketch, color=255, filter_size=75)
 
@@ -155,15 +155,15 @@ if __name__ == "__main__":
             im.save(os.path.join(data_dir, 'sketch', save_path))
 
             if path in bad_games:
-                new_bad_games.append(save_path.replace('.npy', '.png\n'))
+                new_bad_games.append(save_path.replace('.png', '.png\n'))
 
             for name in ['target', 'distractor1', 'distractor2', 'distractor3']:
                 find_name = glob(os.path.join(data_dir, name, os.path.splitext(path)[0] + '_*.png'))
                 find_name = [t for t in find_name if 'crop' not in t]
                 assert len(find_name) == 1
                 find_name = find_name[0]
-                copy_name = gen_crop_name(find_name, i)
-                shutil.copy(find_name, copy_name)
+                copy_name = gen_crop_name(os.path.basename(find_name), i)
+                shutil.copy(find_name, os.path.join(os.path.dirname(find_name), copy_name))
 
             new_row = copy.deepcopy(row)
             new_row[1] = row[1] + '-crop%d' % i
