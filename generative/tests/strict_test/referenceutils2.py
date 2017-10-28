@@ -347,11 +347,11 @@ if __name__ == "__main__":
     key = '_augmented' if args.augmented else ''
 
     if args.generator == 'cross':
-        generator = ThreeClassGenerator(
+        generator = ThreeClassPreloadedGenerator(
 		train=args.train, batch_size=1,
                 data_dir='/data/jefan/sketchpad_basic_fixedpose%s_conv_4_2' % key)
     elif args.generator == 'intra':
-        generator = FourClassGenerator(\
+        generator = FourClassPreloadedGenerator(\
 		train=args.train, batch_size=1,
                 data_dir='/data/jefan/sketchpad_basic_fixedpose%s_conv_4_2' % key)
 
