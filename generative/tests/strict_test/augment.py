@@ -7,6 +7,8 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 import os
+import csv
+import copy
 import shutil
 import numpy as np
 from glob import glob
@@ -117,30 +119,67 @@ def obscure(image, color=255, filter_size=75):
     return crops
 
 
+def gen_crop_name(name, crop_ix):
+    parts = name.split('_')
+    parts[1] = parts[1] + '-crop%d' % crop_ix
+    return '_'.join(parts)
+
+
 if __name__ == "__main__":
     data_dir = '/data/jefan/sketchpad_basic_fixedpose_augmented'
     files = os.listdir(os.path.join(data_dir, 'sketch'))
 
-    for ix, path in enumerate(files):
+    with open(os.path.join(data_dir, 'incorrect_trial_paths_pilot2.txt')) as fp:
+        bad_games = fp.readlines()
+        bad_games = [i.replace('.png\n', '.npy') for i in bad_games]
+        new_bad_games = []
+
+    with open(os.path.join(data_dir, 'sketchpad_basic_pilot2_group_data.csv')) as fp:
+        reader = csv.reader(fp)
+        csv_data = []
+        new_csv_data = []
+        for row in reader:
+            csv_data.append(row)
+        # open csv data and load data
+        header = csv_data[0]
+        csv_data = csv_data[1:]
+
+    for ix, row in enumerate(csv_data):
+        path = 'gameID_{id}_trial_{trial}.npy'.format(id=row[1], trial=row[2])
         sketch = load(os.path.join(data_dir, 'sketch', path), transparent=True)
         crops = obscure(sketch, color=255, filter_size=75)
-        base, extension = os.path.splitext(path)
 
         for i, crop in enumerate(crops):
             im = Image.fromarray(crop)
-            save_path = '{base}_crop_{ix}{extension}'.format(
-                base=base, ix=i, extension=extension)
+            save_path = gen_crop_name(path, i)
             im.save(os.path.join(data_dir, 'sketch', save_path))
-            
+
+            if path in bad_games:
+                new_bad_games.append(save_path.replace('.npy', '.png\n'))
+
             for name in ['target', 'distractor1', 'distractor2', 'distractor3']:
                 find_name = glob(os.path.join(data_dir, name, os.path.splitext(path)[0] + '_*.png'))
                 find_name = [t for t in find_name if 'crop' not in t]
                 assert len(find_name) == 1
                 find_name = find_name[0]
-                copy_name = '{base}_crop_{ix}{extension}'.format(
-                    base=os.path.splitext(find_name)[0], ix=i, extension=extension)
+                copy_name = gen_crop_name(find_name, i)
                 shutil.copy(find_name, copy_name)
 
+            new_row = copy.deepcopy(row)
+            new_row[1] = row[1] + '-crop%d' % i
+            new_csv_data.append(new_row)
 
         print('Progress: [{}/{}] files finished augmentation regime.'.format(
             ix+1, len(files)))
+
+    with open(os.path.join(data_dir, 'incorrect_trial_paths_pilot2.txt'), 'a') as fp:
+        fp.writelines(new_bad_games)
+
+    print('Wrote new examples to incorrect_trial_paths_pilot2.txt file.')
+
+    with open(os.path.join(data_dir, 'sketchpad_basic_pilot2_group_data.csv'), 'a') as fp:
+        writer = csv.writer(fp)
+        for row in new_csv_data:
+            writer.writerow(row)
+
+    print('Wrote new examples to sketchpad_basic_pilot2_group_data.csv file.')
