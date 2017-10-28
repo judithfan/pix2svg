@@ -29,8 +29,8 @@ class ReferenceGame2EmbeddingGenerator(object):
     :param use_cuda: whether to return cuda.FloatTensor or FloatTensor
     """
 
-    def __init__(self, use_cuda=False):
-        self.data_dir = '/data/jefan/sketchpad_basic_fixedpose_conv_4_2'
+    def __init__(self, data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2', use_cuda=False):
+        self.data_dir = data_dir
         self.dtype = dtype = (torch.cuda.FloatTensor 
                               if use_cuda else torch.FloatTensor)
 
@@ -63,3 +63,4 @@ class ReferenceGame2EmbeddingGenerator(object):
                 yield (sketch_path, sketch, render_path, render)
             except StopIteration:
                 break
+
