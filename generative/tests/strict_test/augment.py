@@ -10,6 +10,7 @@ import os
 import csv
 import copy
 import shutil
+import random
 import numpy as np
 from glob import glob
 from PIL import Image
@@ -237,9 +238,9 @@ def augment_by_photo():
             distractor2_crop_path = gen_crop_name(distractor2_path, i)
             distractor3_crop_path = gen_crop_name(distractor3_path, i)
 
-            distractor1_im.save(os.path.join(data_dir, 'distractor1', distractor1_path))
-            distractor2_im.save(os.path.join(data_dir, 'distractor2', distractor2_path))
-            distractor3_im.save(os.path.join(data_dir, 'distractor3', distractor3_path))
+            distractor1_im.save(os.path.join(data_dir, 'distractor1', distractor1_crop_path))
+            distractor2_im.save(os.path.join(data_dir, 'distractor2', distractor2_crop_path))
+            distractor3_im.save(os.path.join(data_dir, 'distractor3', distractor3_crop_path))
 
             # clone sketch whole
             sketch_crop_path = gen_crop_name(sketch_path, i)

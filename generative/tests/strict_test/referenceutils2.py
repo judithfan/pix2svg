@@ -338,13 +338,20 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('n', type=int, help='number of images to sample.')
     parser.add_argument('generator', type=str, help='cross|intra')
-    parser.add_argument('--augmented', action='store_true')
+    parser.add_argument('--augment', type=str, default='vanilla', help='vanilla|photo|sketch')
     parser.add_argument('--test', action='store_true', help='if True, sample from test set')
     args = parser.parse_args()
     args.train = not args.test
 
     assert args.generator in ['cross', 'intra']
-    key = '_augmented' if args.augmented else ''
+    assert args.augment in ['photo', 'sketch', 'vanilla']
+
+    if args.augment == 'vanilla':
+        key = ''
+    elif args.augment == 'photo':
+        key = '_augmented2'
+    elif args.augment == 'sketch':
+        key = '_augmented'
 
     if args.generator == 'cross':
         generator = ThreeClassPreloadedGenerator(
