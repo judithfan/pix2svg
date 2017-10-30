@@ -26,7 +26,7 @@ if __name__ == "__main__":
         data_dir = '/data/jefan/sketchpad_basic_fixedpose_conv_4_2'
 
     generator = FourClassGenerator(closer_only=args.closer, data_dir=data_dir)
-    pickle_name = 'preloaded_closer.pkl' if closer_only else 'preloaded_all.pkl'
+    pickle_name = 'preloaded_closer.pkl' if args.closer else 'preloaded_all.pkl'
 
     with open(os.path.join(data_dir, pickle_name), 'wb') as fp:
         cPickle.dump({'cat2target': generator.cat2target, 
