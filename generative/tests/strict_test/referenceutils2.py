@@ -67,12 +67,13 @@ class ThreeClassGenerator(object):
     :param use_cuda: whether to use CUDA objects or not
     """
 
-    def __init__(self, train=True, batch_size=10, use_cuda=False,
+    def __init__(self, train=True, batch_size=10, use_cuda=False, closer_only=False,
                  data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2'):
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.use_cuda = use_cuda
         self.train = train
+        self.closer_only = closer_only
 
         with open(os.path.join(self.data_dir, 'incorrect_trial_paths_pilot2.txt')) as fp:
             # these games need to be ignored
@@ -110,7 +111,7 @@ class ThreeClassGenerator(object):
         for ir, row in enumerate(csv_data):
             print('Initializing row [{}/{}]'.format(ir + 1, len(csv_data)))
             # we only care about closer cases right now
-            if row[condition_ix] != 'closer':
+            if closer_only and row[condition_ix] != 'closer':
                 continue
 
             row_gameid = row[gameid_ix]
@@ -338,6 +339,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('n', type=int, help='number of images to sample.')
     parser.add_argument('generator', type=str, help='cross|intra')
+    parser.add_argument('--closer', action='store_true', help='if True, include only closer examples')
     parser.add_argument('--augment', type=str, default='vanilla', help='vanilla|photo|sketch')
     parser.add_argument('--test', action='store_true', help='if True, sample from test set')
     args = parser.parse_args()
@@ -355,12 +357,12 @@ if __name__ == "__main__":
 
     if args.generator == 'cross':
         generator = ThreeClassPreloadedGenerator(
-		train=args.train, batch_size=1,
-                data_dir='/data/jefan/sketchpad_basic_fixedpose%s_conv_4_2' % key)
+            train=args.train, batch_size=1, closer_only=args.closer,
+            data_dir='/data/jefan/sketchpad_basic_fixedpose%s_conv_4_2' % key)
     elif args.generator == 'intra':
         generator = FourClassPreloadedGenerator(\
-		train=args.train, batch_size=1,
-                data_dir='/data/jefan/sketchpad_basic_fixedpose%s_conv_4_2' % key)
+            train=args.train, batch_size=1, closer_only=args.closer,
+            data_dir='/data/jefan/sketchpad_basic_fixedpose%s_conv_4_2' % key)
 
     if os.path.exists('./tmp'):
         shutil.rmtree('./tmp')
