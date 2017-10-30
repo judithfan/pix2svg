@@ -38,9 +38,9 @@ if __name__ == "__main__":
 
     def reset_generators():
         train_generator = Generator(train=True, batch_size=args.batch_size, use_cuda=args.cuda,
-                                    data_dir='/data/jefan/sketchpad_basic_fixedpose_augmented_conv_4_2')
+                                    data_dir='/data/jefan/sketchpad_basic_fixedpose_augmented2_conv_4_2')
         test_generator = Generator(train=False, batch_size=args.batch_size, use_cuda=args.cuda,
-                                   data_dir='/data/jefan/sketchpad_basic_fixedpose_augmented_conv_4_2')
+                                   data_dir='/data/jefan/sketchpad_basic_fixedpose_augmented2_conv_4_2')
         return train_generator, test_generator
 
     train_generator, test_generator = reset_generators()
