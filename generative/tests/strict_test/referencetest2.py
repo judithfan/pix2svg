@@ -35,7 +35,7 @@ if __name__ == "__main__":
 
     # note how we are not using the augmented dataset since at test time,
     # we don't care about how it does on cropped data.
-    generator = Generator(train=False, batch_size=args.batch_size, use_cuda=args.cuda,
+    generator = Generator(train=False, batch_size=25, use_cuda=args.cuda,
                           data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2')
     examples = generator.make_generator()
 
