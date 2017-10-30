@@ -176,13 +176,6 @@ class ThreeClassGenerator(object):
         self.distractor2sketch = distractor2sketch
         self.target2distractors = target2distractors
         self.path2folder = path2folder
-    
-        with open(os.path.join(self.data_dir, 'preloaded.pkl'), 'wb') as fp:
-            cPickle.dump({'cat2target': cat2target, 
-                          'target2sketch': target2sketch,
-                          'distractor2sketch': distractor2sketch,
-                          'target2distractors': target2distractors,
-                          'path2folder': path2folder}, fp)
 
         train_paths, test_paths = self.train_test_split()
         self.size = len(train_paths) if self.train else len(test_paths)
@@ -274,14 +267,16 @@ class ThreeClassPreloadedGenerator(ThreeClassGenerator):
     """ThreeClassGenerator takes a long to build the dictionaries. 
     Preload them."""
 
-    def __init__(self, train=True, batch_size=10, use_cuda=False,
+    def __init__(self, train=True, batch_size=10, use_cuda=False, closer_only=False,
                  data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2'):
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.use_cuda = use_cuda
         self.train = train
+        self.closer_only = closer_only
 
-        with open(os.path.join(self.data_dir, 'preloaded.pkl'), 'r') as fp:
+        pickle_name = 'preloaded_closer.pkl' if closer_only else 'preloaded_all.pkl'
+        with open(os.path.join(self.data_dir, pickle_name), 'r') as fp:
             data = cPickle.load(fp)
 
         self.cat2target = data['cat2target']
@@ -340,29 +335,28 @@ if __name__ == "__main__":
     parser.add_argument('n', type=int, help='number of images to sample.')
     parser.add_argument('generator', type=str, help='cross|intra')
     parser.add_argument('--closer', action='store_true', help='if True, include only closer examples')
-    parser.add_argument('--augment', type=str, default='vanilla', help='vanilla|photo|sketch')
+    parser.add_argument('--photo_augment', action='store_true')
+    parser.add_argument('--sketch_augment', action='store_true')
     parser.add_argument('--test', action='store_true', help='if True, sample from test set')
     args = parser.parse_args()
     args.train = not args.test
 
     assert args.generator in ['cross', 'intra']
-    assert args.augment in ['photo', 'sketch', 'vanilla']
-
-    if args.augment == 'vanilla':
-        key = ''
-    elif args.augment == 'photo':
-        key = '_augmented2'
-    elif args.augment == 'sketch':
-        key = '_augmented'
+    if args.photo_augment and args.sketch_augment:
+        raise Exception('Cannot pass both photo_augment and sketch_augment')
+    if args.photo_augment:
+        data_dir = '/data/jefan/sketchpad_basic_fixedpose_augmented2_conv_4_2'
+    elif args.sketch_augment:
+        data_dir = '/data/jefan/sketchpad_basic_fixedpose_augmented_conv_4_2'
+    else:
+        data_dir = '/data/jefan/sketchpad_basic_fixedpose_conv_4_2'
 
     if args.generator == 'cross':
-        generator = ThreeClassPreloadedGenerator(
-            train=args.train, batch_size=1, closer_only=args.closer,
-            data_dir='/data/jefan/sketchpad_basic_fixedpose%s_conv_4_2' % key)
+        generator = ThreeClassPreloadedGenerator(train=args.train, batch_size=1, 
+                                                 closer_only=args.closer, data_dir=data_dir)
     elif args.generator == 'intra':
-        generator = FourClassPreloadedGenerator(\
-            train=args.train, batch_size=1, closer_only=args.closer,
-            data_dir='/data/jefan/sketchpad_basic_fixedpose%s_conv_4_2' % key)
+        generator = FourClassPreloadedGenerator(train=args.train, batch_size=1, 
+                                                closer_only=args.closer, data_dir=data_dir)
 
     if os.path.exists('./tmp'):
         shutil.rmtree('./tmp')
