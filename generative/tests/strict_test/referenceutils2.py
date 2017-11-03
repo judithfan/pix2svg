@@ -329,11 +329,71 @@ class FourClassPreloadedGenerator(ThreeClassPreloadedGenerator):
         return train_paths, test_paths
 
 
+class EntityGenerator(ThreeClassGenerator):
+    """This splits by gameID so we can make claims about generalizing
+    to unseen individuals."""
+    
+    def train_test_split(self):
+        cat2target = self.cat2target
+        all_paths = []
+        all_games = []
+        for paths in cat2target.itervalues():
+            all_paths += paths
+            all_games += [path.split('_')[1] for path in paths]
+        # make this a unique set
+        all_games = list(set(all_games))
+        random.shuffle(all_games)
+        n_games = len(all_games)
+        n_train = int((n_games * 0.80) // 1)
+        # split into training games and testing games
+        train_games = all_games[:n_train]
+        test_games = all_games[n_train:]
+        # now we need to find actual paths
+        train_paths, test_paths = [], []
+        for path in all_paths:
+            if path.split('_')[1] in train_games:
+                train_paths.append(path)
+            elif path.split('_')[1] in test_games:
+                test_paths.append(path)
+            else:
+                raise Exception('Missing path: %s.' % path)
+        return train_paths, test_paths
+
+
+class EntityPreloadedGenerator(ThreeClassPreloadedGenerator):
+
+    def train_test_split(self):
+        cat2target = self.cat2target
+        all_paths = []
+        all_games = []
+        for paths in cat2target.itervalues():
+            all_paths += paths
+            all_games += [path.split('_')[1] for path in paths]
+        # make this a unique set
+        all_games = list(set(all_games))
+        random.shuffle(all_games)
+        n_games = len(all_games)
+        n_train = int((n_games * 0.80) // 1)
+        # split into training games and testing games
+        train_games = all_games[:n_train]
+        test_games = all_games[n_train:]
+        # now we need to find actual paths
+        train_paths, test_paths = [], []
+        for path in all_paths:
+            if path.split('_')[1] in train_games:
+                train_paths.append(path)
+            elif path.split('_')[1] in test_games:
+                test_paths.append(path)
+            else:
+                raise Exception('Missing path: %s.' % path)
+        return train_paths, test_paths
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('n', type=int, help='number of images to sample.')
-    parser.add_argument('generator', type=str, help='cross|intra')
+    parser.add_argument('generator', type=str, help='cross|intra|entity')
     parser.add_argument('--closer', action='store_true', help='if True, include only closer examples')
     parser.add_argument('--photo_augment', action='store_true')
     parser.add_argument('--sketch_augment', action='store_true')
@@ -341,7 +401,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.train = not args.test
 
-    assert args.generator in ['cross', 'intra']
+    assert args.generator in ['cross', 'intra', 'entity']
     if args.photo_augment and args.sketch_augment:
         raise Exception('Cannot pass both photo_augment and sketch_augment')
     if args.photo_augment:
@@ -357,6 +417,9 @@ if __name__ == "__main__":
     elif args.generator == 'intra':
         generator = FourClassPreloadedGenerator(train=args.train, batch_size=1, 
                                                 closer_only=args.closer, data_dir=data_dir)
+    elif args.generator == 'entity':
+        generator = EntityPreloadedGenerator(train=args.train, batch_size=1, 
+                                             closer_only=args.closer, data_dir=data_dir)
 
     if os.path.exists('./tmp'):
         shutil.rmtree('./tmp')

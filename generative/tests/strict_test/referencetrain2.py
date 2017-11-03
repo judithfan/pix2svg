@@ -11,17 +11,18 @@ from sklearn.metrics import accuracy_score
 
 from convmodel import EmbedNet
 from convmodel import save_checkpoint
-from referenceutils2 import ThreeClassPreloadedGenerator, FourClassPreloadedGenerator
+from referenceutils2 import (ThreeClassPreloadedGenerator, 
+                             FourClassPreloadedGenerator,
+                             EntityPreloadedGenerator)
 
 from train import AverageMeter
 
 
 if __name__ == "__main__":
     import argparse
-
     parser = argparse.ArgumentParser()
     parser.add_argument('out_dir', type=str)
-    parser.add_argument('generator', type=str, help='cross|intra')
+    parser.add_argument('generator', type=str, help='cross|intra|entity')
     parser.add_argument('--batch_size', type=int, default=25)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--epochs', type=int, default=20)
@@ -41,11 +42,13 @@ if __name__ == "__main__":
         data_dir = '/data/jefan/sketchpad_basic_fixedpose_conv_4_2'
 
     # choose the right generator
-    assert args.generator in ['cross', 'intra']
+    assert args.generator in ['cross', 'intra', 'entity']
     if args.generator == 'cross':
         Generator = ThreeClassPreloadedGenerator
     elif args.generator == 'intra':
         Generator = FourClassPreloadedGenerator
+    elif args.generator == 'entity':
+        Generator = EntityPreloadedGenerator
 
     def reset_generators():
         train_generator = Generator(train=True, batch_size=args.batch_size, use_cuda=args.cuda,
