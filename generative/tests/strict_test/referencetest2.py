@@ -12,7 +12,9 @@ from sklearn.metrics import accuracy_score
 from convmodel import EmbedNet
 from convmodel import save_checkpoint
 
-from referenceutils2 import ThreeClassGenerator, FourClassGenerator
+from referenceutils2 import (ThreeClassPreloadedGenerator, 
+                             FourClassPreloadedGenerator,
+                             EntityPreloadedGenerator)
 from train import AverageMeter
 from convmodel import load_checkpoint
 
@@ -28,11 +30,13 @@ if __name__ == "__main__":
     args.cuda = args.cuda and torch.cuda.is_available()
 
     # choose the right generator
-    assert args.generator in ['cross', 'intra']
+    assert args.generator in ['cross', 'intra', 'entity']
     if args.generator == 'cross':
-        Generator = ThreeClassGenerator
+        Generator = ThreeClassPreloadedGenerator
     elif args.generator == 'intra':
-        Generator = FourClassGenerator
+        Generator = FourClassPreloadedGenerator
+    elif args.generator == 'entity':
+        Generator = EntityPreloadedGenerator
 
     # note how we are not using the augmented dataset since at test time,
     # we don't care about how it does on cropped data.
