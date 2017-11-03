@@ -9,8 +9,10 @@ import torch.nn.functional as F
 import numpy as np
 from sklearn.metrics import accuracy_score
 
-from convmodel import EmbedNet
-from convmodel import save_checkpoint
+from convmodel import EmbedNet as ConvEmbedNet
+from convmodel import save_checkpoint as save_conv_checkpoint
+from deepmodel import EmbedNet as FCEmbedNet
+from deepmodel import save_checkpoint as save_fc_checkpoint
 from referenceutils2 import (ThreeClassPreloadedGenerator, 
                              FourClassPreloadedGenerator,
                              EntityPreloadedGenerator)
@@ -23,6 +25,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('out_dir', type=str)
     parser.add_argument('generator', type=str, help='cross|intra|entity')
+    parser.add_argument('--model', type=str, help='conv_4_2|fc7', default='conv_4_2')
     parser.add_argument('--batch_size', type=int, default=25)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--epochs', type=int, default=20)
@@ -32,17 +35,26 @@ if __name__ == "__main__":
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
+    assert args.model in ['conv_4_2', 'fc7']
+    assert args.generator in ['cross', 'intra', 'entity']
+
     if args.photo_augment and args.sketch_augment:
         raise Exception('Cannot pass both photo_augment and sketch_augment')
     if args.photo_augment:
-        data_dir = '/data/jefan/sketchpad_basic_fixedpose_augmented2_conv_4_2'
+        data_dir = '/data/jefan/sketchpad_basic_fixedpose_augmented2_%s' % args.model
     elif args.sketch_augment:
-        data_dir = '/data/jefan/sketchpad_basic_fixedpose_augmented_conv_4_2'
+        data_dir = '/data/jefan/sketchpad_basic_fixedpose_augmented_%s' % args.model
     else:
-        data_dir = '/data/jefan/sketchpad_basic_fixedpose_conv_4_2'
+        data_dir = '/data/jefan/sketchpad_basic_fixedpose_%s' % args.model
+
+    if args.model == 'conv_4_2':
+        EmbedNet = ConvEmbedNet
+        save_checkpoint = save_conv_checkpoint
+    elif args.model == 'fc7':
+        EmbedNet = FCEmbedNet
+        save_checkpoint = save_fc_checkpoint
 
     # choose the right generator
-    assert args.generator in ['cross', 'intra', 'entity']
     if args.generator == 'cross':
         Generator = ThreeClassPreloadedGenerator
     elif args.generator == 'intra':
