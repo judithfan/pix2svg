@@ -275,7 +275,7 @@ class ThreeClassPreloadedGenerator(ThreeClassGenerator):
         self.train = train
         self.closer_only = closer_only
 
-        pickle_name = 'preloaded_closer.pkl' if closer_only else 'preloaded_all.pkl'
+        pickle_name = self.gen_pickle_name()
         with open(os.path.join(self.data_dir, pickle_name), 'r') as fp:
             data = cPickle.load(fp)
 
@@ -287,6 +287,10 @@ class ThreeClassPreloadedGenerator(ThreeClassGenerator):
 
         train_paths, test_paths = self.train_test_split()
         self.size = len(train_paths) if train else len(test_paths)
+
+    def gen_pickle_name(self):
+        return ('preloaded_cross_closer.pkl' 
+                if self.closer_only else 'preloaded_cross_all.pkl')
 
 
 class FourClassGenerator(ThreeClassGenerator):
@@ -327,6 +331,10 @@ class FourClassPreloadedGenerator(ThreeClassPreloadedGenerator):
         random.shuffle(test_paths)
 
         return train_paths, test_paths
+
+    def gen_pickle_name(self):
+        return ('preloaded_intra_closer.pkl' 
+                if self.closer_only else 'preloaded_intra_all.pkl')
 
 
 class EntityGenerator(ThreeClassGenerator):
@@ -387,6 +395,10 @@ class EntityPreloadedGenerator(ThreeClassPreloadedGenerator):
             else:
                 raise Exception('Missing path: %s.' % path)
         return train_paths, test_paths
+
+    def gen_pickle_name(self):
+        return ('preloaded_entity_closer.pkl' 
+                if self.closer_only else 'preloaded_entity_all.pkl')
 
 
 if __name__ == "__main__":
