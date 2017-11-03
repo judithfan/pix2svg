@@ -37,8 +37,7 @@ if __name__ == "__main__":
         generator = EntityGenerator(closer_only=args.closer, data_dir=data_dir)
 
     pickle_name = ('preloaded_%s_closer.pkl' % args.generator 
-                   if closer_only else 'preloaded_%s_all.pkl' % args.generator)
-
+                   if args.closer else 'preloaded_%s_all.pkl' % args.generator)
     with open(os.path.join(data_dir, pickle_name), 'wb') as fp:
         cPickle.dump({'cat2target': generator.cat2target, 
                       'target2sketch': generator.target2sketch,
