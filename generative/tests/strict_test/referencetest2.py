@@ -46,7 +46,7 @@ if __name__ == "__main__":
     # note how we are not using the augmented dataset since at test time,
     # we don't care about how it does on cropped data.
     generator = Generator(train=False, batch_size=25, use_cuda=args.cuda, closer_only=args.closer_only,
-                          data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2')
+                          data_dir='/data/jefan/sketchpad_basic_fixedpose_%s' % args.model)
     examples = generator.make_generator()
 
     model = load_checkpoint(args.model_path, use_cuda=args.cuda)
