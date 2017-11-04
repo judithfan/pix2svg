@@ -9,7 +9,8 @@ import torch
 from generators2 import ReferenceGame2EmbeddingGenerator
 
 sys.path.append('..')
-from strict_test.convmodel import load_checkpoint
+from strict_test.convmodel import load_checkpoint as load_conv_checkpoint
+from strict_test.deepmodel import load_checkpoint as load_fc_checkpoint
 from strict_test.convmodel import cosine_similarity
 
 
@@ -18,9 +19,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('json_path', type=str, help='path to where to dump json')
     parser.add_argument('model_dir', type=str, help='path to trained model')
+    parser.add_argument('--model', type=str, help='conv_4_2|fc7', default='conv_4_2')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
+
+    assert args.model in ['conv_4_2', 'fc7']
+    if args.model == 'conv_4_2':
+        load_checkpoint = load_conv_checkpoint
+    elif args.model == 'fc7':
+        load_checkpoint = load_fc_checkpoint
 
     generator = ReferenceGame2EmbeddingGenerator(use_cuda=args.cuda)
     examples = generator.make_generator() 
