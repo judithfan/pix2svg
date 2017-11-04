@@ -8,35 +8,40 @@ import torch.nn.functional as F
 
 import numpy as np
 from sklearn.metrics import accuracy_score
-
-from convmodel import EmbedNet
-from convmodel import save_checkpoint
-
 from referenceutils2 import (ThreeClassPreloadedGenerator, 
                              FourClassPreloadedGenerator,
                              EntityPreloadedGenerator)
 from train import AverageMeter
-from convmodel import load_checkpoint
+from convmodel import load_checkpoint as load_conv_checkpoint
+from deepmodel import load_checkpoint as load_fc_checkpoint
 
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('model_path', type=str, help='path to where model is stored')
-    parser.add_argument('generator', type=str, help='cross|intra')
+    parser.add_argument('generator', type=str, help='cross|intra|entity')
+    parser.add_argument('--model', type=str, help='conv_4_2|fc7', default='conv_4_2')
     parser.add_argument('--closer_only', action='store_true', default=False)
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    # choose the right generator
+    assert args.model in ['conv_4_2', 'fc7']
     assert args.generator in ['cross', 'intra', 'entity']
+
+    # choose the right generator
     if args.generator == 'cross':
         Generator = ThreeClassPreloadedGenerator
     elif args.generator == 'intra':
         Generator = FourClassPreloadedGenerator
     elif args.generator == 'entity':
         Generator = EntityPreloadedGenerator
+
+    if args.model == 'conv_4_2':
+        load_checkpoint = load_conv_checkpoint
+    elif args.model == 'fc7':
+        load_checkpoint = load_fc_checkpoint
 
     # note how we are not using the augmented dataset since at test time,
     # we don't care about how it does on cropped data.
