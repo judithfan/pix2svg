@@ -212,7 +212,6 @@ class ThreeClassGenerator(object):
         render_paths = train_paths if self.train else test_paths
 
         batch_idx = 0  # keep track of when to start new batch
-
         for i in range(self.size):
             # define (p1, s1), (p1, s2), (p2, s1), (p2, s2) paths
             render1_path = render_paths[i]
@@ -342,6 +341,8 @@ class EntityGenerator(ThreeClassGenerator):
     to unseen individuals."""
     
     def train_test_split(self):
+        random.seed(42)
+        np.random.seed(42)
         cat2target = self.cat2target
         all_paths = []
         all_games = []
@@ -371,6 +372,8 @@ class EntityGenerator(ThreeClassGenerator):
 class EntityPreloadedGenerator(ThreeClassPreloadedGenerator):
 
     def train_test_split(self):
+        random.seed(42)
+        np.random.seed(42)
         cat2target = self.cat2target
         all_paths = []
         all_games = []
