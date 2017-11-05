@@ -126,9 +126,7 @@ def gen_crop_name(name, crop_ix):
     return '_'.join(parts)
 
 
-def augment_by_sketch():
-    data_dir = '/data/jefan/sketchpad_basic_fixedpose_augmented'
-
+def augment_by_sketch(data_dir='/data/jefan/sketchpad_basic_fixedpose_sketch_augmented'):
     with open(os.path.join(data_dir, 'incorrect_trial_paths_pilot2.txt')) as fp:
         bad_games = fp.readlines()
         bad_games = [i.replace('.png\n', '.png') for i in bad_games]
@@ -185,9 +183,7 @@ def augment_by_sketch():
     print('Wrote new examples to sketchpad_basic_pilot2_group_data.csv file.')
 
 
-def augment_by_photo():
-    data_dir = '/data/jefan/sketchpad_basic_fixedpose_augmented2'
-
+def augment_by_photo(data_dir='/data/jefan/sketchpad_basic_fixedpose_photo_augmented'):
     with open(os.path.join(data_dir, 'incorrect_trial_paths_pilot2.txt')) as fp:
         bad_games = fp.readlines()
         bad_games = [i.replace('.png\n', '.png') for i in bad_games]
@@ -276,10 +272,13 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('augment', type=str, help='photo|sketch')
+    parser.add_argument('--v96', action='store_true', default=False, help='use 96 game version')
     args = parser.parse_args()
+    args.v96 = '96' if args.v96 else ''
     assert args.augment in ['photo', 'sketch']
+    data_dir = '/data/jefan/sketchpad_basic_fixedpose{}_{}_augmented'.format(args.v96, args.augment)
 
     if args.augment == 'sketch':
-        augment_by_sketch()
+        augment_by_sketch(data_dir=data_dir)
     elif args.augment == 'photo':
-        augment_by_photo()
+        augment_by_photo(data_dir=data_dir)

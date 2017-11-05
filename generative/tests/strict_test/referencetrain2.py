@@ -31,21 +31,23 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--photo_augment', action='store_true', default=False)
     parser.add_argument('--sketch_augment', action='store_true', default=False)
-    parser.add_argument('--closer_only', action='store_true', default=False)
+    parser.add_argument('--closer', action='store_true', default=False)
+    parser.add_arguemnt('--v96', action='store_true', default=False, help='use 96 game version')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
+    args.v96 = '96' if args.v96 else ''
     assert args.model in ['conv_4_2', 'fc7']
     assert args.generator in ['cross', 'intra', 'entity']
 
     if args.photo_augment and args.sketch_augment:
         raise Exception('Cannot pass both photo_augment and sketch_augment')
     if args.photo_augment:
-        data_dir = '/data/jefan/sketchpad_basic_fixedpose_augmented2_%s' % args.model
+        data_dir = '/data/jefan/sketchpad_basic_fixedpose%s_photo_augmented_%s' % (args.v96, args.model)
     elif args.sketch_augment:
-        data_dir = '/data/jefan/sketchpad_basic_fixedpose_augmented_%s' % args.model
+        data_dir = '/data/jefan/sketchpad_basic_fixedpose%s_sketch_augmented_%s' % (args.v96, args.model)
     else:
-        data_dir = '/data/jefan/sketchpad_basic_fixedpose_%s' % args.model
+        data_dir = '/data/jefan/sketchpad_basic_fixedpose%s_%s' % (args.v96, args.model)
 
     if args.model == 'conv_4_2':
         EmbedNet = ConvEmbedNet
@@ -64,9 +66,9 @@ if __name__ == "__main__":
 
     def reset_generators():
         train_generator = Generator(train=True, batch_size=args.batch_size, use_cuda=args.cuda,
-                                    data_dir=data_dir, closer_only=args.closer_only)
+                                    data_dir=data_dir, closer_only=args.closer)
         test_generator = Generator(train=False, batch_size=args.batch_size, use_cuda=args.cuda,
-                                   data_dir=data_dir, closer_only=args.closer_only)
+                                   data_dir=data_dir, closer_only=args.closer)
         return train_generator, test_generator
 
     train_generator, test_generator = reset_generators()

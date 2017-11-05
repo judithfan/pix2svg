@@ -14,20 +14,22 @@ if __name__ == "__main__":
     parser.add_argument('generator', type=str, help='cross|intra|entity')
     parser.add_argument('--model', type=str, help='conv_4_2|fc7', default='conv_4_2')
     parser.add_argument('--closer', action='store_true', help='if True, include only closer examples')
+    parser.add_arguemnt('--v96', action='store_true', default=False, help='use 96 game version')
     parser.add_argument('--photo_augment', action='store_true')
     parser.add_argument('--sketch_augment', action='store_true')
     args = parser.parse_args()
+    args.v96 = '96' if args.v96 else ''
     assert args.generator in ['cross', 'intra', 'entity']
     assert args.model in ['conv_4_2', 'fc7']
     
     if args.photo_augment and args.sketch_augment:
         raise Exception('Cannot pass both photo_augment and sketch_augment')
     if args.photo_augment:
-        data_dir = '/data/jefan/sketchpad_basic_fixedpose_augmented2_%s' % args.model
+        data_dir = '/data/jefan/sketchpad_basic_fixedpose%s_photo_augmented_%s' % (args.v96, args.model)
     elif args.sketch_augment:
-        data_dir = '/data/jefan/sketchpad_basic_fixedpose_augmented_%s' % args.model
+        data_dir = '/data/jefan/sketchpad_basic_fixedpose%s_sketch_augmented_%s' % (args.v96, args.model)
     else:
-        data_dir = '/data/jefan/sketchpad_basic_fixedpose_%s' % args.model
+        data_dir = '/data/jefan/sketchpad_basic_fixedpose%s_%s' % (args.v96, args.model)
 
     if args.generator == 'cross':
         generator = ThreeClassGenerator(closer_only=args.closer, data_dir=data_dir)

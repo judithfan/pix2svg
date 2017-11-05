@@ -22,10 +22,12 @@ if __name__ == "__main__":
     parser.add_argument('model_path', type=str, help='path to where model is stored')
     parser.add_argument('generator', type=str, help='cross|intra|entity')
     parser.add_argument('--model', type=str, help='conv_4_2|fc7', default='conv_4_2')
-    parser.add_argument('--closer_only', action='store_true', default=False)
+    parser.add_argument('--closer', action='store_true', default=False)
+    parser.add_arguemnt('--v96', action='store_true', default=False, help='use 96 game version')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
+    args.v96 = '96' if args.v96 else ''
 
     assert args.model in ['conv_4_2', 'fc7']
     assert args.generator in ['cross', 'intra', 'entity']
@@ -45,8 +47,8 @@ if __name__ == "__main__":
 
     # note how we are not using the augmented dataset since at test time,
     # we don't care about how it does on cropped data.
-    generator = Generator(train=False, batch_size=25, use_cuda=args.cuda, closer_only=args.closer_only,
-                          data_dir='/data/jefan/sketchpad_basic_fixedpose_%s' % args.model)
+    generator = Generator(train=False, batch_size=25, use_cuda=args.cuda, closer_only=args.closer,
+                          data_dir='/data/jefan/sketchpad_basic_fixedpose%s_%s' % (args.v96, args.model))
     examples = generator.make_generator()
 
     model = load_checkpoint(args.model_path, use_cuda=args.cuda)
