@@ -353,7 +353,7 @@ class EntityGenerator(ThreeClassGenerator):
         all_games = list(set(all_games))
         random.shuffle(all_games)
         n_games = len(all_games)
-        n_train = int((n_games * 0.80) // 1)
+        n_train = int((n_games * 0.60) // 1)
         # split into training games and testing games
         train_games = all_games[:n_train]
         test_games = all_games[n_train:]
@@ -384,7 +384,7 @@ class EntityPreloadedGenerator(ThreeClassPreloadedGenerator):
         all_games = list(set(all_games))
         random.shuffle(all_games)
         n_games = len(all_games)
-        n_train = int((n_games * 0.80) // 1)
+        n_train = int((n_games * 0.60) // 1)
         # split into training games and testing games
         train_games = all_games[:n_train]
         test_games = all_games[n_train:]
