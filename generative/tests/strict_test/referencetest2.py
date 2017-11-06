@@ -23,7 +23,7 @@ if __name__ == "__main__":
     parser.add_argument('generator', type=str, help='cross|intra|entity')
     parser.add_argument('--model', type=str, help='conv_4_2|fc7', default='conv_4_2')
     parser.add_argument('--closer', action='store_true', default=False)
-    parser.add_arguemnt('--v96', action='store_true', default=False, help='use 96 game version')
+    parser.add_argument('--v96', action='store_true', default=False, help='use 96 game version')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()

@@ -32,7 +32,7 @@ if __name__ == "__main__":
     parser.add_argument('--photo_augment', action='store_true', default=False)
     parser.add_argument('--sketch_augment', action='store_true', default=False)
     parser.add_argument('--closer', action='store_true', default=False)
-    parser.add_arguemnt('--v96', action='store_true', default=False, help='use 96 game version')
+    parser.add_argument('--v96', action='store_true', default=False, help='use 96 game version')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
