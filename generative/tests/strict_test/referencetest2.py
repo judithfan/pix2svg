@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
     # note how we are not using the augmented dataset since at test time,
     # we don't care about how it does on cropped data.
-    generator = Generator(train=False, batch_size=25, use_cuda=args.cuda, closer_only=args.closer,
+    generator = Generator(train=False, batch_size=1, use_cuda=args.cuda, closer_only=args.closer,
                           data_dir='/data/jefan/sketchpad_basic_fixedpose%s_%s' % (args.v96, args.model))
     examples = generator.make_generator()
 
@@ -78,6 +78,7 @@ if __name__ == "__main__":
             outputs_np = np.round(outputs.cpu().squeeze(1).data.numpy(), 0)
             acc = accuracy_score(labels_np, outputs_np)
             acc_meter.update(acc, photos.size(0))
+            print('Seen examples [{}/{}]'.format(batch_idx * 1, generator.size))
 
         print('Loss: {:.6f}\tAcc: {:.6f}'.format(loss_meter.avg, acc_meter.avg))
         return acc_meter.avg
