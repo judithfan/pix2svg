@@ -411,7 +411,7 @@ if __name__ == "__main__":
     parser.add_argument('generator', type=str, help='cross|intra|entity')
     parser.add_argument('--model', type=str, help='conv_4_2|fc7', default='conv_4_2')
     parser.add_argument('--closer', action='store_true', help='if True, include only closer examples')
-    parser.add_arguemnt('--v96', action='store_true', default=False, help='use 96 game version')
+    parser.add_argument('--v96', action='store_true', default=False, help='use 96 game version')
     parser.add_argument('--photo_augment', action='store_true')
     parser.add_argument('--sketch_augment', action='store_true')
     parser.add_argument('--test', action='store_true', help='if True, sample from test set')
