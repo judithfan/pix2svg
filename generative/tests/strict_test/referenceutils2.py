@@ -16,6 +16,7 @@ import cPickle
 import numpy as np
 from glob import glob
 from collections import defaultdict
+from itertools import combinations
 
 import torch
 from torch.autograd import Variable
@@ -378,6 +379,9 @@ class ContextFreeGenerator(ThreeClassGenerator):
             context = [target] + distractors
             context = sorted(context)
 
+            assert not (tuple(context) in train_contexts and \
+                tuple(context) in test_contexts)
+
             if tuple(context) in train_contexts:
                 train_paths.append(path)
             elif tuple(context) in test_contexts:
@@ -428,9 +432,59 @@ class ContextFreePreloadedGenerator(ThreeClassPreloadedGenerator):
             context = [target] + distractors
             context = sorted(context)
 
+            assert not (tuple(context) in train_contexts and \
+                tuple(context) in test_contexts)
+
             if tuple(context) in train_contexts:
                 train_paths.append(path)
             elif tuple(context) in test_contexts:
+                test_paths.append(path)
+            else:
+                raise Exception('How did you get here?')
+
+        return train_paths, test_paths
+
+
+class PermutedContextGenerator(ContextFreeGenerator):
+    # FIXME: this is broken atm.
+
+    def gen_context_pairs(self, contexts):
+        pairs = []
+        for context in contexts:
+            pairs += list(combinations(context, 2))
+        pairs = set(pairs)
+        return [list(x) for x in pairs]
+
+    def train_test_split(self):
+        random.seed(42)
+        np.random.seed(42)
+
+        contexts = self.gen_unique_contexts()
+        contexts = self.gen_context_pairs(contexts)
+        random.shuffle(contexts)
+        n_contexts = len(contexts)
+        n_train = int(n_contexts * 0.60)  # 60/40 train/test split
+        train_contexts = set(tuple(x) for x in contexts[:n_train])
+        test_contexts = set(tuple(x) for x in contexts[n_train:])
+
+        all_paths = []
+        for paths in self.cat2target.itervalues():
+            all_paths += paths
+        random.shuffle(all_paths)
+
+        train_paths, test_paths = [], []
+        for path in all_paths:
+            target = path
+            distractors = self.target2distractors[target]
+            target = os.path.splitext(target)[0].split('_')[-1]
+            distractors = [os.path.splitext(i)[0].split('_')[-1] for i in distractors]
+            context = [target] + distractors
+            context = sorted(context)
+            context = set(list(combinations(context, 2)))
+
+            if context.intersection(train_contexts):
+                train_paths.append(path)
+            elif context.intersection(test_contexts):
                 test_paths.append(path)
             else:
                 raise Exception('How did you get here?')
