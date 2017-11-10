@@ -16,6 +16,7 @@ import cPickle
 import numpy as np
 from glob import glob
 from collections import defaultdict
+from itertools import combinations
 
 import torch
 from torch.autograd import Variable
@@ -378,6 +379,9 @@ class ContextFreeGenerator(ThreeClassGenerator):
             context = [target] + distractors
             context = sorted(context)
 
+            assert not (tuple(context) in train_contexts and \
+                tuple(context) in test_contexts)
+
             if tuple(context) in train_contexts:
                 train_paths.append(path)
             elif tuple(context) in test_contexts:
@@ -428,6 +432,9 @@ class ContextFreePreloadedGenerator(ThreeClassPreloadedGenerator):
             context = [target] + distractors
             context = sorted(context)
 
+            assert not (tuple(context) in train_contexts and \
+                tuple(context) in test_contexts)
+
             if tuple(context) in train_contexts:
                 train_paths.append(path)
             elif tuple(context) in test_contexts:
@@ -440,6 +447,102 @@ class ContextFreePreloadedGenerator(ThreeClassPreloadedGenerator):
     def gen_pickle_name(self):
         return ('preloaded_context_closer.pkl'
                 if self.closer_only else 'preloaded_context_all.pkl')
+
+
+class PermutedContextGenerator(ContextFreeGenerator):
+
+    def train_test_split(self):
+        random.seed(42)
+        np.random.seed(42)
+
+        context2path = defaultdict(lambda: [])
+        pair2paths = defaultdict(lambda: [])
+
+        contexts = []
+        for k, v in self.target2distractors.iteritems():
+            _k = os.path.splitext(k)[0].split('_')[-1]
+            _v = [os.path.splitext(i)[0].split('_')[-1] for i in v]
+            context = [_k] + _v
+            context2path['+'.join(context)].append(k)
+            context = sorted(context) 
+            contexts.append(context)
+        contexts = [list(x) for x in set(tuple(x) for x in contexts)]
+        
+        for context in contexts:
+            pairs = list(combinations(context, 2))
+            for pair1, pair2, in pairs:
+                context2path['+'.join(context)]
+                pair2paths['%s+%s' % (pair1, pair2)].extend(context2path['+'.join(context)])
+
+        all_paths = []
+        for paths in cat2target.itervalues():
+            all_paths += paths
+        random.shuffle(all_paths)
+
+        train_paths, test_paths = [], []
+        for path in all_paths:
+            target = path
+            distractors = self.target2distractors[target]
+            target = os.path.splitext(target)[0].split('_')[-1]
+            distractors = [os.path.splitext(i)[0].split('_')[-1] for i in distractors]
+            context = [target] + distractors
+            context_pairs = list(combinations(context, 2))
+            
+            for pair1, pair2 in context_pairs:
+                if random.random() <= 0.6: 
+                    train_paths.extend(pair2paths['%s+%s' % (pair1, pair2)])
+                else:
+                    test_paths.extend(pair2paths['%s+%s' % (pair1, pair2)])
+            
+        return train_paths, test_paths
+
+
+class PermutedContextPreloadedGenerator(ContextFreePreloadedGenerator):
+
+    def train_test_split(self):
+        random.seed(42)
+        np.random.seed(42)
+
+        context2path = defaultdict(lambda: [])
+        pair2paths = defaultdict(lambda: [])
+
+        contexts = []
+        for k, v in self.target2distractors.iteritems():
+            _k = os.path.splitext(k)[0].split('_')[-1]
+            _v = [os.path.splitext(i)[0].split('_')[-1] for i in v]
+            context = [_k] + _v
+            context2path['+'.join(context)].append(k)
+            context = sorted(context) 
+            contexts.append(context)
+        contexts = [list(x) for x in set(tuple(x) for x in contexts)]
+        
+        for context in contexts:
+            pairs = list(combinations(context, 2))
+            for pair1, pair2, in pairs:
+                context2path['+'.join(context)]
+                pair2paths['%s+%s' % (pair1, pair2)].extend(context2path['+'.join(context)])
+
+        all_paths = []
+        for paths in cat2target.itervalues():
+            all_paths += paths
+        random.shuffle(all_paths)
+
+        train_paths, test_paths = [], []
+        for path in all_paths:
+            target = path
+            distractors = self.target2distractors[target]
+            target = os.path.splitext(target)[0].split('_')[-1]
+            distractors = [os.path.splitext(i)[0].split('_')[-1] for i in distractors]
+            context = [target] + distractors
+            context_pairs = list(combinations(context, 2))
+            
+            for pair1, pair2 in context_pairs:
+                if random.random() <= 0.6: 
+                    train_paths.extend(pair2paths['%s+%s' % (pair1, pair2)])
+                else:
+                    test_paths.extend(pair2paths['%s+%s' % (pair1, pair2)])
+            
+        return train_paths, test_paths
 
 
 class EntityGenerator(ThreeClassGenerator):
