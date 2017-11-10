@@ -336,6 +336,108 @@ class FourClassPreloadedGenerator(ThreeClassPreloadedGenerator):
                 if self.closer_only else 'preloaded_intra_all.pkl')
 
 
+class ContextFreeGenerator(ThreeClassGenerator):
+    """Splits randomly but makes sure that training and test do not share
+    any of the same contexts."""
+
+    def gen_unique_contexts(self):
+        contexts = []
+        for k, v in self.target2distractors.iteritems():
+            k = os.path.splitext(k)[0].split('_')[-1]
+            v = [os.path.splitext(i)[0].split('_')[-1] for i in v]
+            context = [k] + v
+            context = sorted(context)
+            contexts.append(context)
+        unique_contexts = [list(x) for x in 
+                           set(tuple(x) for x in contexts)]
+        return unique_contexts
+
+    def train_test_split(self):
+        random.seed(42)
+        np.random.seed(42)
+
+        contexts = self.gen_unique_contexts()
+        random.shuffle(contexts)
+        n_contexts = len(contexts)
+        n_train = int(n_contexts * 0.60)  # 60/40 train/test split
+
+        train_contexts = set(tuple(x) for x in contexts[:n_train])
+        test_contexts = set(tuple(x) for x in contexts[n_train:])
+
+        all_paths = []
+        for paths in self.cat2target.itervalues():
+            all_paths += paths
+        random.shuffle(all_paths)
+
+        train_paths, test_paths = [], []
+        for path in all_paths:
+            target = path
+            distractors = self.target2distractors[target]
+            target = os.path.splitext(target)[0].split('_')[-1]
+            distractors = [os.path.splitext(i)[0].split('_')[-1] for i in distractors]
+            context = [target] + distractors
+            context = sorted(context)
+
+            if tuple(context) in train_contexts:
+                train_paths.append(path)
+            elif tuple(context) in test_contexts:
+                test_paths.append(path)
+            else:
+                raise Exception('How did you get here?')
+
+        return train_paths, test_paths
+
+
+class ContextFreePreloadedGenerator(ThreeClassPreloadedGenerator):
+
+    def gen_unique_contexts(self):
+        contexts = []
+        for k, v in self.target2distractors.iteritems():
+            k = os.path.splitext(k)[0].split('_')[-1]
+            v = [os.path.splitext(i)[0].split('_')[-1] for i in v]
+            context = [k] + v
+            context = sorted(context)
+            contexts.append(context)
+        unique_contexts = [list(x) for x in 
+                           set(tuple(x) for x in contexts)]
+        return unique_contexts
+
+    def train_test_split(self):
+        random.seed(42)
+        np.random.seed(42)
+
+        contexts = self.gen_unique_contexts()
+        random.shuffle(contexts)
+        n_contexts = len(contexts)
+        n_train = int(n_contexts * 0.60)  # 60/40 train/test split
+
+        train_contexts = set(tuple(x) for x in contexts[:n_train])
+        test_contexts = set(tuple(x) for x in contexts[n_train:])
+
+        all_paths = []
+        for paths in self.cat2target.itervalues():
+            all_paths += paths
+        random.shuffle(all_paths)
+
+        train_paths, test_paths = [], []
+        for path in all_paths:
+            target = path
+            distractors = self.target2distractors[target]
+            target = os.path.splitext(target)[0].split('_')[-1]
+            distractors = [os.path.splitext(i)[0].split('_')[-1] for i in distractors]
+            context = [target] + distractors
+            context = sorted(context)
+
+            if tuple(context) in train_contexts:
+                train_paths.append(path)
+            elif tuple(context) in test_contexts:
+                test_paths.append(path)
+            else:
+                raise Exception('How did you get here?')
+
+        return train_paths, test_paths
+
+
 class EntityGenerator(ThreeClassGenerator):
     """This splits by gameID so we can make claims about generalizing
     to unseen individuals."""
