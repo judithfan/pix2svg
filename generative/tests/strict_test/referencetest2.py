@@ -7,11 +7,12 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 import numpy as np
+from train import AverageMeter
 from sklearn.metrics import accuracy_score
 from referenceutils2 import (ThreeClassPreloadedGenerator, 
                              FourClassPreloadedGenerator,
-                             EntityPreloadedGenerator)
-from train import AverageMeter
+                             EntityPreloadedGenerator,
+                             ContextFreePreloadedGenerator)
 from convmodel import load_checkpoint as load_conv_checkpoint
 from deepmodel import load_checkpoint as load_fc_checkpoint
 
@@ -20,7 +21,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('model_path', type=str, help='path to where model is stored')
-    parser.add_argument('generator', type=str, help='cross|intra|entity')
+    parser.add_argument('generator', type=str, help='cross|intra|entity|context')
     parser.add_argument('--model', type=str, help='conv_4_2|fc7', default='conv_4_2')
     parser.add_argument('--closer', action='store_true', default=False)
     parser.add_argument('--v96', action='store_true', default=False, help='use 96 game version')
@@ -30,7 +31,7 @@ if __name__ == "__main__":
     args.v96 = '96' if args.v96 else ''
 
     assert args.model in ['conv_4_2', 'fc7']
-    assert args.generator in ['cross', 'intra', 'entity']
+    assert args.generator in ['cross', 'intra', 'entity', 'context']
 
     # choose the right generator
     if args.generator == 'cross':
@@ -39,6 +40,8 @@ if __name__ == "__main__":
         Generator = FourClassPreloadedGenerator
     elif args.generator == 'entity':
         Generator = EntityPreloadedGenerator
+    elif args.generator == 'context':
+        Generator = ContextFreePreloadedGenerator
 
     if args.model == 'conv_4_2':
         load_checkpoint = load_conv_checkpoint

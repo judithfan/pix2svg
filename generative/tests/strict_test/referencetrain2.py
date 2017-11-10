@@ -9,22 +9,22 @@ import torch.nn.functional as F
 import numpy as np
 from sklearn.metrics import accuracy_score
 
+from train import AverageMeter
 from convmodel import EmbedNet as ConvEmbedNet
 from convmodel import save_checkpoint as save_conv_checkpoint
 from deepmodel import EmbedNet as FCEmbedNet
 from deepmodel import save_checkpoint as save_fc_checkpoint
 from referenceutils2 import (ThreeClassPreloadedGenerator, 
                              FourClassPreloadedGenerator,
-                             EntityPreloadedGenerator)
-
-from train import AverageMeter
+                             EntityPreloadedGenerator,
+                             ContextFreePreloadedGenerator)
 
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('out_dir', type=str)
-    parser.add_argument('generator', type=str, help='cross|intra|entity')
+    parser.add_argument('generator', type=str, help='cross|intra|entity|context')
     parser.add_argument('--model', type=str, help='conv_4_2|fc7', default='conv_4_2')
     parser.add_argument('--batch_size', type=int, default=25)
     parser.add_argument('--lr', type=float, default=1e-3)
@@ -38,7 +38,7 @@ if __name__ == "__main__":
     args.cuda = args.cuda and torch.cuda.is_available()
     args.v96 = '96' if args.v96 else ''
     assert args.model in ['conv_4_2', 'fc7']
-    assert args.generator in ['cross', 'intra', 'entity']
+    assert args.generator in ['cross', 'intra', 'entity', 'context']
 
     if args.photo_augment and args.sketch_augment:
         raise Exception('Cannot pass both photo_augment and sketch_augment')
@@ -63,6 +63,8 @@ if __name__ == "__main__":
         Generator = FourClassPreloadedGenerator
     elif args.generator == 'entity':
         Generator = EntityPreloadedGenerator
+    elif args.generator == 'context':
+        Generator = ContextFreePreloadedGenerator
 
     def reset_generators():
         train_generator = Generator(train=True, batch_size=args.batch_size, use_cuda=args.cuda,

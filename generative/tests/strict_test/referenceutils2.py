@@ -510,7 +510,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('n', type=int, help='number of images to sample.')
-    parser.add_argument('generator', type=str, help='cross|intra|entity')
+    parser.add_argument('generator', type=str, help='cross|intra|entity|context')
     parser.add_argument('--model', type=str, help='conv_4_2|fc7', default='conv_4_2')
     parser.add_argument('--closer', action='store_true', help='if True, include only closer examples')
     parser.add_argument('--v96', action='store_true', default=False, help='use 96 game version')
@@ -521,7 +521,7 @@ if __name__ == "__main__":
     args.train = not args.test
     args.v96 = '96' if args.v96 else ''
 
-    assert args.generator in ['cross', 'intra', 'entity']
+    assert args.generator in ['cross', 'intra', 'entity', 'context']
     assert args.model in ['conv_4_2', 'fc7']
     
     if args.photo_augment and args.sketch_augment:
@@ -542,6 +542,10 @@ if __name__ == "__main__":
     elif args.generator == 'entity':
         generator = EntityPreloadedGenerator(train=args.train, batch_size=1, 
                                              closer_only=args.closer, data_dir=data_dir)
+    elif args.generator == 'context':
+        generator = ContextFreePreloadedGenerator(train=args.train, batch_size=1, 
+                                                  closer_only=args.closer, data_dir=data_dir)
+
 
     if os.path.exists('./tmp'):
         shutil.rmtree('./tmp')
