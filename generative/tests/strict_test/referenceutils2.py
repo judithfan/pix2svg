@@ -437,6 +437,10 @@ class ContextFreePreloadedGenerator(ThreeClassPreloadedGenerator):
 
         return train_paths, test_paths
 
+    def gen_pickle_name(self):
+        return ('preloaded_context_closer.pkl'
+                if self.closer_only else 'preloaded_context_all.pkl')
+
 
 class EntityGenerator(ThreeClassGenerator):
     """This splits by gameID so we can make claims about generalizing
