@@ -10,6 +10,7 @@ import torch.optim as optim
 from torch.autograd import Variable
 import torch.nn.functional as F
 
+import os
 import random
 import numpy as np
 from collections import defaultdict
@@ -93,3 +94,5 @@ if __name__ == "__main__":
 
         auc = accuracy_score(label, pred)
         auc_dict[key] = auc
+
+    print(auc_dict.values())
