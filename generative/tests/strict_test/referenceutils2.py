@@ -99,6 +99,8 @@ class ThreeClassGenerator(object):
         distractor2sketch = {}
         # map target/distractor/sketch to folder
         path2folder = {}
+        # map from target to condition
+        target2condition = {}
 
         # indexes for different data items that might be useful
         condition_ix = header.index('condition')
@@ -137,6 +139,7 @@ class ThreeClassGenerator(object):
             target_category = row[target_ix]
             target_name = '{sketch}_{category}.npy'.format(sketch=sketch_base,
                                                            category=target_category)
+            target2condition[target_name] = row[condition_ix]
             target2distractors[target_name] = []
 
             path2folder[sketch_name] = os.path.join(self.data_dir, 'sketch')
@@ -177,6 +180,7 @@ class ThreeClassGenerator(object):
         self.distractor2sketch = distractor2sketch
         self.target2distractors = target2distractors
         self.path2folder = path2folder
+        self.target2condition = target2condition
 
         train_paths, test_paths = self.train_test_split()
         self.size = len(train_paths) if self.train else len(test_paths)
@@ -613,11 +617,187 @@ class EntityPreloadedGenerator(ThreeClassPreloadedGenerator):
                 if self.closer_only else 'preloaded_entity_all.pkl')
 
 
+class ContextBalancedGenerator(ThreeClassGenerator):
+
+    def gen_paths(self):
+        cat2target = self.cat2target
+        all_paths = []  # collect all paths
+        for paths in cat2target.itervalues():
+            all_paths += paths
+        return all_paths
+
+    def gen_game_dicts(self):
+        paths = self.gen_paths()
+        game2closer = defaultdict(lambda: [])
+        game2further = defaultdict(lambda: [])
+        helper = lambda x: os.path.splitext(x)[0].split('_')[-1]
+
+        for target in paths:
+            gameid = target.split('_')[1]
+            distractors = self.target2distractors[target]
+            context = tuple(sorted([helper(target)] + 
+                                   [helper(distractor) for distractor in distractors]))
+
+            if self.target2condition[target] == 'closer':
+                game2closer[gameid].append(context)
+            elif self.target2condition[target] == 'further':
+                game2further[gameid].append(context)
+            else:
+                raise Exception('Unknown condition found: %s.' % self.target2condition[target])
+
+        for key, value in game2closer.iteritems():
+            game2closer[key] = list(set(game2closer[key]))
+            assert len(game2closer[key]) == 8
+
+        for key, value in game2further.iteritems():
+            game2further[key] = list(set(game2further[key]))
+            assert len(game2further[key]) == 8
+
+        return game2closer, game2further
+
+    def sample_game_dict(self, game_dict):
+        train_contexts, test_contexts = [], []
+
+        for game, contexts in game_dict.iteritems():
+            assert n_contexts == 8 
+            
+            _train_contexts = [con for con in contexts 
+                               if con not in set(test_contexts)]
+            if len(_train_contexts) > 6:
+                _train_contexts = random.sample(_train_contexts, k=6)
+            
+            _test_contexts = list(set(contexts) - set(_train_contexts))
+            train_contexts.extend(_train_contexts)
+            test_contexts.extend(test_contexts)
+
+        return train_contexts, test_contexts
+
+    def train_test_split(self):
+        # important, fix random seed
+        random.seed(42); np.random.seed(42)
+
+        game2closer, game2further = self.gen_game_dicts()
+        closer_train_contexts, closer_test_contexts \
+            = self.sample_game_dict(game2closer)
+        further_train_contexts, further_test_contexts \
+            = self.sample_game_dict(game2further)
+        train_contexts = closer_train_contexts + further_train_contexts
+        test_contexts = closer_test_contexts + further_test_contexts
+        train_contexts = set(train_contexts)
+        test_contexts = set(test_contexts)
+
+        helper = lambda x: os.path.splitext(x)[0].split('_')[-1]
+        paths = self.gen_paths()
+
+        train_paths, test_paths = [], []
+
+        for ix, target in enumerate(paths):
+            distractors = self.target2distractors[target]
+            context = tuple(sorted([helper(target)] + 
+                                   [helper(distractor) for distractor in distractors]))
+            if context in train_contexts:
+                train_paths.append(target)
+            elif context in test_contexts:
+                test_paths.append(target)
+            else:
+                raise Exception('Example not in train or test contexts')
+
+        return train_paths, test_paths
+
+
+class ContextBalancedPreloadedGenerator(ThreeClassPreloadedGenerator):
+
+    def gen_paths(self):
+        cat2target = self.cat2target
+        all_paths = []  # collect all paths
+        for paths in cat2target.itervalues():
+            all_paths += paths
+        return all_paths
+
+    def gen_game_dicts(self):
+        paths = self.gen_paths()
+        game2closer = defaultdict(lambda: [])
+        game2further = defaultdict(lambda: [])
+        helper = lambda x: os.path.splitext(x)[0].split('_')[-1]
+
+        for target in paths:
+            gameid = target.split('_')[1]
+            distractors = self.target2distractors[target]
+            context = tuple(sorted([helper(target)] + 
+                                   [helper(distractor) for distractor in distractors]))
+
+            if self.target2condition[target] == 'closer':
+                game2closer[gameid].append(context)
+            elif self.target2condition[target] == 'further':
+                game2further[gameid].append(context)
+            else:
+                raise Exception('Unknown condition found: %s.' % self.target2condition[target])
+
+        for key, value in game2closer.iteritems():
+            game2closer[key] = list(set(game2closer[key]))
+            assert len(game2closer[key]) == 8
+
+        for key, value in game2further.iteritems():
+            game2further[key] = list(set(game2further[key]))
+            assert len(game2further[key]) == 8
+
+        return game2closer, game2further
+
+    def sample_game_dict(self, game_dict):
+        train_contexts, test_contexts = [], []
+
+        for game, contexts in game_dict.iteritems():
+            assert n_contexts == 8 
+            
+            _train_contexts = [con for con in contexts 
+                               if con not in set(test_contexts)]
+            if len(_train_contexts) > 6:
+                _train_contexts = random.sample(_train_contexts, k=6)
+            
+            _test_contexts = list(set(contexts) - set(_train_contexts))
+            train_contexts.extend(_train_contexts)
+            test_contexts.extend(test_contexts)
+
+        return train_contexts, test_contexts
+
+    def train_test_split(self):
+        # important, fix random seed
+        random.seed(42); np.random.seed(42)
+
+        game2closer, game2further = self.gen_game_dicts()
+        closer_train_contexts, closer_test_contexts \
+            = self.sample_game_dict(game2closer)
+        further_train_contexts, further_test_contexts \
+            = self.sample_game_dict(game2further)
+        train_contexts = closer_train_contexts + further_train_contexts
+        test_contexts = closer_test_contexts + further_test_contexts
+        train_contexts = set(train_contexts)
+        test_contexts = set(test_contexts)
+
+        helper = lambda x: os.path.splitext(x)[0].split('_')[-1]
+        paths = self.gen_paths()
+
+        train_paths, test_paths = [], []
+
+        for ix, target in enumerate(paths):
+            distractors = self.target2distractors[target]
+            context = tuple(sorted([helper(target)] + 
+                                   [helper(distractor) for distractor in distractors]))
+            if context in train_contexts:
+                train_paths.append(target)
+            elif context in test_contexts:
+                test_paths.append(target)
+            else:
+                raise Exception('Example not in train or test contexts')
+
+        return train_paths, test_paths
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('n', type=int, help='number of images to sample.')
-    parser.add_argument('generator', type=str, help='cross|intra|entity|context')
+    parser.add_argument('generator', type=str, help='cross|intra|entity|context|balance')
     parser.add_argument('--model', type=str, help='conv_4_2|fc7', default='conv_4_2')
     parser.add_argument('--closer', action='store_true', help='if True, include only closer examples')
     parser.add_argument('--v96', action='store_true', default=False, help='use 96 game version')
@@ -628,7 +808,7 @@ if __name__ == "__main__":
     args.train = not args.test
     args.v96 = '96' if args.v96 else ''
 
-    assert args.generator in ['cross', 'intra', 'entity', 'context']
+    assert args.generator in ['cross', 'intra', 'entity', 'context', 'balance']
     assert args.model in ['conv_4_2', 'fc7']
     
     if args.photo_augment and args.sketch_augment:
@@ -652,7 +832,9 @@ if __name__ == "__main__":
     elif args.generator == 'context':
         generator = ContextFreePreloadedGenerator(train=args.train, batch_size=1, 
                                                   closer_only=args.closer, data_dir=data_dir)
-
+    elif args.generator == 'balance':
+        generator = ContextBalancedPreloadedGenerator(train=args.train, batch_size=1, 
+                                                      closer_only=args.closer, data_dir=data_dir)
 
     if os.path.exists('./tmp'):
         shutil.rmtree('./tmp')
