@@ -18,7 +18,7 @@ from referenceutils2 import (ThreeClassPreloadedGenerator,
                              FourClassPreloadedGenerator,
                              EntityPreloadedGenerator,
                              ContextFreePreloadedGenerator,
-                             ContextBalancePreloadedGenerator)
+                             ContextBalancedPreloadedGenerator)
 
 
 if __name__ == "__main__":
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     elif args.generator == 'context':
         Generator = ContextFreePreloadedGenerator
     elif args.generator == 'balance':
-        Generator = ContextBalancePreloadedGenerator
+        Generator = ContextBalancedPreloadedGenerator
 
     def reset_generators():
         train_generator = Generator(train=True, batch_size=args.batch_size, use_cuda=args.cuda,

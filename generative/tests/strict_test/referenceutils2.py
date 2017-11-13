@@ -182,8 +182,8 @@ class ThreeClassGenerator(object):
         self.path2folder = path2folder
         self.target2condition = target2condition
 
-        # train_paths, test_paths = self.train_test_split()
-        # self.size = len(train_paths) if self.train else len(test_paths)
+        train_paths, test_paths = self.train_test_split()
+        self.size = len(train_paths) if self.train else len(test_paths)
 
     def train_test_split(self):
         cat2target = self.cat2target
