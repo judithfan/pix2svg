@@ -19,10 +19,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('json_path', type=str, help='path to where to dump json')
     parser.add_argument('model_dir', type=str, help='path to trained model')
+    parser.add_argument('--v96', action='store_true', default=False, help='use 96 game version')
     parser.add_argument('--model', type=str, help='conv_4_2|fc7', default='conv_4_2')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
+    args.v96 = '96' if args.v96 else ''
 
     assert args.model in ['conv_4_2', 'fc7']
     if args.model == 'conv_4_2':
@@ -31,7 +33,7 @@ if __name__ == "__main__":
         load_checkpoint = load_fc_checkpoint
 
     generator = ReferenceGame2EmbeddingGenerator(
-        data_dir='/data/jefan/sketchpad_basic_fixedpose_%s' % args.model, 
+        data_dir='/data/jefan/sketchpad_basic_fixedpose%s_%s' % (args.v96, args.model)
         use_cuda=args.cuda)
     examples = generator.make_generator() 
     print('Built generator.')
