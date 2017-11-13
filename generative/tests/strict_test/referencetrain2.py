@@ -17,14 +17,15 @@ from deepmodel import save_checkpoint as save_fc_checkpoint
 from referenceutils2 import (ThreeClassPreloadedGenerator, 
                              FourClassPreloadedGenerator,
                              EntityPreloadedGenerator,
-                             ContextFreePreloadedGenerator)
+                             ContextFreePreloadedGenerator,
+                             ContextBalancePreloadedGenerator)
 
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('out_dir', type=str)
-    parser.add_argument('generator', type=str, help='cross|intra|entity|context')
+    parser.add_argument('generator', type=str, help='cross|intra|entity|context|balance')
     parser.add_argument('--model', type=str, help='conv_4_2|fc7', default='conv_4_2')
     parser.add_argument('--batch_size', type=int, default=25)
     parser.add_argument('--lr', type=float, default=1e-3)
@@ -38,7 +39,7 @@ if __name__ == "__main__":
     args.cuda = args.cuda and torch.cuda.is_available()
     args.v96 = '96' if args.v96 else ''
     assert args.model in ['conv_4_2', 'fc7']
-    assert args.generator in ['cross', 'intra', 'entity', 'context']
+    assert args.generator in ['cross', 'intra', 'entity', 'context', 'balance']
 
     if args.photo_augment and args.sketch_augment:
         raise Exception('Cannot pass both photo_augment and sketch_augment')
@@ -65,6 +66,8 @@ if __name__ == "__main__":
         Generator = EntityPreloadedGenerator
     elif args.generator == 'context':
         Generator = ContextFreePreloadedGenerator
+    elif args.generator == 'balance':
+        Generator = ContextBalancePreloadedGenerator
 
     def reset_generators():
         train_generator = Generator(train=True, batch_size=args.batch_size, use_cuda=args.cuda,
