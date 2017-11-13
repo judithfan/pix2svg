@@ -33,7 +33,7 @@ if __name__ == "__main__":
         load_checkpoint = load_fc_checkpoint
 
     generator = ReferenceGame2EmbeddingGenerator(
-        data_dir='/data/jefan/sketchpad_basic_fixedpose%s_%s' % (args.v96, args.model)
+        data_dir='/data/jefan/sketchpad_basic_fixedpose%s_%s' % (args.v96, args.model),
         use_cuda=args.cuda)
     examples = generator.make_generator() 
     print('Built generator.')
