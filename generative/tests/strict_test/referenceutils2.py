@@ -182,8 +182,8 @@ class ThreeClassGenerator(object):
         self.path2folder = path2folder
         self.target2condition = target2condition
 
-        train_paths, test_paths = self.train_test_split()
-        self.size = len(train_paths) if self.train else len(test_paths)
+        # train_paths, test_paths = self.train_test_split()
+        # self.size = len(train_paths) if self.train else len(test_paths)
 
     def train_test_split(self):
         cat2target = self.cat2target
@@ -290,6 +290,7 @@ class ThreeClassPreloadedGenerator(ThreeClassGenerator):
         self.distractor2sketch = data['distractor2sketch']
         self.target2distractors = data['target2distractors']
         self.path2folder = data['path2folder']
+        self.target2condition = data['target2condition']
 
         train_paths, test_paths = self.train_test_split()
         self.size = len(train_paths) if train else len(test_paths)
@@ -636,6 +637,8 @@ class ContextBalancedGenerator(ThreeClassGenerator):
 
         for target in paths:
             gameid = target.split('_')[1]
+            if '-crop' in gameid:
+                gameid = '-'.join(gameid.split('-')[:-1])
             distractors = self.target2distractors[target]
             context = tuple(sorted([helper(target)] + 
                                    [helper(distractor) for distractor in distractors]))
@@ -649,11 +652,13 @@ class ContextBalancedGenerator(ThreeClassGenerator):
 
         for key, value in game2closer.iteritems():
             game2closer[key] = list(set(game2closer[key]))
-            assert len(game2closer[key]) == 8
+            assert len(game2closer[key]) == 4, \
+                'Expected 4 games; got {}.'.format(len(game2closer[key]))
 
         for key, value in game2further.iteritems():
             game2further[key] = list(set(game2further[key]))
-            assert len(game2further[key]) == 8
+            assert len(game2further[key]) == 4, \
+                'Expected 4 games; got {}.'.format(len(game2further[key]))
 
         return game2closer, game2further
 
@@ -661,16 +666,16 @@ class ContextBalancedGenerator(ThreeClassGenerator):
         train_contexts, test_contexts = [], []
 
         for game, contexts in game_dict.iteritems():
-            assert n_contexts == 8 
-            
+            assert len(contexts) == 4  # 8 contexts total; 4 for close; 4 for far
             _train_contexts = [con for con in contexts 
                                if con not in set(test_contexts)]
-            if len(_train_contexts) > 6:
-                _train_contexts = random.sample(_train_contexts, k=6)
-            
+            if len(_train_contexts) > 3:
+                _ix = np.random.choice(xrange(len(_train_contexts)), size=3, replace=False)
+                _train_contexts = [_train_contexts[i] for i in _ix]
+
             _test_contexts = list(set(contexts) - set(_train_contexts))
             train_contexts.extend(_train_contexts)
-            test_contexts.extend(test_contexts)
+            test_contexts.extend(_test_contexts)
 
         return train_contexts, test_contexts
 
@@ -724,6 +729,8 @@ class ContextBalancedPreloadedGenerator(ThreeClassPreloadedGenerator):
 
         for target in paths:
             gameid = target.split('_')[1]
+            if '-crop' in gameid:
+                gameid = '-'.join(gameid.split('-')[:-1])
             distractors = self.target2distractors[target]
             context = tuple(sorted([helper(target)] + 
                                    [helper(distractor) for distractor in distractors]))
@@ -734,14 +741,16 @@ class ContextBalancedPreloadedGenerator(ThreeClassPreloadedGenerator):
                 game2further[gameid].append(context)
             else:
                 raise Exception('Unknown condition found: %s.' % self.target2condition[target])
-
+        
         for key, value in game2closer.iteritems():
             game2closer[key] = list(set(game2closer[key]))
-            assert len(game2closer[key]) == 8
+            assert len(game2closer[key]) == 4, \
+                "Expected 4 items; got %d" % len(game2closer[key])
 
         for key, value in game2further.iteritems():
             game2further[key] = list(set(game2further[key]))
-            assert len(game2further[key]) == 8
+            assert len(game2further[key]) == 4, \
+                "Expected 4 items; got %d" % len(game2further[key])
 
         return game2closer, game2further
 
@@ -749,23 +758,21 @@ class ContextBalancedPreloadedGenerator(ThreeClassPreloadedGenerator):
         train_contexts, test_contexts = [], []
 
         for game, contexts in game_dict.iteritems():
-            assert n_contexts == 8 
-            
-            _train_contexts = [con for con in contexts 
-                               if con not in set(test_contexts)]
-            if len(_train_contexts) > 6:
-                _train_contexts = random.sample(_train_contexts, k=6)
-            
+            assert len(contexts) == 4  # 8 contexts total; 4 for close; 4 for far 
+            # ignore contexts that are already in training
+            _train_contexts = [con for con in contexts if con not in set(test_contexts)]
+            if len(_train_contexts) > 3:
+                _ix = np.random.choice(xrange(len(_train_contexts)), size=3, replace=False)
+                _train_contexts = [_train_contexts[i] for i in _ix]
             _test_contexts = list(set(contexts) - set(_train_contexts))
+            _test_contexts = [con for con in _test_contexts if con not in set(train_contexts)]
             train_contexts.extend(_train_contexts)
-            test_contexts.extend(test_contexts)
-
+            test_contexts.extend(_test_contexts)
         return train_contexts, test_contexts
 
     def train_test_split(self):
         # important, fix random seed
         random.seed(42); np.random.seed(42)
-
         game2closer, game2further = self.gen_game_dicts()
         closer_train_contexts, closer_test_contexts \
             = self.sample_game_dict(game2closer)
@@ -793,6 +800,10 @@ class ContextBalancedPreloadedGenerator(ThreeClassPreloadedGenerator):
                 raise Exception('Example not in train or test contexts')
 
         return train_paths, test_paths
+
+    def gen_pickle_name(self):
+        return ('preloaded_balance_closer.pkl'
+                if self.closer_only else 'preloaded_balance_all.pkl')
 
 
 if __name__ == "__main__":
