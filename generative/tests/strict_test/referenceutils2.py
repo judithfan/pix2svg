@@ -237,32 +237,34 @@ class ThreeClassGenerator(object):
             render_group = np.vstack((render1, render2, render1, render2))
             sketch_group = np.vstack((sketch1, sketch2, sketch2, sketch1))
             label_group = np.array((1, 1, 0, 0))
+            # convert to torch
+            render_group = torch.from_numpy(render_group).type(dtype)
+            sketch_group = torch.from_numpy(sketch_group).type(dtype)
+            label_group = torch.from_numpy(label_group).type(dtype)
 
             if batch_idx == 0:
                 render_batch = render_group
                 sketch_batch = sketch_group
                 label_batch = label_group
             else:
-                render_batch = np.vstack((render_batch, render_group))
-                sketch_batch = np.vstack((sketch_batch, sketch_group))
-                label_batch = np.concatenate((label_batch, label_group))
+                render_batch = torch.cat((render_batch, render_group))
+                sketch_batch = torch.cat((sketch_batch, sketch_group))
+                label_batch = torch.cat((label_batch, label_group))
 
             batch_idx += 1
 
             if batch_idx == self.batch_size:
-                render_batch = Variable(torch.from_numpy(render_batch)).type(dtype)
-                sketch_batch = Variable(torch.from_numpy(sketch_batch)).type(dtype)
-                label_batch = Variable(torch.from_numpy(label_batch), 
-                                       requires_grad=False).type(dtype)
+                render_batch = Variable(render_batch)
+                sketch_batch = Variable(sketch_batch)
+                label_batch = Variable(label_batch, requires_grad=False)
                 
                 yield (render_batch, sketch_batch, label_batch)
                 batch_idx = 0
 
         if batch_idx > 0:
-            render_batch = Variable(torch.from_numpy(render_batch)).type(dtype)
-            sketch_batch = Variable(torch.from_numpy(sketch_batch)).type(dtype)
-            label_batch = Variable(torch.from_numpy(label_batch), 
-                                   requires_grad=False).type(dtype)
+            render_batch = Variable(render_batch)
+            sketch_batch = Variable(sketch_batch)
+            label_batch = Variable(label_batch, requires_grad=False)
 
             yield (render_batch, sketch_batch, label_batch)
 
