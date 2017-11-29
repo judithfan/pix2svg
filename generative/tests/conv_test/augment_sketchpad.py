@@ -272,11 +272,9 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('augment', type=str, help='photo|sketch')
-    parser.add_argument('--v96', action='store_true', default=False, help='use 96 game version')
     args = parser.parse_args()
-    args.v96 = '96' if args.v96 else ''
     assert args.augment in ['photo', 'sketch']
-    data_dir = '/data/jefan/sketchpad_basic_fixedpose{}_{}_augmented'.format(args.v96, args.augment)
+    data_dir = '/data/jefan/sketchpad_basic_fixedpose96_{}_augmented'.format(args.augment)
 
     if args.augment == 'sketch':
         augment_by_sketch(data_dir=data_dir)
