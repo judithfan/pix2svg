@@ -11,7 +11,7 @@ from sklearn.metrics import accuracy_score
 
 from model import EmbedNet
 from model import save_checkpoint
-from datasets import ContextFreePreloadedGenerator
+from datasets import ContextFreePreloadedGenerator as Generator
 
 
 class AverageMeter(object):
@@ -36,36 +36,22 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('out_dir', type=str)
-    parser.add_argument('--model', type=str, help='conv_4_2|fc7', default='conv_4_2')
     parser.add_argument('--batch_size', type=int, default=10)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--photo_augment', action='store_true', default=False)
-    parser.add_argument('--sketch_augment', action='store_true', default=False)
-    parser.add_argument('--v96', action='store_true', default=False, help='use 96 game version')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
-    args.v96 = '96' if args.v96 else ''
-    assert args.model in ['conv_4_2', 'fc7']
 
-    if args.photo_augment and args.sketch_augment:
-        raise Exception('Cannot pass both photo_augment and sketch_augment')
     if args.photo_augment:
-        data_dir = '/data/jefan/sketchpad_basic_fixedpose%s_photo_augmented_%s' % (args.v96, args.model)
-    elif args.sketch_augment:
-        data_dir = '/data/jefan/sketchpad_basic_fixedpose%s_sketch_augmented_%s' % (args.v96, args.model)
+        data_dir = '/data/jefan/sketchpad_basic_fixedpose96_photo_augmented_conv_4_2'
     else:
-        data_dir = '/data/jefan/sketchpad_basic_fixedpose%s_%s' % (args.v96, args.model)
-
-    # choose the right generator
-    Generator = ContextFreePreloadedGenerator
+        data_dir = '/data/jefan/sketchpad_basic_fixedpose96_conv_4_2'
 
     def reset_generators():
-        train_generator = Generator(train=True, batch_size=args.batch_size, use_cuda=args.cuda,
-                                    data_dir=data_dir, closer_only=False)
-        test_generator = Generator(train=False, batch_size=args.batch_size, use_cuda=args.cuda,
-                                   data_dir=data_dir, closer_only=False)
+        train_generator = Generator(train=True, batch_size=args.batch_size, use_cuda=args.cuda, data_dir=data_dir)
+        test_generator = Generator(train=False, batch_size=args.batch_size, use_cuda=args.cuda, data_dir=data_dir)
         return train_generator, test_generator
 
     train_generator, test_generator = reset_generators()

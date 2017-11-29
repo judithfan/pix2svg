@@ -10,7 +10,7 @@ import numpy as np
 from train import AverageMeter
 from sklearn.metrics import accuracy_score
 
-from datasets import ContextFreePreloadedGenerator
+from datasets import ContextFreePreloadedGenerator as Generator
 from model import load_checkpoint
 
 
@@ -18,19 +18,16 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('model_path', type=str, help='path to where model is stored')
-    parser.add_argument('--model', type=str, help='conv_4_2|fc7', default='conv_4_2')
-    parser.add_argument('--v96', action='store_true', default=False, help='use 96 game version')
+    parser.add_argument('--layer', type=str, help='conv_4_2|fc7', default='conv_4_2')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
-    args.v96 = '96' if args.v96 else ''
-    assert args.model in ['conv_4_2', 'fc7']
+    assert args.layer in ['conv_4_2', 'fc7']
 
-    Generator = ContextFreePreloadedGenerator
     # note how we are not using the augmented dataset since at test time,
     # we don't care about how it does on cropped data.
     generator = Generator(train=False, batch_size=1, use_cuda=args.cuda, closer_only=False,
-                          data_dir='/data/jefan/sketchpad_basic_fixedpose%s_%s' % (args.v96, args.model))
+                          data_dir='/data/jefan/sketchpad_basic_fixedpose96_%s' % args.layer)
     examples = generator.make_generator()
 
     model = load_checkpoint(args.model_path, use_cuda=args.cuda)

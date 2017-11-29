@@ -10,11 +10,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class EmbedNet(nn.Module):
+class ConvEmbedNet(nn.Module):
     def __init__(self):
         super(EmbedNet, self).__init__()
-        self.photo_adaptor = AdaptorNet()
-        self.sketch_adaptor = AdaptorNet()
+        self.photo_adaptor = ConvAdaptorNet()
+        self.sketch_adaptor = ConvAdaptorNet()
         self.fusenet = FuseClassifier()
 
     def forward(self, photo_emb, sketch_emb):
@@ -23,29 +23,55 @@ class EmbedNet(nn.Module):
         return self.fusenet(photo_emb, sketch_emb)
 
 
-class AdaptorNet(nn.Module):
+class ConvAdaptorNet(nn.Module):
     def __init__(self):
         super(AdaptorNet, self).__init__()
         self.cnn = nn.Sequential(
             nn.Conv2d(512, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
-            nn.ReLU(True),
+            Swish(),
             nn.MaxPool2d(2, stride=2, dilation=1),
-            # nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1),
-            # nn.BatchNorm2d(32),
-            # nn.ReLU(True),
-            # nn.MaxPool2d(2, stride=2, dilation=1),
         )
         self.net = nn.Sequential(
             nn.Linear(64 * 14 * 14, 4096),
             nn.BatchNorm1d(4096),
-            nn.ReLU(True),
+            Swish(),
             nn.Dropout(0.5),
-            # nn.Linear(4096, 2048),
-            # nn.BatchNorm1d(2048),
-            # nn.ReLU(True),
-            # nn.Dropout(0.5),
             nn.Linear(4096, 1000),
+        )
+
+    def forward(self, x):
+        x = self.cnn(x)
+        x = x.view(-1, 64 * 14 * 14)
+        return self.net(x)
+
+
+class FCEmbedNet(nn.Module):
+    def __init__(self):
+        super(EmbedNet, self).__init__()
+        self.photo_adaptor = FCAdaptorNet()
+        self.sketch_adaptor = FCAdaptorNet()
+        self.fusenet = FuseClassifier()
+
+    def forward(self, photo_emb, sketch_emb):
+        photo_emb = self.photo_adaptor(photo_emb)
+        sketch_emb = self.sketch_adaptor(sketch_emb)
+        return self.fusenet(photo_emb, sketch_emb)
+
+
+class FCAdaptorNet(nn.Module):
+    def __init__(self):
+        super(AdaptorNet, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(4096, 4096),
+            nn.BatchNorm1d(4096),
+            Swish(),
+            nn.Dropout(),
+            nn.Linear(4096, 2048),
+            nn.BatchNorm1d(2048),
+            Swish(),
+            nn.Dropout(),
+            nn.Linear(2048, 1000),
         )
 
     def forward(self, x):
@@ -77,7 +103,10 @@ def load_checkpoint(file_path, use_cuda=False):
         checkpoint = torch.load(file_path)
     else:
         checkpoint = torch.load(file_path, map_location=lambda storage, location: storage)
-    model = EmbedNet()
+    if 'layer' in checkpoint:
+        model = ConvEmbedNet() if checkpoint['layer'] == 'conv_4_2' else FCEmbedNet()
+    else:
+        model = ConvEmbedNet()
     model.load_state_dict(checkpoint['state_dict'])
     return model
 
@@ -110,3 +139,12 @@ def cosine_similarity(x1, x2, dim=1, eps=1e-8):
     w1 = torch.norm(x1, 2, dim)
     w2 = torch.norm(x2, 2, dim)
     return (w12 / (w1 * w2).clamp(min=eps)).squeeze()
+
+
+def swish(x):
+    return x * F.sigmoid(x)
+
+
+class Swish(nn.Module):
+    def forward(self, x):
+        return x * F.sigmoid(x)
