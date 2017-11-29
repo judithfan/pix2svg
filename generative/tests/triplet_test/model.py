@@ -16,11 +16,16 @@ class EmbedNet(nn.Module):
         self.photo_adaptor = AdaptorNet()
         self.sketch_adaptor = AdaptorNet()
         self.fusenet = FuseClassifier()
+        self.categorynet = CategoryNet()
+        self.instancenet = InstanceNet()
 
     def forward(self, photo_emb, sketch_emb):
         photo_emb = self.photo_adaptor(photo_emb)
         sketch_emb = self.sketch_adaptor(sketch_emb)
-        return self.fusenet(photo_emb, sketch_emb)
+        output = self.fusenet(photo_emb, sketch_emb)
+        category = self.categorynet(sketch_emb)  # only sketch
+        instance = self.instancenet(sketch_emb)  # only sketch
+        return output, category, instance
 
 
 class AdaptorNet(nn.Module):
@@ -39,16 +44,31 @@ class AdaptorNet(nn.Module):
             nn.Dropout(0.5),
             nn.Linear(4096, 1000),
         )
-        self.category_head = nn.Linear(1000, 4)
+        
         self.instance_head = nn.Linear(1000, 32)
 
     def forward(self, x):
         x = self.cnn(x)
         x = x.view(-1, 64 * 14 * 14)
-        embedding = self.net(x)
-        category = self.category_head(embedding)
-        instance = self.instance_head(embedding)
-        return embedding, category, instance
+        return self.net(x)
+
+
+def CategoryNet(nn.Module):
+    def __init__(self):
+        super(CategoryNet, self).__init__()
+        self.category_head = nn.Linear(1000, 4)
+
+    def forward(self, x):
+        return self.category_head(x)
+
+
+def InstanceNet(nn.Module):
+    def __init__(self):
+        super(InstanceNet, self).__init__()
+        self.instance_head = nn.Linear(1000, 32)
+
+    def forward(self, x):
+        return self.instance_head(x)
 
 
 class FuseClassifier(nn.Module):
