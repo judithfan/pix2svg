@@ -76,7 +76,7 @@ if __name__ == "__main__":
     if args.cuda:
         model.cuda()
 
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
 
 
     def train(epoch):
@@ -173,12 +173,12 @@ if __name__ == "__main__":
             embedding_acc_meter.update(embedding_acc, photos.size(0))
 
             categories_np = categories.cpu().data.numpy()
-            category_outputs_np = np.argmax(category_outputs.cpu().data.numpy(), dim=1)
+            category_outputs_np = np.argmax(category_outputs.cpu().data.numpy(), axis=1)
             category_acc = accuracy_score(categories_np, category_outputs_np)
             category_acc_meter.update(category_acc, photos.size(0))
 
             instances_np = instances.cpu().data.numpy()
-            instance_outputs_np = np.argmax(instance_outputs.cpu().data.numpy(), dim=1)
+            instance_outputs_np = np.argmax(instance_outputs.cpu().data.numpy(), axis=1)
             instance_acc = accuracy_score(instances_np, instance_outputs_np)
             instance_acc_meter.update(instance_acc, photos.size(0))
 
