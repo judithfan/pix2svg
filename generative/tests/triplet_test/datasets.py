@@ -14,6 +14,7 @@ import shutil
 import random
 import cPickle
 import numpy as np
+import pandas as pd
 from glob import glob
 from collections import defaultdict
 from itertools import combinations
@@ -197,9 +198,8 @@ class Generator(object):
         self.train = train
         self.closer_only = closer_only
 
-        with open(os.path.join(self.data_dir, 'incorrect_trial_paths_pilot2.txt')) as fp:
-            # these games need to be ignored
-            bad_games = fp.readlines()
+        # only game ids in here are allowed
+        good_games = pd.read_csv(os.path.join(self.data_dir, 'valid_gameids_pilot2.csv'))['valid_gameids']
 
         with open(os.path.join(self.data_dir, 'sketchpad_basic_pilot2_group_data.csv')) as fp:
             csv_data = []
@@ -252,8 +252,8 @@ class Generator(object):
                 id=row_gameid, trial=row_trialnum)
             sketch_name = '{sketch}.npy'.format(sketch=sketch_base)
 
-            # we ignore sketches that were in bad games
-            if sketch_name.replace('.npy', '.png\n') in bad_games:
+            # we ignore sketches that were bad games
+            if sketch_base not in good_games:
                 continue
 
             # dog/car/chair/bird
