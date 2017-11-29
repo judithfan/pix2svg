@@ -774,10 +774,10 @@ class ContextBalancedPreloadedGenerator(ThreeClassPreloadedGenerator):
         # important, fix random seed
         random.seed(42); np.random.seed(42)
         game2closer, game2further = self.gen_game_dicts()
-        closer_train_contexts, closer_test_contexts \
-            = self.sample_game_dict(game2closer)
-        further_train_contexts, further_test_contexts \
-            = self.sample_game_dict(game2further)
+        closer_train_contexts, closer_test_contexts = \
+            self.sample_game_dict(game2closer)
+        further_train_contexts, further_test_contexts = \
+            self.sample_game_dict(game2further)
         train_contexts = closer_train_contexts + further_train_contexts
         test_contexts = closer_test_contexts + further_test_contexts
         train_contexts = set(train_contexts)
