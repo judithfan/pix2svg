@@ -37,7 +37,7 @@ if __name__ == "__main__":
     assert args.layer in ['conv_4_2', 'fc7']
 
     generator = Generator(train=False, batch_size=1, use_cuda=args.cuda, 
-                          data_dir='/data/jefan/sketchpad_basic_fixedpose96_%s' args.layer)
+                          data_dir='/data/jefan/sketchpad_basic_fixedpose96_%s' % args.layer)
     examples = generator.make_generator()
 
     model = load_checkpoint(args.model_path, use_cuda=args.cuda)
