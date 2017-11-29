@@ -290,7 +290,8 @@ class ThreeClassPreloadedGenerator(ThreeClassGenerator):
         self.distractor2sketch = data['distractor2sketch']
         self.target2distractors = data['target2distractors']
         self.path2folder = data['path2folder']
-        self.target2condition = data['target2condition']
+        if 'target2condition' in data:
+            self.target2condition = data['target2condition']
 
         train_paths, test_paths = self.train_test_split()
         self.size = len(train_paths) if train else len(test_paths)
@@ -787,7 +788,7 @@ class ContextBalancedPreloadedGenerator(ThreeClassPreloadedGenerator):
         paths = self.gen_paths()
 
         train_paths, test_paths = [], []
-
+        
         for ix, target in enumerate(paths):
             distractors = self.target2distractors[target]
             context = tuple(sorted([helper(target)] + 
