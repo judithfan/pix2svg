@@ -53,7 +53,7 @@ class AdaptorNet(nn.Module):
         return self.net(x)
 
 
-def CategoryNet(nn.Module):
+class CategoryNet(nn.Module):
     def __init__(self):
         super(CategoryNet, self).__init__()
         self.category_head = nn.Linear(1000, 4)
@@ -62,7 +62,7 @@ def CategoryNet(nn.Module):
         return self.category_head(x)
 
 
-def InstanceNet(nn.Module):
+class InstanceNet(nn.Module):
     def __init__(self):
         super(InstanceNet, self).__init__()
         self.instance_head = nn.Linear(1000, 32)

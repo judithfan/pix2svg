@@ -11,7 +11,7 @@ from sklearn.metrics import accuracy_score
 
 from model import EmbedNet
 from model import save_checkpoint
-from referenceutils2 import ContextFreePreloadedGenerator
+from datasets import ContextFreePreloadedGenerator
 
 
 class AverageMeter(object):
@@ -63,9 +63,9 @@ if __name__ == "__main__":
 
     def reset_generators():
         train_generator = Generator(train=True, batch_size=args.batch_size, use_cuda=args.cuda,
-                                    data_dir=data_dir, closer_only=args.closer)
+                                    data_dir=data_dir, closer_only=False)
         test_generator = Generator(train=False, batch_size=args.batch_size, use_cuda=args.cuda,
-                                   data_dir=data_dir, closer_only=args.closer)
+                                   data_dir=data_dir, closer_only=False)
         return train_generator, test_generator
 
     train_generator, test_generator = reset_generators()
@@ -187,7 +187,7 @@ if __name__ == "__main__":
               epoch, loss_meter.avg, embedding_loss_meter.avg, category_loss_meter.avg, instance_loss_meter.avg, 
               embedding_acc_meter.avg, category_acc_meter.avg, instance_acc_meter.avg))
 
-        summed_acc = sum(embedding_acc_meter.avg, category_acc_meter.avg, instance_acc_meter.avg)
+        summed_acc = sum((embedding_acc_meter.avg, category_acc_meter.avg, instance_acc_meter.avg))
         return summed_acc
 
 
