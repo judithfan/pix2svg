@@ -11,7 +11,7 @@ from sklearn.metrics import accuracy_score
 
 from model import ConvEmbedNet, FCEmbedNet
 from model import save_checkpoint
-from datasets import ContextFreeGenerator as Generator
+from datasets import ContextFreePreloadedGenerator as Generator
 
 
 class AverageMeter(object):
@@ -36,10 +36,11 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('out_dir', type=str)
-    parser.add_argument('--layer', type=str, help='conv_4_2|fc7', default='conv_4_2')
-    parser.add_argument('--batch_size', type=int, default=25)
-    parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--epochs', type=int, default=20)
+    parser.add_argument('--layer', type=str, help='conv_4_2|fc7 (default: conv_4_2)', 
+                        default='conv_4_2')
+    parser.add_argument('--batch_size', type=int, default=25, help='(default: batch_size)')
+    parser.add_argument('--lr', type=float, default=1e-3, help='(default: 1e-3)')
+    parser.add_argument('--epochs', type=int, default=20, help='(default: 20)')
     parser.add_argument('--photo_augment', action='store_true', default=False)
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()

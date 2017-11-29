@@ -12,7 +12,7 @@ import torch.nn.functional as F
 
 class ConvEmbedNet(nn.Module):
     def __init__(self):
-        super(EmbedNet, self).__init__()
+        super(ConvEmbedNet, self).__init__()
         self.photo_adaptor = ConvAdaptorNet()
         self.sketch_adaptor = ConvAdaptorNet()
         self.fusenet = FuseClassifier()
@@ -25,7 +25,7 @@ class ConvEmbedNet(nn.Module):
 
 class ConvAdaptorNet(nn.Module):
     def __init__(self):
-        super(AdaptorNet, self).__init__()
+        super(ConvAdaptorNet, self).__init__()
         self.cnn = nn.Sequential(
             nn.Conv2d(512, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
@@ -48,7 +48,7 @@ class ConvAdaptorNet(nn.Module):
 
 class FCEmbedNet(nn.Module):
     def __init__(self):
-        super(EmbedNet, self).__init__()
+        super(FCEmbedNet, self).__init__()
         self.photo_adaptor = FCAdaptorNet()
         self.sketch_adaptor = FCAdaptorNet()
         self.fusenet = FuseClassifier()
@@ -61,7 +61,7 @@ class FCEmbedNet(nn.Module):
 
 class FCAdaptorNet(nn.Module):
     def __init__(self):
-        super(AdaptorNet, self).__init__()
+        super(FCAdaptorNet, self).__init__()
         self.net = nn.Sequential(
             nn.Linear(4096, 4096),
             nn.BatchNorm1d(4096),
