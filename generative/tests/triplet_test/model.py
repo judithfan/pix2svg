@@ -38,11 +38,11 @@ class AdaptorNet(nn.Module):
             nn.MaxPool2d(2, stride=2, dilation=1),
         )
         self.net = nn.Sequential(
-            nn.Linear(64 * 14 * 14, 4096),
-            nn.BatchNorm1d(4096),
+            nn.Linear(64 * 14 * 14, 2048),
+            nn.BatchNorm1d(2048),
             Swish(),
             nn.Dropout(0.5),
-            nn.Linear(4096, 1000),
+            nn.Linear(2048, 1000),
         )
         
         self.instance_head = nn.Linear(1000, 32)
@@ -53,7 +53,7 @@ class AdaptorNet(nn.Module):
         return self.net(x)
 
 
-def CategoryNet(nn.Module):
+class CategoryNet(nn.Module):
     def __init__(self):
         super(CategoryNet, self).__init__()
         self.category_head = nn.Linear(1000, 4)
@@ -62,7 +62,7 @@ def CategoryNet(nn.Module):
         return self.category_head(x)
 
 
-def InstanceNet(nn.Module):
+class InstanceNet(nn.Module):
     def __init__(self):
         super(InstanceNet, self).__init__()
         self.instance_head = nn.Linear(1000, 32)

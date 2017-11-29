@@ -11,7 +11,7 @@ from sklearn.metrics import accuracy_score
 
 from model import EmbedNet
 from model import save_checkpoint
-from referenceutils2 import ContextFreePreloadedGenerator
+from datasets import ContextFreePreloadedGenerator
 
 
 class AverageMeter(object):
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('out_dir', type=str)
     parser.add_argument('--model', type=str, help='conv_4_2|fc7', default='conv_4_2')
-    parser.add_argument('--batch_size', type=int, default=25)
+    parser.add_argument('--batch_size', type=int, default=10)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--photo_augment', action='store_true', default=False)
@@ -63,9 +63,9 @@ if __name__ == "__main__":
 
     def reset_generators():
         train_generator = Generator(train=True, batch_size=args.batch_size, use_cuda=args.cuda,
-                                    data_dir=data_dir, closer_only=args.closer)
+                                    data_dir=data_dir, closer_only=False)
         test_generator = Generator(train=False, batch_size=args.batch_size, use_cuda=args.cuda,
-                                   data_dir=data_dir, closer_only=args.closer)
+                                   data_dir=data_dir, closer_only=False)
         return train_generator, test_generator
 
     train_generator, test_generator = reset_generators()
@@ -100,7 +100,6 @@ if __name__ == "__main__":
 
             optimizer.zero_grad()
             embedding_outputs, category_outputs, instance_outputs = model(photos, sketches)
-
             embedding_loss = F.binary_cross_entropy(embedding_outputs.squeeze(1), labels.float())
             category_loss = F.cross_entropy(category_outputs, categories)
             instance_loss = F.cross_entropy(instance_outputs, instances)
@@ -118,12 +117,12 @@ if __name__ == "__main__":
             embedding_acc_meter.update(embedding_acc, photos.size(0))
 
             categories_np = categories.cpu().data.numpy()
-            category_outputs_np = np.argmax(category_outputs.cpu().data.numpy(), dim=1)
+            category_outputs_np = np.argmax(category_outputs.cpu().data.numpy(), axis=1)
             category_acc = accuracy_score(categories_np, category_outputs_np)
             category_acc_meter.update(category_acc, photos.size(0))
 
             instances_np = instances.cpu().data.numpy()
-            instance_outputs_np = np.argmax(instance_outputs.cpu().data.numpy(), dim=1)
+            instance_outputs_np = np.argmax(instance_outputs.cpu().data.numpy(), axis=1)
             instance_acc = accuracy_score(instances_np, instance_outputs_np)
             instance_acc_meter.update(instance_acc, photos.size(0))
 
@@ -187,7 +186,7 @@ if __name__ == "__main__":
               epoch, loss_meter.avg, embedding_loss_meter.avg, category_loss_meter.avg, instance_loss_meter.avg, 
               embedding_acc_meter.avg, category_acc_meter.avg, instance_acc_meter.avg))
 
-        summed_acc = sum(embedding_acc_meter.avg, category_acc_meter.avg, instance_acc_meter.avg)
+        summed_acc = sum((embedding_acc_meter.avg, category_acc_meter.avg, instance_acc_meter.avg))
         return summed_acc
 
 
