@@ -224,7 +224,10 @@ class Generator(object):
             sketch1_path = self.target2sketch[render1_path]
             # here we sample negatives from all possible crops/images
             if self.global_negatives:
-                render2_path = random.choice(global_paths)
+                if random.random() > 0.5:
+                    render2_path = random.choice(global_paths)
+                else:
+                    render2_path = random.choice(self.target2distractors[render1_path])
                 if render2_path in self.target2sketch:
                     sketch2_path = self.target2sketch[render2_path]
                 else:
