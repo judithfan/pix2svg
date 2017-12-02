@@ -95,6 +95,7 @@ if __name__ == "__main__":
     sketch_embeddings = all_embeddings[:n_sketch_embeddings, :]
     photo_embeddings = all_embeddings[n_sketch_embeddings:, :]
 
+    # generate plot with all 8 embedding types in 1 thing.
     plt.figure()
     for i in xrange(n_labels):
         _sketch_embeddings = sketch_embeddings[sketch_labels == i]
@@ -106,4 +107,43 @@ if __name__ == "__main__":
     plt.legend()
     plt.tight_layout()
     plt.savefig('./manifold-{}.png'.format(
+        'instance' if args.instance else 'category'))
+
+    # generate plot with 2 subplots: 1 for sketches; 1 for photos
+    f, (ax1, ax2) = plt.subplots(1, 2, sharey=True)
+    for i in xrange(n_labels):
+        _sketch_embeddings = sketch_embeddings[sketch_labels == i]
+        _photo_embeddings = photo_embeddings[photo_labels == i]
+        ax1.scatter(_sketch_embeddings[:, 0], _sketch_embeddings[:, 1],
+                    alpha=0.1, edgecolors='none', label=ix2name_dict[i])
+        ax2.scatter(_photo_embeddings[:, 0], _photo_embeddings[:, 1],
+                    alpha=0.1, edgecolors='none', label=ix2name_dict[i])
+
+    ax1.legend()
+    ax2.legend()
+    ax1.set_title('Sketch Embeddings')
+    ax2.set_title('Photo Embeddings')
+    plt.tight_layout()
+    plt.savefig('./manifold-{}-dual.png'.format(
+        'instance' if args.instance else 'category'))
+
+    # generate plot with either 4 or 32 subplots (1 for each little subclass)
+    if args.instance:
+        n_rows, n_cols = 4, 8
+    else:
+        n_rows, n_cols = 2, 2
+
+    f, axarr = plt.subplots(n_rows, n_cols, sharex='col', sharey='row')
+    for i in xrange(n_labels):
+        row_ix, col_ix = i // n_rows, i % n_cols
+        _sketch_embeddings = sketch_embeddings[sketch_labels == i]
+        _photo_embeddings = photo_embeddings[photo_labels == i]
+        axarr[row_ix, col_ix].scatter(_sketch_embeddings[:, 0], _sketch_embeddings[:, 1],
+                                      alpha=0.1, edgecolors='none', label=label='sketch')
+        axarr[row_ix, col_ix].scatter(_photo_embeddings[:, 0], _photo_embeddings[:, 1],
+                                      alpha=0.1, edgecolors='none', label='photo')
+        axarr[row_ix, col_ix].legend()
+        axarr[row_ix, col_ix].set_title(ix2name_dict[i])
+    plt.tight_layout()
+    plt.savefig('./manifold-{}-parts.png'.format(
         'instance' if args.instance else 'category'))
