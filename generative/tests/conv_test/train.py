@@ -42,6 +42,7 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-3, help='(default: 1e-3)')
     parser.add_argument('--epochs', type=int, default=20, help='(default: 20)')
     parser.add_argument('--photo_augment', action='store_true', default=False)
+    parser.add_argument('--global_negatives', action='store_true', default=False)
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
@@ -55,8 +56,10 @@ if __name__ == "__main__":
     EmbedNet = ConvEmbedNet if args.layer == 'conv_4_2' else FCEmbedNet
 
     def reset_generators():
-        train_generator = Generator(train=True, batch_size=args.batch_size, use_cuda=args.cuda, data_dir=data_dir)
-        test_generator = Generator(train=False, batch_size=args.batch_size, use_cuda=args.cuda, data_dir=data_dir)
+        train_generator = Generator(train=True, batch_size=args.batch_size, use_cuda=args.cuda, 
+                                    global_negatives=args.global_negatives, data_dir=data_dir)
+        test_generator = Generator(train=False, batch_size=args.batch_size, use_cuda=args.cuda, 
+                                   global_negatives=args.global_negatives, data_dir=data_dir)
         return train_generator, test_generator
 
     train_generator, test_generator = reset_generators()

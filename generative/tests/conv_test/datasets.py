@@ -82,17 +82,21 @@ class Generator(object):
     training; it keeps the last class for testing. This is meant
     to measure cross-class generalization in sketchpad.
 
-    :param train: whether to yield training or testing examples
-    :param batch_size: number of examples to return at once
-    :param use_cuda: whether to use CUDA objects or not
+    :param train: whether to yield training or testing examples (default: True)
+    :param batch_size: number of examples to return at once (default: 10)
+    :param global_negatives: when negative sampling, sample from all images
+                             not just from the distractors (default: False)
+    :param closer_only: only consider close context examples (default: False)
+    :param use_cuda: whether to use CUDA objects or not (default: False)
     """
 
     def __init__(self, train=True, batch_size=10, use_cuda=False, closer_only=False,
-                 data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2'):
+                 global_negatives=False, data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2'):
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.use_cuda = use_cuda
         self.train = train
+        self.global_negatives = global_negatives
         self.closer_only = closer_only
 
         # only game ids in here are allowed
@@ -211,14 +215,23 @@ class Generator(object):
         dtype = torch.cuda.FloatTensor if self.use_cuda else torch.FloatTensor
         train_paths, test_paths = self.train_test_split()
         render_paths = train_paths if self.train else test_paths
+        global_paths = list(set(self.target2sketch.keys() + self.distractor2sketch.keys()))
 
         batch_idx = 0  # keep track of when to start new batch
         for i in range(self.size):
             # define (p1, s1), (p1, s2), (p2, s1), (p2, s2) paths
             render1_path = render_paths[i]
             sketch1_path = self.target2sketch[render1_path]
-            render2_path = random.choice(self.target2distractors[render1_path])
-            sketch2_path = self.distractor2sketch[render2_path]
+            # here we sample negatives from all possible crops/images
+            if self.global_negatives:
+                render2_path = random.choice(global_paths)
+                if render2_path in self.target2sketch:
+                    sketch2_path = self.target2sketch[render2_path]
+                else:
+                    sketch2_path = self.distractor2sketch[render2_path]
+            else:
+                render2_path = random.choice(self.target2distractors[render1_path])
+                sketch2_path = self.distractor2sketch[render2_path]
             # render folders
             render1_dir = self.path2folder[render1_path]
             sketch1_dir = self.path2folder[sketch1_path]

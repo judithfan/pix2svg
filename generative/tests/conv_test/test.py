@@ -19,6 +19,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('model_path', type=str, help='path to where model is stored')
     parser.add_argument('--layer', type=str, help='conv_4_2|fc7', default='conv_4_2')
+    parser.add_argument('--global_negatives', action='store_true', default=False)
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
@@ -26,7 +27,7 @@ if __name__ == "__main__":
 
     # note how we are not using the augmented dataset since at test time,
     # we don't care about how it does on cropped data.
-    generator = Generator(train=False, batch_size=1, use_cuda=args.cuda, 
+    generator = Generator(train=False, batch_size=1, use_cuda=args.cuda, global_negatives=args.global_negatives, 
                           data_dir='/data/jefan/sketchpad_basic_fixedpose96_%s' % args.layer)
     examples = generator.make_generator()
 
