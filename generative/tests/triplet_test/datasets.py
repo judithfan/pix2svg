@@ -58,16 +58,24 @@ CATEGORY_LOOKUP = {
     'woven': 'chair',
 }
 
-INSTANCE_IX2NAME_DICT = {0: 'basset', 1: 'beetle', 2: 'bloodhound', 3: 'bluejay', 4: 'bluesedan', 
-                         5: 'bluesport', 6: 'brown', 7: 'bullmastiff', 8: 'chihuahua', 9: 'crow', 
-                         10: 'cuckoo', 11: 'doberman', 12: 'goldenretriever', 13: 'hatchback', 14: 'inlay', 
-                         15: 'knob', 16: 'leather', 17: 'nightingale', 18: 'pigeon', 19: 'pug', 
-                         20: 'redantique', 21: 'redsport', 22: 'robin', 23: 'sling', 24: 'sparrow', 
-                         25: 'squat', 26: 'straight', 27: 'tomtit', 28: 'waiting', 29: 'weimaraner', 
+CATEGORY_TO_INSTANCE_DICT = {
+    'dog': ['basset', 'bloodhound', 'bullmastiff', 'chihuahua', 'doberman', 'goldenretriever', 'pug', 'weimaraner'],
+    'car': ['beetle', 'bluesedan', 'bluesport', 'brown', 'hatchback', 'redantique', 'redsport', 'white'],
+    'bird': ['bluejay', 'crow', 'cuckoo', 'nightingale', 'pigeon', 'robin', 'sparrow', 'tomtit'],
+    'chair': ['inlay', 'knob', 'leather', 'sling', 'squat', 'straight', 'waiting', 'woven'],
+}
+
+INSTANCE_IX2NAME_DICT = {0: 'basset', 1: 'beetle', 2: 'bloodhound', 3: 'bluejay', 4: 'bluesedan',
+                         5: 'bluesport', 6: 'brown', 7: 'bullmastiff', 8: 'chihuahua', 9: 'crow',
+                         10: 'cuckoo', 11: 'doberman', 12: 'goldenretriever', 13: 'hatchback', 14: 'inlay',
+                         15: 'knob', 16: 'leather', 17: 'nightingale', 18: 'pigeon', 19: 'pug',
+                         20: 'redantique', 21: 'redsport', 22: 'robin', 23: 'sling', 24: 'sparrow',
+                         25: 'squat', 26: 'straight', 27: 'tomtit', 28: 'waiting', 29: 'weimaraner',
                          30: 'white', 31: 'woven'}
 INSTANCE_NAME2IX_DICT = {v: k for k, v in INSTANCE_IX2NAME_DICT.iteritems()}
 CATEGORY_IX2NAME_DICT = {0: 'bird', 1: 'car', 2: 'chair', 3: 'dog'}
 CATEGORY_NAME2IX_DICT = {v: k for k, v in CATEGORY_IX2NAME_DICT.iteritems()}
+
 
 
 class Generator(object):
