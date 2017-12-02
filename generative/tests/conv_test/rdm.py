@@ -10,7 +10,6 @@ from collections import defaultdict
 import torch
 from torch.autograd import Variable
 
-from datasets import ContextFreePreloadedGenerator as Generator
 from datasets import INSTANCE_NAME2IX_DICT, CATEGORY_NAME2IX_DICT
 from datasets import INSTANCE_IX2NAME_DICT, CATEGORY_IX2NAME_DICT
 from datasets import CATEGORY_TO_INSTANCE_DICT

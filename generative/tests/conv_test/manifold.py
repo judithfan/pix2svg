@@ -32,12 +32,13 @@ if __name__ == "__main__":
     parser.add_argument('--instance', action='store_true', 
                         help='if supplied, use instance level statistics instead of category statistics.')
     parser.add_argument('--pca_only', action='store_true', default=False)
+    parser.add_argument('--global_negatives', action='store_true', default=False)
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
     assert args.layer in ['conv_4_2', 'fc7']
 
-    generator = Generator(train=False, batch_size=1, use_cuda=args.cuda, 
+    generator = Generator(train=False, batch_size=1, use_cuda=args.cuda, global_negatives=args.global_negatives,
                           data_dir='/data/jefan/sketchpad_basic_fixedpose96_%s' % args.layer)
     examples = generator.make_generator()
 
