@@ -137,17 +137,20 @@ if __name__ == "__main__":
     else:
         n_rows, n_cols = 2, 2
 
-    f, axarr = plt.subplots(n_rows, n_cols, sharex=True, sharey=True)
+    f, axarr = plt.subplots(n_rows, n_cols, sharex=True, sharey=True, figsize=(10, 15))
     for i in xrange(n_labels):
-        row_ix, col_ix = i // n_rows, i % n_cols
+        col_ix, row_ix = i // n_rows, i % n_rows
         _sketch_embeddings = sketch_embeddings[sketch_labels == i]
         _photo_embeddings = photo_embeddings[photo_labels == i]
         axarr[row_ix, col_ix].scatter(_sketch_embeddings[:, 0], _sketch_embeddings[:, 1],
                                       alpha=0.1, edgecolors='none', label='sketch')
         axarr[row_ix, col_ix].scatter(_photo_embeddings[:, 0], _photo_embeddings[:, 1],
                                       alpha=0.1, edgecolors='none', label='photo')
-        axarr[row_ix, col_ix].legend()
+        if not args.instance:
+            # 32 categories is too much for a legend 
+            axarr[row_ix, col_ix].legend()
         axarr[row_ix, col_ix].set_title(ix2name_dict[i])
+    
     plt.tight_layout()
     plt.savefig('./manifold-{}-parts.png'.format(
         'instance' if args.instance else 'category'))

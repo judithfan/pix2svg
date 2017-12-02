@@ -66,6 +66,7 @@ if __name__ == "__main__":
     for i in xrange(4):
         instances = CATEGORY_TO_INSTANCE_DICT[CATEGORY_IX2NAME_DICT[i]]
         axis_labels.extend(instances)
+    axis_labels = axis_labels + axis_labels + axis_labels
 
     # loop through each of our targets first
     for i in xrange(4):
@@ -132,9 +133,9 @@ if __name__ == "__main__":
     rdm = np.corrcoef(features)
 
     plt.figure()
-    plt.imshow(a, cmap=plt.cm.Reds, interpolation='none')
-    plt.yticks(xrange(len(axis_labels)), axis_labels, fontsize=12)
-    plt.xticks(xrange(len(axis_labels)), axis_labels, fontsize=12, rotation=90)
+    plt.imshow(rdm, cmap=plt.cm.Reds, interpolation='none')
+    plt.yticks(xrange(len(axis_labels)), axis_labels, fontsize=5)
+    plt.xticks(xrange(len(axis_labels)), axis_labels, fontsize=5, rotation=90)
     plt.tight_layout()
     plt.savefig('./rdm.png')
 
