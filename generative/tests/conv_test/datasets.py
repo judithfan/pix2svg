@@ -298,12 +298,13 @@ class Generator(object):
 
 class PreloadedGenerator(Generator):
     def __init__(self, train=True, batch_size=10, use_cuda=False, closer_only=False,
-                 data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2'):
+                 global_negatives=False, data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2'):
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.use_cuda = use_cuda
         self.train = train
         self.closer_only = closer_only
+        self.global_negatives = global_negatives
 
         pickle_name = self.gen_pickle_name()
         with open(os.path.join(self.data_dir, pickle_name), 'r') as fp:
