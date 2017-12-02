@@ -100,7 +100,7 @@ if __name__ == "__main__":
     photo_embeddings = all_embeddings[n_sketch_embeddings:, :]
 
     # generate plot with all 8 embedding types in 1 thing.
-    plt.figure()
+    plt.figure(figsize=(15, 10))
     for i in xrange(n_labels):
         _sketch_embeddings = sketch_embeddings[sketch_labels == i]
         _photo_embeddings = photo_embeddings[photo_labels == i]
@@ -114,7 +114,7 @@ if __name__ == "__main__":
         'instance' if args.instance else 'category'))
 
     # generate plot with 2 subplots: 1 for sketches; 1 for photos
-    f, (ax1, ax2) = plt.subplots(1, 2, sharex=True, sharey=True)
+    f, (ax1, ax2) = plt.subplots(1, 2, sharex=True, sharey=True, figsize=(20, 10))
     for i in xrange(n_labels):
         _sketch_embeddings = sketch_embeddings[sketch_labels == i]
         _photo_embeddings = photo_embeddings[photo_labels == i]
@@ -137,7 +137,7 @@ if __name__ == "__main__":
     else:
         n_rows, n_cols = 2, 2
 
-    f, axarr = plt.subplots(n_rows, n_cols, sharex=True, sharey=True, figsize=(10, 15))
+    f, axarr = plt.subplots(n_rows, n_cols, sharex=True, sharey=True, figsize=(15, 10))
     for i in xrange(n_labels):
         col_ix, row_ix = i // n_rows, i % n_rows
         _sketch_embeddings = sketch_embeddings[sketch_labels == i]
