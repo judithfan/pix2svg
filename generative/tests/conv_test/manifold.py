@@ -110,7 +110,7 @@ if __name__ == "__main__":
         'instance' if args.instance else 'category'))
 
     # generate plot with 2 subplots: 1 for sketches; 1 for photos
-    f, (ax1, ax2) = plt.subplots(1, 2, sharey=True)
+    f, (ax1, ax2) = plt.subplots(1, 2, sharex=True, sharey=True)
     for i in xrange(n_labels):
         _sketch_embeddings = sketch_embeddings[sketch_labels == i]
         _photo_embeddings = photo_embeddings[photo_labels == i]
@@ -133,13 +133,13 @@ if __name__ == "__main__":
     else:
         n_rows, n_cols = 2, 2
 
-    f, axarr = plt.subplots(n_rows, n_cols, sharex='col', sharey='row')
+    f, axarr = plt.subplots(n_rows, n_cols, sharex=True, sharey=True)
     for i in xrange(n_labels):
         row_ix, col_ix = i // n_rows, i % n_cols
         _sketch_embeddings = sketch_embeddings[sketch_labels == i]
         _photo_embeddings = photo_embeddings[photo_labels == i]
         axarr[row_ix, col_ix].scatter(_sketch_embeddings[:, 0], _sketch_embeddings[:, 1],
-                                      alpha=0.1, edgecolors='none', label=label='sketch')
+                                      alpha=0.1, edgecolors='none', label='sketch')
         axarr[row_ix, col_ix].scatter(_photo_embeddings[:, 0], _photo_embeddings[:, 1],
                                       alpha=0.1, edgecolors='none', label='photo')
         axarr[row_ix, col_ix].legend()
