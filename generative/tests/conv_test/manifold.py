@@ -31,6 +31,7 @@ if __name__ == "__main__":
     parser.add_argument('--layer', type=str, help='conv_4_2|fc7', default='conv_4_2')
     parser.add_argument('--instance', action='store_true', 
                         help='if supplied, use instance level statistics instead of category statistics.')
+    parser.add_argument('--pca_only', action='store_true', default=False)
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
@@ -85,12 +86,15 @@ if __name__ == "__main__":
     n_sketch_embeddings = sketch_embeddings.shape[0]
 
     all_embeddings = np.concatenate((sketch_embeddings, photo_embeddings), axis=0)
-    # pca_50 = PCA(n_components=50)
-    # tsne_2 = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
-    # all_embeddings = pca_50.fit_transform(all_embeddings)
-    # all_embeddings = tsne_2.fit_transform(all_embeddings)
-    pca_2 = PCA(n_components=2)
-    all_embeddings = pca_2.fit_transform(all_embeddings)
+    
+    if not args.pca_only:
+        pca_50 = PCA(n_components=50)
+        tsne_2 = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
+        all_embeddings = pca_50.fit_transform(all_embeddings)
+        all_embeddings = tsne_2.fit_transform(all_embeddings)
+    else:
+        pca_2 = PCA(n_components=2)
+        all_embeddings = pca_2.fit_transform(all_embeddings)
 
     sketch_embeddings = all_embeddings[:n_sketch_embeddings, :]
     photo_embeddings = all_embeddings[n_sketch_embeddings:, :]

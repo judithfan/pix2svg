@@ -5,6 +5,7 @@ from __future__ import absolute_import
 import os
 import cPickle
 import numpy as np
+from collections import defaultdict
 
 import torch
 from torch.autograd import Variable
@@ -38,17 +39,17 @@ if __name__ == "__main__":
         target2sketch = data['target2sketch']
         target2condition = data['target2condition']
 
-    instance2closesketch = {}
-    instance2farsketch = {}
+    instance2closesketch = defaultdict(lambda: [])
+    instance2farsketch = defaultdict(lambda: [])
     instance2firsttarget = {}
 
     sketch_paths = []
     for target, sketch in target2sketch.iteritems():
         instance = os.path.splitext(target)[0].split('_')[-1]
         if target2condition[target] == 'closer':
-            instance2closesketch[instance] = sketch
+            instance2closesketch[instance].append(sketch)
         elif target2condition[target] == 'further':
-            instance2farsketch[instance] = sketch
+            instance2farsketch[instance].append(sketch)
         sketch_paths.append(sketch)
         instance2firsttarget[instance] = target
 
@@ -60,6 +61,11 @@ if __name__ == "__main__":
     render_features = np.zeros((32, 1000))
     sketch_close_features = np.zeros((32, 1000))
     sketch_far_features = np.zeros((32, 1000))
+
+    axis_labels = []
+    for i in xrange(4):
+        instances = CATEGORY_TO_INSTANCE_DICT[CATEGORY_IX2NAME_DICT[i]]
+        axis_labels.extend(instances)
 
     # loop through each of our targets first
     for i in xrange(4):
@@ -81,13 +87,13 @@ if __name__ == "__main__":
         for j in xrange(8):
             close_sketches = instance2closesketch[instances[j]]
             n_close_sketches = len(close_sketches)
-            close_batch = np.zeros(n_close_sketches, 512, 28, 28)
+            close_batch = np.zeros((n_close_sketches, 512, 28, 28))
 
             for k in xrange(n_close_sketches):
                 sketch_path = os.path.join(data_dir, 'sketch', close_sketches[k])
                 close_batch[k] = np.load(sketch_path)
 
-            close_batch = torch.from_numpy(close_batch)
+            close_batch = torch.from_numpy(close_batch).float()
             if args.cuda:
                 close_batch = close_batch.cuda()
             close_batch = Variable(close_batch, requires_grad=False)
@@ -104,13 +110,13 @@ if __name__ == "__main__":
         for j in xrange(8):
             far_sketches = instance2farsketch[instances[j]]
             n_far_sketches = len(far_sketches)
-            far_batch = np.zeros(n_far_sketches, 512, 28, 28)
+            far_batch = np.zeros((n_far_sketches, 512, 28, 28))
 
             for k in xrange(n_far_sketches):
                 sketch_path = os.path.join(data_dir, 'sketch', far_sketches[k])
                 far_batch[k] = np.load(sketch_path)
 
-            far_batch = torch.from_numpy(far_batch)
+            far_batch = torch.from_numpy(far_batch).float()
             if args.cuda:
                 far_batch = far_batch.cuda()
             far_batch = Variable(far_batch, requires_grad=False)
@@ -126,7 +132,9 @@ if __name__ == "__main__":
     rdm = np.corrcoef(features)
 
     plt.figure()
+    plt.imshow(a, cmap=plt.cm.Reds, interpolation='none')
+    plt.yticks(xrange(len(axis_labels)), axis_labels, fontsize=12)
+    plt.xticks(xrange(len(axis_labels)), axis_labels, fontsize=12, rotation=90)
     plt.tight_layout()
-    
-    
+    plt.savefig('./rdm.png')
 
