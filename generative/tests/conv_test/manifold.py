@@ -81,7 +81,7 @@ if __name__ == "__main__":
 
     sketch_embeddings = sketch_embeddings.numpy()
     photo_embeddings = photo_embeddings.numpy()
-    all_embeddings = np.stack((sketch_embeddings, photo_embeddings))
+    all_embeddings = np.concatenate((sketch_embeddings, photo_embeddings), axis=0)
 
     sketch_labels = np.array(sketch_labels)
     photo_labels = np.array(photo_labels)
@@ -90,7 +90,7 @@ if __name__ == "__main__":
     tsne_2 = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
 
     all_embeddings = pca_50.fit_transform(all_embeddings)
-    all_embeddings = tsne.fit_transform(all_embeddings)
+    all_embeddings = tsne_2.fit_transform(all_embeddings)
 
     sketch_embeddings = all_embeddings[:generator.size, :]
     photo_embeddings = all_embeddings[generator.size:, :]
