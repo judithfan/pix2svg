@@ -221,6 +221,7 @@ class Generator(object):
         if self.balance_crops:
             train_paths = balance_paths_by_crop(train_paths)
             random.shuffle(train_paths)
+            self.size = len(train_paths)
 
         render_paths = train_paths if self.train else test_paths
         global_paths = list(set(self.target2sketch.keys() + self.distractor2sketch.keys()))
@@ -241,10 +242,10 @@ class Generator(object):
                 render2_path = random.choice(self.target2distractors[render1_path])
                 sketch2_path = self.distractor2sketch[render2_path]
             # render folders
-            render1_dir = self.path2folder[render1_path]
-            sketch1_dir = self.path2folder[sketch1_path]
-            render2_dir = self.path2folder[render2_path]
-            sketch2_dir = self.path2folder[sketch2_path]
+            render1_dir = self.path2folder[render1_path].replace('jefan', 'wumike')
+            sketch1_dir = self.path2folder[sketch1_path].replace('jefan', 'wumike')
+            render2_dir = self.path2folder[render2_path].replace('jefan', 'wumike')
+            sketch2_dir = self.path2folder[sketch2_path].replace('jefan', 'wumike')
             # load paths into numpy
             render1 = np.load(os.path.join(render1_dir, render1_path))[np.newaxis, ...]
             sketch1 = np.load(os.path.join(sketch1_dir, sketch1_path))[np.newaxis, ...]
@@ -306,14 +307,16 @@ class Generator(object):
 
 class PreloadedGenerator(Generator):
     def __init__(self, train=True, batch_size=10, use_cuda=False, closer_only=False,
-                 global_negatives=False, data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2'):
+                 global_negatives=False, balance_crops=False,
+                 data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2'):
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.use_cuda = use_cuda
         self.train = train
         self.closer_only = closer_only
         self.global_negatives = global_negatives
-
+        self.balance_crops = balance_crops
+ 
         pickle_name = self.gen_pickle_name()
         with open(os.path.join(self.data_dir, pickle_name), 'r') as fp:
             data = cPickle.load(fp)
@@ -495,9 +498,9 @@ class ReferenceGamePreloadedGenerator(object):
 
 def balance_paths_by_crop(train_paths):
     def gen_path_query(path):
-        path_parts = path.split('_')
-        assert len(path_parts) == 5
-        return '%s_%s-crop*_%s_%s_%s' % (parts[0], parts[1], parts[2], parts[3], parts[4])
+        parts = path.split('_')
+        assert len(parts) == 5
+        return '%s_%s-crop\d+_%s_%s_%s' % (parts[0], parts[1], parts[2], parts[3], parts[4])
 
     non_crop_paths = [path for path in train_paths if 'crop' not in path]
     crop_paths = [path for path in train_paths if 'crop' in path]
@@ -505,9 +508,9 @@ def balance_paths_by_crop(train_paths):
     non_crop_paths2 = []
     for path in non_crop_paths:
         path_query = gen_path_query(path)
-        query_crops = filter(re.compile(path_query), crop_paths)
+        query_crops = filter(re.compile(path_query).match, crop_paths)
         n_crops = len(query_crops)
-        non_crop_paths2 += [path for _ in xrage(n_crops)]
+        non_crop_paths2 += [path for _ in xrange(n_crops)]
 
     return non_crop_paths2
 
