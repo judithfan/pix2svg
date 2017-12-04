@@ -242,10 +242,10 @@ class Generator(object):
                 render2_path = random.choice(self.target2distractors[render1_path])
                 sketch2_path = self.distractor2sketch[render2_path]
             # render folders
-            render1_dir = self.path2folder[render1_path].replace('jefan', 'wumike')
-            sketch1_dir = self.path2folder[sketch1_path].replace('jefan', 'wumike')
-            render2_dir = self.path2folder[render2_path].replace('jefan', 'wumike')
-            sketch2_dir = self.path2folder[sketch2_path].replace('jefan', 'wumike')
+            render1_dir = self.path2folder[render1_path]
+            sketch1_dir = self.path2folder[sketch1_path]
+            render2_dir = self.path2folder[render2_path]
+            sketch2_dir = self.path2folder[sketch2_path]
             # load paths into numpy
             render1 = np.load(os.path.join(render1_dir, render1_path))[np.newaxis, ...]
             sketch1 = np.load(os.path.join(sketch1_dir, sketch1_path))[np.newaxis, ...]

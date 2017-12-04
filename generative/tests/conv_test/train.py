@@ -50,9 +50,9 @@ if __name__ == "__main__":
     assert args.layer in ['conv_4_2', 'fc7']
 
     if args.photo_augment:
-        data_dir = '/data/wumike/sketchpad_basic_fixedpose96_photo_augmented_%s' % args.layer
+        data_dir = '/data/jefan/sketchpad_basic_fixedpose96_photo_augmented_%s' % args.layer
     else:
-        data_dir = '/data/wumike/sketchpad_basic_fixedpose96_%s' % args.layer
+        data_dir = '/data/jefan/sketchpad_basic_fixedpose96_%s' % args.layer
 
     EmbedNet = ConvEmbedNet if args.layer == 'conv_4_2' else FCEmbedNet
 
