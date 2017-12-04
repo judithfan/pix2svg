@@ -493,10 +493,11 @@ class ReferenceGamePreloadedGenerator(object):
                 break
 
 
-def balance_paths_by_crop(train_paths)(train_paths):
+def balance_paths_by_crop(train_paths):
     def gen_path_query(path):
         path_parts = path.split('_')
-        return '%s_%s-crop*_%s_%s_%s' % (*path_parts)
+        assert len(path_parts) == 5
+        return '%s_%s-crop*_%s_%s_%s' % (parts[0], parts[1], parts[2], parts[3], parts[4])
 
     non_crop_paths = [path for path in train_paths if 'crop' not in path]
     crop_paths = [path for path in train_paths if 'crop' in path]
