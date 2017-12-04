@@ -473,7 +473,12 @@ class ReferenceGamePreloadedGenerator(object):
         good_games = pd.read_csv(os.path.join(self.data_dir, 'valid_gameids_pilot2.csv'))['valid_gameids']
         good_games = good_games.values.tolist()
         sketch_paths = glob(os.path.join(self.data_dir, 'sketch', '*.npy'))
-        sketch_paths = list(set(sketch_paths) & set(good_games))  # intersection
+        good_sketch_paths = []
+        for sketch_path in sketch_paths:
+            sketch_gameid = os.path.splitext(os.path.basename(sketch_path))[0].split('_')[1]
+            if sketch_gameid in good_games:
+                good_sketch_paths.append(sketch_path)
+        sketch_paths = good_sketch_paths
         # only 32 unique objects, so no need to look through too much.
         render_paths = glob(os.path.join(self.data_dir, 'target', 
             'gameID_9903-d6e6a9ff-a878-4bee-b2d5-26e2e239460a_trial_*.npy'))

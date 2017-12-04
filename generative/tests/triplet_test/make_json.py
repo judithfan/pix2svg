@@ -20,7 +20,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
     generator = ReferenceGamePreloadedGenerator(
-        data_dir='/data/jefan/sketchpad_basic_fixedpose96_%s' % args.layer,
+        data_dir='/data/wumike/sketchpad_basic_fixedpose96_conv_4_2',
         use_cuda=args.cuda)
     examples = generator.make_generator() 
 
@@ -58,6 +58,6 @@ if __name__ == "__main__":
         count += 1
 
 
-    print('\nWriting distances to {}.')
+    print('\nWriting distances to file.')
     with open(args.json_path, 'w') as fp:
         json.dump(dist_jsons, fp)
