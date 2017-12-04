@@ -86,17 +86,21 @@ class Generator(object):
     :param batch_size: number of examples to return at once (default: 10)
     :param global_negatives: when negative sampling, sample from all images
                              not just from the distractors (default: False)
+    :param balance_crops: 50% of time, show crops, 50% of time, show non-cropped
+                          / whole image (default: False)
     :param closer_only: only consider close context examples (default: False)
     :param use_cuda: whether to use CUDA objects or not (default: False)
     """
 
     def __init__(self, train=True, batch_size=10, use_cuda=False, closer_only=False,
-                 global_negatives=False, data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2'):
+                 global_negatives=False, balance_crops=False, 
+                 data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2'):
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.use_cuda = use_cuda
         self.train = train
         self.global_negatives = global_negatives
+        self.balance_crops = balance_crops
         self.closer_only = closer_only
 
         # only game ids in here are allowed
@@ -214,6 +218,10 @@ class Generator(object):
     def make_generator(self):
         dtype = torch.cuda.FloatTensor if self.use_cuda else torch.FloatTensor
         train_paths, test_paths = self.train_test_split()
+        if self.balance_crops:
+            train_paths = balance_paths_by_crop(train_paths)
+            random.shuffle(train_paths)
+
         render_paths = train_paths if self.train else test_paths
         global_paths = list(set(self.target2sketch.keys() + self.distractor2sketch.keys()))
 
@@ -483,6 +491,24 @@ class ReferenceGamePreloadedGenerator(object):
                 yield (sketch_path, sketch, render_path, render)
             except StopIteration:
                 break
+
+
+def balance_paths_by_crop(train_paths)(train_paths):
+    def gen_path_query(path):
+        path_parts = path.split('_')
+        return '%s_%s-crop*_%s_%s_%s' % (*path_parts)
+
+    non_crop_paths = [path for path in train_paths if 'crop' not in path]
+    crop_paths = [path for path in train_paths if 'crop' in path]
+
+    non_crop_paths2 = []
+    for path in non_crop_paths:
+        path_query = gen_path_query(path)
+        query_crops = filter(re.compile(path_query), crop_paths)
+        n_crops = len(query_crops)
+        non_crop_paths2 += [path for _ in xrage(n_crops)]
+
+    return non_crop_paths2
 
 
 if __name__ == "__main__":
