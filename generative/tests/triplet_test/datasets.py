@@ -241,11 +241,11 @@ class Generator(object):
             # gen category metrics
             sketch1_category = CATEGORY_NAME2IX_DICT[gen_category_from_path(render1_path)]
             sketch2_category = CATEGORY_NAME2IX_DICT[gen_category_from_path(render2_path)]
-            sketch_categories = torch.Tensor([sketch1_category, sketch2_category, sketch1_category, sketch2_category]).type(dtype).long()
+            sketch_categories = torch.Tensor([sketch1_category, sketch2_category, sketch2_category, sketch1_category]).type(dtype).long()
             # gen instance metrics
             sketch1_instance = INSTANCE_NAME2IX_DICT[gen_instance_from_path(render1_path)]
             sketch2_instance = INSTANCE_NAME2IX_DICT[gen_instance_from_path(render2_path)]
-            sketch_instances = torch.Tensor([sketch1_instance, sketch2_instance, sketch1_instance, sketch2_instance]).type(dtype).long()
+            sketch_instances = torch.Tensor([sketch1_instance, sketch2_instance, sketch2_instance, sketch1_instance]).type(dtype).long()
 
             if batch_idx == 0:
                 render_batch = render_group
