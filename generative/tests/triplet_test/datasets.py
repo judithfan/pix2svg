@@ -13,6 +13,7 @@ import csv
 import shutil
 import random
 import cPickle
+import itertools
 import numpy as np
 import pandas as pd
 from glob import glob
@@ -428,6 +429,53 @@ def gen_category_from_path(path):
 
 def gen_instance_from_path(path):
     return os.path.splitext(path)[0].split('_')[-1]
+
+
+class ReferenceGamePreloadedGenerator(object):
+    """This generates pairs from the reference game data. 
+    This is not used for training purposes. This will yield a pair 
+    (sketch, render) for every sketch and every render, so it will 
+    be a total of |sketch| * |render| images.
+
+    :param sketch_dir: path to folder of sketch pngs
+    :param render_dir: path to folder of image pngs
+    :param use_cuda: whether to return cuda.FloatTensor or FloatTensor
+    """
+    def __init__(self, data_dir='/data/jefan/sketchpad_basic_fixedpose96_conv_4_2', use_cuda=False):
+        self.data_dir = data_dir
+        self.dtype = dtype = (torch.cuda.FloatTensor 
+                              if use_cuda else torch.FloatTensor)
+
+        # only game ids in here are allowed
+        good_games = pd.read_csv(os.path.join(self.data_dir, 'valid_gameids_pilot2.csv'))['valid_gameids']
+        good_games = set(good_games.values.tolist())
+        sketch_paths = glob(os.path.join(self.data_dir, 'sketch', '*.npy'))
+        good_sketch_paths = []
+        for sketch_path in sketch_paths:
+            sketch_gameid = os.path.splitext(os.path.basename(sketch_path))[0].split('_')[1]
+            if sketch_gameid in good_games:
+                good_sketch_paths.append(sketch_path)
+        sketch_paths = good_sketch_paths
+        # only 32 unique objects, so no need to look through too much.
+        render_paths = glob(os.path.join(self.data_dir, 'target', 
+            'gameID_9903-d6e6a9ff-a878-4bee-b2d5-26e2e239460a_trial_*.npy'))
+        self.generator = itertools.product(sketch_paths, render_paths)
+        self.size = len(sketch_paths) * len(render_paths)
+
+    def make_generator(self):
+        generator = self.generator
+        while True:
+            try:
+                sketch_path, render_path = next(generator)
+                sketch = np.load(sketch_path)
+                render = np.load(render_path)
+                sketch = torch.from_numpy(sketch).unsqueeze(0)
+                render = torch.from_numpy(render).unsqueeze(0)
+                sketch = Variable(sketch.type(self.dtype), volatile=True)
+                render = Variable(render.type(self.dtype), volatile=True)
+                yield (sketch_path, sketch, render_path, render)
+            except StopIteration:
+                break
 
 
 if __name__ == "__main__":

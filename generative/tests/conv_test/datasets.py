@@ -86,17 +86,21 @@ class Generator(object):
     :param batch_size: number of examples to return at once (default: 10)
     :param global_negatives: when negative sampling, sample from all images
                              not just from the distractors (default: False)
+    :param balance_crops: 50% of time, show crops, 50% of time, show non-cropped
+                          / whole image (default: False)
     :param closer_only: only consider close context examples (default: False)
     :param use_cuda: whether to use CUDA objects or not (default: False)
     """
 
     def __init__(self, train=True, batch_size=10, use_cuda=False, closer_only=False,
-                 global_negatives=False, data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2'):
+                 global_negatives=False, balance_crops=False, 
+                 data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2'):
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.use_cuda = use_cuda
         self.train = train
         self.global_negatives = global_negatives
+        self.balance_crops = balance_crops
         self.closer_only = closer_only
 
         # only game ids in here are allowed
@@ -214,6 +218,11 @@ class Generator(object):
     def make_generator(self):
         dtype = torch.cuda.FloatTensor if self.use_cuda else torch.FloatTensor
         train_paths, test_paths = self.train_test_split()
+        if self.balance_crops:
+            train_paths = balance_paths_by_crop(train_paths)
+            random.shuffle(train_paths)
+            self.size = len(train_paths)
+
         render_paths = train_paths if self.train else test_paths
         global_paths = list(set(self.target2sketch.keys() + self.distractor2sketch.keys()))
 
@@ -298,14 +307,16 @@ class Generator(object):
 
 class PreloadedGenerator(Generator):
     def __init__(self, train=True, batch_size=10, use_cuda=False, closer_only=False,
-                 global_negatives=False, data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2'):
+                 global_negatives=False, balance_crops=False,
+                 data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2'):
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.use_cuda = use_cuda
         self.train = train
         self.closer_only = closer_only
         self.global_negatives = global_negatives
-
+        self.balance_crops = balance_crops
+ 
         pickle_name = self.gen_pickle_name()
         with open(os.path.join(self.data_dir, pickle_name), 'r') as fp:
             data = cPickle.load(fp)
@@ -462,7 +473,12 @@ class ReferenceGamePreloadedGenerator(object):
         good_games = pd.read_csv(os.path.join(self.data_dir, 'valid_gameids_pilot2.csv'))['valid_gameids']
         good_games = good_games.values.tolist()
         sketch_paths = glob(os.path.join(self.data_dir, 'sketch', '*.npy'))
-        sketch_paths = list(set(sketch_paths) & set(good_games))  # intersection
+        good_sketch_paths = []
+        for sketch_path in sketch_paths:
+            sketch_gameid = os.path.splitext(os.path.basename(sketch_path))[0].split('_')[1]
+            if sketch_gameid in good_games:
+                good_sketch_paths.append(sketch_path)
+        sketch_paths = good_sketch_paths
         # only 32 unique objects, so no need to look through too much.
         render_paths = glob(os.path.join(self.data_dir, 'target', 
             'gameID_9903-d6e6a9ff-a878-4bee-b2d5-26e2e239460a_trial_*.npy'))
@@ -483,6 +499,25 @@ class ReferenceGamePreloadedGenerator(object):
                 yield (sketch_path, sketch, render_path, render)
             except StopIteration:
                 break
+
+
+def balance_paths_by_crop(train_paths):
+    def gen_path_query(path):
+        parts = path.split('_')
+        assert len(parts) == 5
+        return '%s_%s-crop\d+_%s_%s_%s' % (parts[0], parts[1], parts[2], parts[3], parts[4])
+
+    non_crop_paths = [path for path in train_paths if 'crop' not in path]
+    crop_paths = [path for path in train_paths if 'crop' in path]
+
+    non_crop_paths2 = []
+    for path in non_crop_paths:
+        path_query = gen_path_query(path)
+        query_crops = filter(re.compile(path_query).match, crop_paths)
+        n_crops = len(query_crops)
+        non_crop_paths2 += [path for _ in xrange(n_crops)]
+
+    return non_crop_paths2
 
 
 if __name__ == "__main__":

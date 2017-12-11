@@ -43,6 +43,7 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', type=int, default=20, help='(default: 20)')
     parser.add_argument('--photo_augment', action='store_true', default=False)
     parser.add_argument('--global_negatives', action='store_true', default=False)
+    parser.add_argument('--balance_crops', action='store_true', default=False)
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
@@ -57,7 +58,8 @@ if __name__ == "__main__":
 
     def reset_generators():
         train_generator = Generator(train=True, batch_size=args.batch_size, use_cuda=args.cuda, 
-                                    global_negatives=args.global_negatives, data_dir=data_dir)
+                                    global_negatives=args.global_negatives, balance_crops=args.balance_crops,
+                                    data_dir=data_dir)
         test_generator = Generator(train=False, batch_size=args.batch_size, use_cuda=args.cuda, 
                                    global_negatives=args.global_negatives, data_dir=data_dir)
         return train_generator, test_generator
@@ -70,7 +72,7 @@ if __name__ == "__main__":
     if args.cuda:
         model.cuda()
 
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
 
 
     def train(epoch):
