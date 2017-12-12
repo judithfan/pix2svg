@@ -40,6 +40,9 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--photo_augment', action='store_true', default=False)
+    parser.add_argument('--match_weight', type=float, default=1.0)
+    parser.add_argument('--category_weight', type=float, default=1.0)
+    parser.add_argument('--instance_weight', type=float, default=1.0)
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
@@ -89,7 +92,9 @@ if __name__ == "__main__":
             embedding_loss = F.binary_cross_entropy(embedding_outputs.squeeze(1), labels.float())
             category_loss = F.cross_entropy(category_outputs, categories)
             instance_loss = F.cross_entropy(instance_outputs, instances)
-            loss = embedding_loss + category_loss + instance_loss
+            loss = args.match_weight * embedding_loss \
+                   + args.category_weight * category_loss \
+                   + args.instance_weight * instance_loss
             
             embedding_loss_meter.update(embedding_loss.data[0], photos.size(0))
             category_loss_meter.update(category_loss.data[0], photos.size(0))
