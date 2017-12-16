@@ -38,7 +38,7 @@ if __name__ == "__main__":
     parser.add_argument('out_dir', type=str)
     parser.add_argument('--batch_size', type=int, default=10)
     parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--epochs', type=int, default=20)
+    parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--photo_augment', action='store_true', default=False)
     parser.add_argument('--match_weight', type=float, default=1.0)
     parser.add_argument('--category_weight', type=float, default=1.0)

@@ -219,8 +219,12 @@ class Generator(object):
             # define (p1, s1), (p1, s2), (p2, s1), (p2, s2) paths
             render1_path = render_paths[i]
             sketch1_path = self.target2sketch[render1_path]
-            render2_path = random.choice(self.target2distractors[render1_path])
-            sketch2_path = self.distractor2sketch[render2_path]
+            # render2_path = random.choice(self.target2distractors[render1_path])
+            render2_path = random.choice(render_paths)
+            if render2_path in self.target2sketch:
+                sketch2_path = self.target2sketch[render2_path]
+            else:
+                sketch2_path = self.distractor2sketch[render2_path]
             # render folders
             render1_dir = self.path2folder[render1_path]
             sketch1_dir = self.path2folder[sketch1_path]
