@@ -8,6 +8,9 @@ from __future__ import absolute_import
 import os
 import json
 
+from model import load_checkpoint
+from model import cosine_similarity
+
 
 def simplify_sketch(path):
     path = '_'.join(os.path.splitext(os.path.basename(path))[0].split('_')[1:])
