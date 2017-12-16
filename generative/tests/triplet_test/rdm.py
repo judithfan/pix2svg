@@ -68,6 +68,7 @@ if __name__ == "__main__":
         axis_labels.extend(instances)
     axis_labels = axis_labels + axis_labels + axis_labels
 
+    print('looping through targets')
     # loop through each of our targets first
     for i in xrange(4):
         instances = CATEGORY_TO_INSTANCE_DICT[CATEGORY_IX2NAME_DICT[i]]
@@ -81,6 +82,7 @@ if __name__ == "__main__":
             target_embedding = target_embedding.squeeze(0).cpu().data.numpy()
             render_features[i * 8 + j] = target_embedding
 
+    print('looping through close sketches')    
     # loop through each of our close sketches for each target and we will need
     # to average them over.
     for i in xrange(4):
@@ -104,6 +106,7 @@ if __name__ == "__main__":
             close_batch_embedding = close_batch_embedding.cpu().data.numpy()
             sketch_close_features[i * 8 + j] = close_batch_embedding
 
+    print('looping through far sketches')
     # loop through each of our far sketches for each target and we will need 
     # to average them over.
     for i in xrange(4):
@@ -137,5 +140,8 @@ if __name__ == "__main__":
     plt.yticks(xrange(len(axis_labels)), axis_labels, fontsize=5)
     plt.xticks(xrange(len(axis_labels)), axis_labels, fontsize=5, rotation=90)
     plt.tight_layout()
-    plt.savefig('./rdm.png')
+    plt.savefig('./rdm.pdf')
 
+    print('Saving out RDM')
+    np.save('rdm_{}.npy'.format(args.model_path.split('/')[-2]),rdm)
+    np.save('rdm_axis_labels_{}.npy'.format(args.model_path.split('/')[-2]),axis_labels)
