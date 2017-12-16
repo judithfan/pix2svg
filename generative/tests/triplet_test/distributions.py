@@ -8,6 +8,11 @@ import cPickle
 from collections import defaultdict
 from datasets import CATEGORY_LOOKUP, CATEGORY_TO_INSTANCE_DICT
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 
 def invert_many_to_one(d):
     d_invert = defaultdict(lambda: [])
@@ -30,20 +35,24 @@ def flatten_list(lists):
     return flat_list
 
 
+def get_category_from_target(target):
+    return os.path.splitext(target)[0].split('_')[-1]
+
+
 def plot_quartet(close_sketch_close_target, close_sketch_close_distractor,
                  far_sketch_far_target, far_sketch_far_distractor,
                  close_sketch_far_target, close_sketch_far_distractor,
                  far_sketch_close_target, far_sketch_close_distractor,
                  save_path='./plot.png'):
     fig, (ax0, ax1, ax2, ax3) = plt.subplots(4)
-    ax0.hist(close_sketch_close_target, label='target')
-    ax0.hist(close_sketch_close_distractor, label='distractors')
-    ax1.hist(far_sketch_far_target, label='target')
-    ax1.hist(far_sketch_far_distractor, label='distractors')
-    ax2.hist(close_sketch_far_target, label='target')
-    ax2.hist(close_sketch_far_distractor, label='distractors')
-    ax3.hist(far_sketch_close_target, label='target')
-    ax3.hist(far_sketch_close_distractor, label='distractors')
+    sns.kdeplot(close_sketch_close_target, shade=False, ax=ax0, label='target')
+    sns.kdeplot(close_sketch_close_distractor, shade=False, ax=ax0,  label='distractors')
+    sns.kdeplot(far_sketch_far_target, shade=False, ax=ax1, label='target')
+    sns.kdeplot(far_sketch_far_distractor, shade=False, ax=ax1, label='distractors')
+    sns.kdeplot(close_sketch_far_target, shade=False, ax=ax2, label='target')
+    sns.kdeplot(close_sketch_far_distractor, shade=False, ax=ax2, label='distractors')
+    sns.kdeplot(far_sketch_close_target, shade=False, ax=ax3, label='target')
+    sns.kdeplot(far_sketch_close_distractor, shade=False, ax=ax3, label='distractors')
     ax0.set_title('Close Sketch with Close Render')
     ax1.set_title('Far Sketch with Far Render')
     ax2.set_title('Close Sketch with Far Render')
@@ -73,7 +82,7 @@ if __name__ == "__main__":
         dictionary = {}
         for item in dump:
             item_key = '%s+%s' % (os.path.basename(item['sketch']),
-                                  os.path.basename(item['render']))
+                                  get_category_from_target(os.path.basename(item['render'])))
             dictionary[item_key] = item['distance']
 
     with open(args.pickle_path) as fp:
@@ -136,45 +145,45 @@ if __name__ == "__main__":
                 far_distractor2 = far_example[2][1]
                 far_distractor3 = far_example[2][2]
 
-                close_sketch_close_target = dictionary['%s+%s' % (close_sketch, close_target)]
-                close_sketch_close_distractor1 = dictionary['%s+%s' % (close_sketch, close_distractor1)]
-                close_sketch_close_distractor2 = dictionary['%s+%s' % (close_sketch, close_distractor2)]
-                close_sketch_close_distractor3 = dictionary['%s+%s' % (close_sketch, close_distractor3)]
+                close_sketch_close_target = dictionary['%s+%s' % (close_sketch, get_category_from_target(close_target))]
+                close_sketch_close_distractor1 = dictionary['%s+%s' % (close_sketch, get_category_from_target(close_distractor1))]
+                close_sketch_close_distractor2 = dictionary['%s+%s' % (close_sketch, get_category_from_target(close_distractor2))]
+                close_sketch_close_distractor3 = dictionary['%s+%s' % (close_sketch, get_category_from_target(close_distractor3))]
 
-                close_sketch_far_target = dictionary['%s+%s' % (close_sketch, far_target)]
-                close_sketch_far_distractor1 = dictionary['%s+%s' % (close_sketch, far_distractor1)]
-                close_sketch_far_distractor2 = dictionary['%s+%s' % (close_sketch, far_distractor2)]
-                close_sketch_far_distractor3 = dictionary['%s+%s' % (close_sketch, far_distractor3)]
+                close_sketch_far_target = dictionary['%s+%s' % (close_sketch, get_category_from_target(far_target))]
+                close_sketch_far_distractor1 = dictionary['%s+%s' % (close_sketch, get_category_from_target(far_distractor1))]
+                close_sketch_far_distractor2 = dictionary['%s+%s' % (close_sketch, get_category_from_target(far_distractor2))]
+                close_sketch_far_distractor3 = dictionary['%s+%s' % (close_sketch, get_category_from_target(far_distractor3))]
 
-                far_sketch_far_target = dictionary['%s+%s' % (far_sketch, far_target)]
-                far_sketch_far_distractor1 = dictionary['%s+%s' % (far_sketch, far_distractor1)]
-                far_sketch_far_distractor2 = dictionary['%s+%s' % (far_sketch, far_distractor2)]
-                far_sketch_far_distractor3 = dictionary['%s+%s' % (far_sketch, far_distractor3)]
+                far_sketch_far_target = dictionary['%s+%s' % (far_sketch, get_category_from_target(far_target))]
+                far_sketch_far_distractor1 = dictionary['%s+%s' % (far_sketch, get_category_from_target(far_distractor1))]
+                far_sketch_far_distractor2 = dictionary['%s+%s' % (far_sketch, get_category_from_target(far_distractor2))]
+                far_sketch_far_distractor3 = dictionary['%s+%s' % (far_sketch, get_category_from_target(far_distractor3))]
 
-                far_sketch_close_target = dictionary['%s+%s' % (far_sketch, close_target)]
-                far_sketch_close_distractor1 = dictionary['%s+%s' % (far_sketch, close_distractor1)]
-                far_sketch_close_distractor2 = dictionary['%s+%s' % (far_sketch, close_distractor2)]
-                far_sketch_close_distractor3 = dictionary['%s+%s' % (far_sketch, close_distractor3)]
+                far_sketch_close_target = dictionary['%s+%s' % (far_sketch, get_category_from_target(close_target))]
+                far_sketch_close_distractor1 = dictionary['%s+%s' % (far_sketch, get_category_from_target(close_distractor1))]
+                far_sketch_close_distractor2 = dictionary['%s+%s' % (far_sketch, get_category_from_target(close_distractor2))]
+                far_sketch_close_distractor3 = dictionary['%s+%s' % (far_sketch, get_category_from_target(close_distractor3))]
 
                 assert close_sketch_close_target == close_sketch_far_target
                 assert far_sketch_far_target == far_sketch_close_target
 
-                _close_sketch_close_target_db['%s+%s' % (close_sketch, close_target)] = close_sketch_close_target
-                _close_sketch_close_distractor_db['%s+%s' % (close_sketch, close_distractor1)] = close_sketch_close_distractor1
-                _close_sketch_close_distractor_db['%s+%s' % (close_sketch, close_distractor2)] = close_sketch_close_distractor2
-                _close_sketch_close_distractor_db['%s+%s' % (close_sketch, close_distractor3)] = close_sketch_close_distractor3
-                _close_sketch_far_target_db['%s+%s' % (close_sketch, far_target)] = close_sketch_far_target
-                _close_sketch_far_distractor_db['%s+%s' % (close_sketch, far_distractor1)] = close_sketch_far_distractor1
-                _close_sketch_far_distractor_db['%s+%s' % (close_sketch, far_distractor2)] = close_sketch_far_distractor2
-                _close_sketch_far_distractor_db['%s+%s' % (close_sketch, far_distractor3)] = close_sketch_far_distractor3
-                _far_sketch_far_target_db['%s+%s' % (far_sketch, far_target)] = far_sketch_far_target
-                _far_sketch_far_distractor_db['%s+%s' % (far_sketch, far_distractor1)] = far_sketch_far_distractor1
-                _far_sketch_far_distractor_db['%s+%s' % (far_sketch, far_distractor2)] = far_sketch_far_distractor2
-                _far_sketch_far_distractor_db['%s+%s' % (far_sketch, far_distractor3)] = far_sketch_far_distractor3
-                _far_sketch_close_target_db['%s+%s' % (far_sketch, close_target)] = far_sketch_close_target
-                _far_sketch_close_distractor_db['%s+%s' % (far_sketch, close_distractor1)] = far_sketch_close_distractor1
-                _far_sketch_close_distractor_db['%s+%s' % (far_sketch, close_distractor2)] = far_sketch_close_distractor2
-                _far_sketch_close_distractor_db['%s+%s' % (far_sketch, close_distractor3)] = far_sketch_close_distractor3
+                _close_sketch_close_target_db['%s+%s' % (close_sketch, get_category_from_target(close_target))] = close_sketch_close_target
+                _close_sketch_close_distractor_db['%s+%s' % (close_sketch, get_category_from_target(close_distractor1))] = close_sketch_close_distractor1
+                _close_sketch_close_distractor_db['%s+%s' % (close_sketch, get_category_from_target(close_distractor2))] = close_sketch_close_distractor2
+                _close_sketch_close_distractor_db['%s+%s' % (close_sketch, get_category_from_target(close_distractor3))] = close_sketch_close_distractor3
+                _close_sketch_far_target_db['%s+%s' % (close_sketch, get_category_from_target(far_target))] = close_sketch_far_target
+                _close_sketch_far_distractor_db['%s+%s' % (close_sketch, get_category_from_target(far_distractor1))] = close_sketch_far_distractor1
+                _close_sketch_far_distractor_db['%s+%s' % (close_sketch, get_category_from_target(far_distractor2))] = close_sketch_far_distractor2
+                _close_sketch_far_distractor_db['%s+%s' % (close_sketch, get_category_from_target(far_distractor3))] = close_sketch_far_distractor3
+                _far_sketch_far_target_db['%s+%s' % (far_sketch, get_category_from_target(far_target))] = far_sketch_far_target
+                _far_sketch_far_distractor_db['%s+%s' % (far_sketch, get_category_from_target(far_distractor1))] = far_sketch_far_distractor1
+                _far_sketch_far_distractor_db['%s+%s' % (far_sketch, get_category_from_target(far_distractor2))] = far_sketch_far_distractor2
+                _far_sketch_far_distractor_db['%s+%s' % (far_sketch, get_category_from_target(far_distractor3))] = far_sketch_far_distractor3
+                _far_sketch_close_target_db['%s+%s' % (far_sketch, get_category_from_target(close_target))] = far_sketch_close_target
+                _far_sketch_close_distractor_db['%s+%s' % (far_sketch, get_category_from_target(close_distractor1))] = far_sketch_close_distractor1
+                _far_sketch_close_distractor_db['%s+%s' % (far_sketch, get_category_from_target(close_distractor2))] = far_sketch_close_distractor2
+                _far_sketch_close_distractor_db['%s+%s' % (far_sketch, get_category_from_target(close_distractor3))] = far_sketch_close_distractor3
 
         close_sketch_close_target_db[instance] = _close_sketch_close_target_db
         close_sketch_close_distractor_db[instance] = _close_sketch_close_distractor_db
@@ -195,7 +204,7 @@ if __name__ == "__main__":
                      close_sketch_far_distractor_db[instance].values(),
                      far_sketch_close_target_db[instance].values(), 
                      far_sketch_close_distractor_db[instance].values(),
-                     save_path='./results/{}.png' % instance)
+                     save_path='./results/%s.png' % instance)
 
     for category, instances in CATEGORY_TO_INSTANCE_DICT.iteritems():
         plot_quartet(flatten_list([close_sketch_close_target_db[instance].values() for instance in instances]),
@@ -206,7 +215,7 @@ if __name__ == "__main__":
                      flatten_list([close_sketch_far_distractor_db[instance].values() for instance in instances]),
                      flatten_list([far_sketch_close_target_db[instance].values() for instance in instances]),
                      flatten_list([far_sketch_close_distractor_db[instance].values() for instance in instances]),
-                     save_path='./results/{}.png' % category)
+                     save_path='./results/%s.png' % category)
 
     plot_quartet(flatten_list([close_sketch_close_target_db[instance].values() for instance in CATEGORY_LOOKUP.keys()]),
                  flatten_list([close_sketch_close_distractor_db[instance].values() for instance in CATEGORY_LOOKUP.keys()]),
@@ -216,4 +225,4 @@ if __name__ == "__main__":
                  flatten_list([close_sketch_far_distractor_db[instance].values() for instance in CATEGORY_LOOKUP.keys()]),
                  flatten_list([far_sketch_close_target_db[instance].values() for instance in CATEGORY_LOOKUP.keys()]),
                  flatten_list([far_sketch_close_distractor_db[instance].values() for instance in CATEGORY_LOOKUP.keys()]),
-                 save_path='./results/all.png' % category)
+                 save_path='./results/all.png')
