@@ -58,14 +58,12 @@ CATEGORY_LOOKUP = {
     'white': 'car',
     'woven': 'chair',
 }
-
 CATEGORY_TO_INSTANCE_DICT = {
     'dog': ['basset', 'bloodhound', 'bullmastiff', 'chihuahua', 'doberman', 'goldenretriever', 'pug', 'weimaraner'],
     'car': ['beetle', 'bluesedan', 'bluesport', 'brown', 'hatchback', 'redantique', 'redsport', 'white'],
     'bird': ['bluejay', 'crow', 'cuckoo', 'nightingale', 'pigeon', 'robin', 'sparrow', 'tomtit'],
     'chair': ['inlay', 'knob', 'leather', 'sling', 'squat', 'straight', 'waiting', 'woven'],
 }
-
 INSTANCE_IX2NAME_DICT = {0: 'basset', 1: 'beetle', 2: 'bloodhound', 3: 'bluejay', 4: 'bluesedan',
                          5: 'bluesport', 6: 'brown', 7: 'bullmastiff', 8: 'chihuahua', 9: 'crow',
                          10: 'cuckoo', 11: 'doberman', 12: 'goldenretriever', 13: 'hatchback', 14: 'inlay',
