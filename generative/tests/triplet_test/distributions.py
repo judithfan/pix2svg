@@ -61,6 +61,10 @@ def plot_quartet(close_sketch_close_target, close_sketch_close_distractor,
     ax1.legend()
     ax2.legend()
     ax3.legend()
+    ax0.set_xlim(-1, 1)
+    ax1.set_xlim(-1, 1)
+    ax2.set_xlim(-1, 1)
+    ax3.set_xlim(-1, 1)
     plt.tight_layout()
     plt.savefig(save_path)
 
