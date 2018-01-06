@@ -11,6 +11,9 @@ from model import load_checkpoint
 from model import cosine_similarity
 
 
+def _flatten(self, x):
+    return x.view(x.size(0), -1)
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
@@ -45,6 +48,9 @@ if __name__ == "__main__":
             # this is the same for our ranking model (luckily)
             sketch_emb = model.sketch_adaptor(sketch_emb)
             render_emb = model.photo_adaptor(render_emb)
+        else:
+            sketch_emb = _flatten(sketch_emb)
+            render_emb = _flatten(render_emb)
 
         # compute cosine similarity
         render_emb = render_emb - torch.mean(render_emb, dim=1, keepdim=True)
