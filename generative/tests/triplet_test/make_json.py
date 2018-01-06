@@ -11,7 +11,7 @@ from model import load_checkpoint
 from model import cosine_similarity
 
 
-def _flatten(self, x):
+def _flatten(x):
     return x.view(x.size(0), -1)
 
 if __name__ == "__main__":
