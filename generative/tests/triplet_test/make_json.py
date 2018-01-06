@@ -16,11 +16,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('json_path', type=str, help='path to where to dump json')
     parser.add_argument('model_path', type=str, help='path to trained model')
+    parser.add_argument('--data_dir', type=str, help='path to precomputed embeddings', default='/data/jefan/sketchpad_basic_fixedpose96_conv_4_2')
     parser.add_argument('--cuda', action='store_true', default=False)
+    parser.add_argument('--raw', action='store_true', default=False, help='compute raw distances without applying adaptor (e.g., for getting unadapted early layer distances)')
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
     generator = ReferenceGamePreloadedGenerator(
-        data_dir='/data/jefan/sketchpad_basic_fixedpose96_conv_4_2',
+        data_dir=args.data_dir,
         use_cuda=args.cuda)
     examples = generator.make_generator() 
 
@@ -38,10 +40,11 @@ if __name__ == "__main__":
         except StopIteration:
             break
 
-        # pass sketch and render in VGG (fc7) and then get MM embeddings
-        # this is the same for our ranking model (luckily)
-        sketch_emb = model.sketch_adaptor(sketch_emb)
-        render_emb = model.photo_adaptor(render_emb)
+        if not args.raw:
+            # pass sketch and render in VGG (fc7) and then get MM embeddings
+            # this is the same for our ranking model (luckily)
+            sketch_emb = model.sketch_adaptor(sketch_emb)
+            render_emb = model.photo_adaptor(render_emb)
 
         # compute cosine similarity
         render_emb = render_emb - torch.mean(render_emb, dim=1, keepdim=True)
