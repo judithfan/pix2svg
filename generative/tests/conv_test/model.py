@@ -75,7 +75,6 @@ class FCAdaptorNet(nn.Module):
         )
 
     def forward(self, x):
-        x = self.cnn(x)
         x = x.view(-1, 64 * 14 * 14)
         return self.net(x)
 
