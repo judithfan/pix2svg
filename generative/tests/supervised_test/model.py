@@ -44,10 +44,12 @@ class AdaptorNet(nn.Module):
         super(AdaptorNet, self).__init__()
         self.conv_layers = nn.Sequential(
             nn.Conv2d(512, 16, kernel_size=5, stride=1),
+            nn.BatchNorm2d(16),
             Swish(),
             nn.MaxPool2d(2, stride=2, dilation=1))
         self.fc_layers = nn.Sequential(
             nn.Linear(16 * 12 * 12, 1000),
+            nn.BatchNorm1d(1000),
             Swish(),
             nn.Dropout(),
             nn.Linear(1000, 1000))
