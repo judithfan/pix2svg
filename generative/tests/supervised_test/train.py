@@ -42,7 +42,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--out-dir', type=str, default='./trained_models', 
                         help='where to save model [default: ./trained_models]')
-    parser.add_argument('--batch-size', type=int, default=32, help='number of examples in a mini-batch [default: 32]')
+    parser.add_argument('--batch-size', type=int, default=64, help='number of examples in a mini-batch [default: 64]')
     parser.add_argument('--lr', type=float, default=3e-4, help='learning rate [default: 3e-4]')
     parser.add_argument('--epochs', type=int, default=100, help='number of epochs [default: 100]')
     parser.add_argument('--log-interval', type=int, default=10, help='how frequently to print stats [default: 10]')
@@ -50,7 +50,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    loader = torch.utils.data.DataLoader(SketchPlus32Photos, batch_size=args.batch_size, shuffle=True)
+    loader = torch.utils.data.DataLoader(SketchPlus32Photos(), batch_size=args.batch_size, shuffle=True)
     model = SketchNet() 
     if args.cuda:
         model.cuda()
@@ -60,7 +60,7 @@ if __name__ == "__main__":
         model.train()
         loss_meter = AverageMeter()
 
-        for batch_idx, (photos, sketch, label) in enumerate(train_loader):
+        for batch_idx, (photos, sketch, label) in enumerate(loader):
             photos = Variable(photos)
             sketch = Variable(sketch)
             label = Variable(label, requires_grad=False)
@@ -74,7 +74,7 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             
             distances = model(photos, sketch)
-            loss = F.mse_loss(distances, label)
+            loss = F.mse_loss(distances, label, size_average=False)
             loss_meter.update(loss.data[0], len(photos))
 
             loss.backward()

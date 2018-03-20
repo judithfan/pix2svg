@@ -31,10 +31,10 @@ class SketchNet(nn.Module):
         photos = torch.cat([self.photo_adaptors[i](photos[:, i]).unsqueeze(1) 
                             for i in xrange(self.n_photos)], dim=1)
         # compute euclidean distance from sketch to each photo
-        distances = torch.cat([F.normalize(photos[:, i] - sketch, p=2) 
-                               for i in xrange(self.n_photos)])
+        distances = torch.cat([torch.norm(photos[:, i] - sketch, p=2, dim=1).unsqueeze(1) 
+                               for i in xrange(self.n_photos)], dim=1)
         # want this to sum to one
-        distances = F.softmax(distances)
+        distances = F.softmax(distances, dim=1)
         return distances
 
 
