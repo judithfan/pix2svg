@@ -13,7 +13,7 @@ from torch.utils.data.dataset import Dataset
 
 class SketchPlus32Photos(Dataset):
     """Assumes that we have precomputed conv-4-2 layer embeddings."""
-    def __init__(self, train=True, photo_transform=None, sketch_transform=None):
+    def __init__(self, train=True, return_paths=False, photo_transform=None, sketch_transform=None):
         db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_conv_4_2/'
         photos_path = os.path.join(db_path, 'photos')
         sketch_path = os.path.join(db_path, 'sketch')
@@ -29,6 +29,7 @@ class SketchPlus32Photos(Dataset):
         object_order = np.asarray(object_order['object_name']).tolist()
         
         # load all 32 of them once since for every sketch we use the same 32 photos
+        photo_paths = [os.path.join(photos_path, object_name + '.npy') for object_name in object_order]
         photos = np.vstack([np.load(os.path.join(photos_path, object_name + '.npy'))[np.newaxis, ...] 
                             for object_name in object_order])
         photos = torch.from_numpy(photos)
@@ -42,14 +43,17 @@ class SketchPlus32Photos(Dataset):
             self.label_dict = cPickle.load(fp)
 
         self.photos = photos
+        self.photo_paths = photo_paths
         self.object_order = object_order
         self.sketch_paths = sketch_paths
         self.size = len(sketch_paths)
         self.photo_transform = photo_transform
         self.sketch_transform = sketch_transform
+        self.return_paths = return_paths
 
     def __getitem__(self, index):
         photos = self.photos
+        photo_paths = self.photo_paths
         if self.photo_transform is not None:
             photos = self.photo_transform(photos)
         
@@ -69,6 +73,8 @@ class SketchPlus32Photos(Dataset):
         if self.sketch_transform is not None:
             sketch = self.sketch_transform(sketch)
 
+        if self.return_paths:
+            return photos, sketch, photo_paths, sketch_path, label
         return photos, sketch, label
     
     def __len__(self):
