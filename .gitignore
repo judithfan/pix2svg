@@ -114,3 +114,4 @@ generative/tests/style_test/outputs/*
 generative/tests/objective_test/features*
 generative/tests/objective_test/outputs/*
 generative/tests/reference_games/jsons
+**output**/

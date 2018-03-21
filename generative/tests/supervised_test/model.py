@@ -34,7 +34,7 @@ class SketchNet(nn.Module):
         distances = torch.cat([torch.norm(photos[:, i] - sketch, p=2, dim=1).unsqueeze(1) 
                                for i in xrange(self.n_photos)], dim=1)
         # want this to sum to one
-        distances = F.softmax(distances, dim=1)
+        distances = distances / torch.sum(distances, 1).unsqueeze(1)
         return distances
 
 

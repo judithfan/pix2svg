@@ -4,6 +4,7 @@ from __future__ import absolute_import
 
 import os
 import sys
+import json
 import shutil
 import numpy as np
 from tqdm import tqdm
@@ -14,20 +15,21 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 from model import SketchNet
-from dataset import SketchPlus32Photos 
+from dataset import SketchPlus32Photos
+from train import load_checkpoint 
 
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('json_path', type=str, help='path to where to dump json')
-    parser.add_argument('--model-path', type=str, default='./trained_models/checkpoint.pth.tar', 
+    parser.add_argument('--model-path', type=str, default='./trained_models/model_best.pth.tar', 
                         help='where trained models are stored.')
     parser.add_argument('--cuda', action='store_true', default=False) 
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    model = SketchNet()
+    model = load_checkpoint(args.model_path)    
     model.eval()
     if args.cuda:
         model.cuda()
@@ -50,11 +52,12 @@ if __name__ == "__main__":
             sketch = sketch.cuda()
             label = label.cuda()
 
-        distances = model(photos, sketch).cpu().data.numpy()
+        distances = model(photos, sketch)
+        distances = distances.cpu().data.numpy().flatten()
         for i in xrange(32):
-            output = {u'distance': distances[i],
-                      u'render': photo_paths[i],
-                      u'sketch': sketch_path}
+            output = {u'distance': float(distances[i]),
+                      u'render': str(photo_paths[i]),
+                      u'sketch': str(sketch_path)}
             dist_jsons.append(output)
         pbar.update()
     pbar.close()

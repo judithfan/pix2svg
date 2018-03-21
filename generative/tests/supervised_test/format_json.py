@@ -4,6 +4,7 @@ from __future__ import absolute_import
 
 import os
 import json
+from tqdm import tqdm
 
 
 def simplify_sketch(path):
@@ -33,13 +34,15 @@ if __name__ == "__main__":
         path = os.path.splitext(os.path.basename(path))[0]
         path = '_'.join(path.split('_')[2:])
         out_json[path] = {}
-    
+   
+    pbar = tqdm(total=len(data)) 
     for i, item in enumerate(data):
         render_key = os.path.splitext(os.path.basename(item['render']))[0]
         render_key = '_'.join(render_key.split('_')[2:])
         sketch_key = simplify_sketch(item['sketch'])
         out_json[render_key][sketch_key] = item['distance']
-        print('Processed items [{}/{}]'.format(i + 1, n_data))
+        pbar.update()
+    pbar.close()
 
     with open(args.output_path, 'wb') as fp:
         json.dump(out_json, fp)
