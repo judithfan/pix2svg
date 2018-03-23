@@ -13,13 +13,13 @@ from torch.utils.data.dataset import Dataset
 
 class SketchPlus32Photos(Dataset):
     """Assumes that we have precomputed conv-4-2 layer embeddings."""
-    def __init__(self, train=True, return_paths=False, photo_transform=None, sketch_transform=None):
-        db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_conv_4_2/'
+    def __init__(self, layer='fc6', train=True, return_paths=False, photo_transform=None, sketch_transform=None):
+        db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_%s' % layer
         photos_path = os.path.join(db_path, 'photos')
         sketch_path = os.path.join(db_path, 'sketch')
         sketch_paths = os.listdir(sketch_path)
 
-        valid_game_ids = np.asarray(pd.read_csv('/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_conv_4_2/valid_gameids_pilot2.csv')['valid_gameids']).tolist()
+        valid_game_ids = np.asarray(pd.read_csv(os.path.join(db_path, 'valid_gameids_pilot2.csv'))['valid_gameids']).tolist()
         # only keep sketches that are in the valid_gameids (some games are garbage)
         sketch_paths = [path for path in sketch_paths if os.path.basename(path).split('_')[1] in valid_game_ids]
         sketch_paths = [os.path.join(sketch_path, path) for path in sketch_paths]
@@ -36,10 +36,10 @@ class SketchPlus32Photos(Dataset):
 
         # load human annotated labels.
         self.labels = np.load('/mnt/visual_communication_dataset/human_confusion.npy')
-        with open('/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_conv_4_2/sketchpad_context_dict.pickle') as fp:
+        with open(os.path.join(db_path, 'sketchpad_context_dict.pickle')) as fp:
             self.context_dict = cPickle.load(fp)
 
-        with open('/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_conv_4_2/sketchpad_label_dict.pickle') as fp:
+        with open(os.path.join(db_path, 'sketchpad_label_dict.pickle')) as fp:
             self.label_dict = cPickle.load(fp)
 
         self.photos = photos

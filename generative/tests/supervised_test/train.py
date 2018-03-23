@@ -52,9 +52,21 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
+def cross_entropy(log_input, target):
+    if not (target.size(0) == log_input.size(0)):
+        raise ValueError("Target size ({}) must be the same as input size ({})".format(
+            target.size(0), log_input.size(0)))
+    loss = Variable(log_input.data.new(log_input.size()))
+    K = log_input.size(1) # number of classes
+    for i in xrange(K):
+        loss[:, i] = target[:, i] * log_input[:, i] 
+    return -loss
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('layer', type=str, help='fc6|conv42')
     parser.add_argument('--out-dir', type=str, default='./trained_models', 
                         help='where to save model [default: ./trained_models]')
     parser.add_argument('--batch-size', type=int, default=64, help='number of examples in a mini-batch [default: 64]')
@@ -65,10 +77,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    train_loader = torch.utils.data.DataLoader(SketchPlus32Photos(), batch_size=args.batch_size)
-    test_loader = torch.utils.data.DataLoader(SketchPlus32Photos(), batch_size=args.batch_size, shuffle=False)
+    train_loader = torch.utils.data.DataLoader(SketchPlus32Photos(layer=args.layer), 
+                                               batch_size=args.batch_size)
+    test_loader = torch.utils.data.DataLoader(SketchPlus32Photos(layer=args.layer), 
+                                              batch_size=args.batch_size, shuffle=False)
 
-    model = SketchNet() 
+    model = SketchNet(layer=args.layer) 
     if args.cuda:
         model.cuda()
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -90,8 +104,9 @@ if __name__ == "__main__":
                 label = label.cuda()
             
             optimizer.zero_grad()
-            distances = model(photos, sketch)
-            loss = F.mse_loss(distances, label, size_average=False)
+            log_distance = model(photos, sketch)
+            # use my own x-ent to compare soft-labels against distance
+            loss = torch.mean(torch.sum(cross_entropy(log_distance, label), dim=1))
             loss_meter.update(loss.data[0], len(photos))
             train_loss += loss.data[0]
 
@@ -119,8 +134,8 @@ if __name__ == "__main__":
                 photos = photos.cuda()
                 sketch = sketch.cuda()
                 label = label.cuda()
-            distances = model(photos, sketch)
-            loss = F.mse_loss(distances, label, size_average=False)
+            log_distance = model(photos, sketch)
+            loss = torch.mean(torch.sum(cross_entropy(log_distance, label), dim=1))
             loss_meter.update(loss.data[0], len(photos))
             test_loss += loss.data[0]
             pbar.update()
@@ -139,5 +154,6 @@ if __name__ == "__main__":
             'state_dict': model.state_dict(),
             'best_loss': best_loss,
             'optimizer' : optimizer.state_dict(),
+            'layer': args.layer,
         }, is_best, folder=args.out_dir)
 
