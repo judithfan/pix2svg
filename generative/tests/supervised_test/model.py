@@ -34,7 +34,7 @@ class SketchNet(nn.Module):
         # photos is a torch.Tensor of size batch_size x 32 x 4096 
         # sketch is a torch.Tensor of size batch_size x 4096 (single sketch)
         sketch = self.sketch_adaptor(sketch)
-        photos = torch.cat([self.photo_adaptor(photos[:, i]).unsqueeze(1) 
+        photos = torch.cat([self.photo_adaptor(photos[:, i]).unsqueeze(1)
                             for i in xrange(self.n_photos)], dim=1)
         # compute euclidean distance from sketch to each photo
         # distances = torch.cat([torch.norm(photos[:, i] - sketch, p=2, dim=1).unsqueeze(1) 
@@ -73,6 +73,9 @@ class FC6AdaptorNet(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(4096, 2048),
             # nn.BatchNorm1d(2048),
+            nn.LeakyReLU(),
+            nn.Dropout(),
+            nn.Linear(2048, 2048),
             nn.LeakyReLU(),
             nn.Dropout(),
             nn.Linear(2048, 1000))

@@ -3,23 +3,16 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 import os
-import sys
-import shutil
-import numpy as np
 from tqdm import tqdm
 
 import torch
-import torch.optim as optim
-import torch.nn.functional as F
 from torch.autograd import Variable
-
-import numpy as np
-from sklearn.metrics import accuracy_score
 
 from model import SketchNet
 from dataset import SketchPlus32Photos 
 from train import AverageMeter
 from train import load_checkpoint
+from train import cross_entropy
 
 
 if __name__ == "__main__":
@@ -36,7 +29,7 @@ if __name__ == "__main__":
     model.eval()
     if args.cuda:
         model.cuda()
-    loader = torch.utils.data.DataLoader(SketchPlus32Photos(), 
+    loader = torch.utils.data.DataLoader(SketchPlus32Photos(layer=model.layer), 
                                          batch_size=args.batch_size, shuffle=False) 
     
     def test():
@@ -51,9 +44,9 @@ if __name__ == "__main__":
                 photos = photos.cuda()
                 sketch = sketch.cuda()
                 label = label.cuda()
-            distances = model(photos, sketch)
-            loss = F.mse_loss(distances, label, size_average=False)
-            loss_meter.update(loss.data[0], len(photos))
+            log_distance = model(photos, sketch)
+            loss = torch.mean(torch.sum(cross_entropy(log_distance, label), dim=1))
+            loss_meter.update(loss.data[0], batch_size)
             pbar.update()
         pbar.close()
         return loss_meter.avg
