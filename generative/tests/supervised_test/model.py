@@ -41,7 +41,7 @@ class SketchNet(nn.Module):
         # compute euclidean distance from sketch to each photo
         # distances = torch.cat([torch.norm(photos[:, i] - sketch, p=2, dim=1).unsqueeze(1) 
         #                        for i in xrange(self.n_photos)], dim=1)
-        distances = torch.cat([cosine_similarity(photos[:, i], sketch, dim=1).unsqueeze(1)
+        distances = torch.cat([pearson_correlation(photos[:, i], sketch, dim=1).unsqueeze(1)
                                for i in xrange(self.n_photos)], dim=1)
         # distances = torch.cat((photos, sketch.unsqueeze(1)), dim=1)
         # distances = distances.view(batch_size, -1)
@@ -59,9 +59,24 @@ class SketchNetHARD(SketchNet):
         sketch = self.sketch_adaptor(sketch)
         photos = torch.cat([self.photo_adaptor(photos[:, i]).unsqueeze(1)
                             for i in xrange(self.n_photos)], dim=1)
-        distances = torch.cat([cosine_similarity(photos[:, i], sketch, dim=1).unsqueeze(1)
+        distances = torch.cat([pearson_correlation(photos[:, i], sketch, dim=1).unsqueeze(1)
                                for i in xrange(self.n_photos)], dim=1)
         return distances
+
+
+class SketchNetCATEGORY(SketchNet):
+    def __init__(self, layer='fc6', n_photos=32):
+        super(SketchNetCATEGORY, self).__init__(layer=layer, n_photos=n_photos)
+        self.annotation_net = AnnotationNet()
+    
+    # this only works for SINGLE photo and SINGLE sketch
+    def forward(self, photo, sketch):
+        batch_size = photos.size(0)
+        sketch = self.sketch_adaptor(sketch)
+        photo = self.photo_adaptor(photo)
+        output = pearson_correlation(photo, sketch)
+        annotation = self.annotation_net(sketch)  # only sketch
+        return output, annotation
 
 
 class Conv42AdaptorNet(nn.Module):
@@ -101,6 +116,21 @@ class Swish(nn.Module):
     # https://arxiv.org/abs/1710.05941
     def forward(self, x):
         return x * F.sigmoid(x)
+
+
+class AnnotationNet(nn.Module):
+    def __init__(self):
+        super(AnnotationNet, self).__init__()
+        self.fc = nn.Linear(1000, 32)
+
+    def forward(self, x):
+        return self.fc(x)
+
+
+def pearson_correlation(x1, x2, dim=1, eps=1e-8):
+    x1 = x1 - torch.mean(x1, dim=dim, keepdim=True)
+    x2 = x2 - torch.mean(x2, dim=dim, keepdim=True)
+    return cosine_similarity(x1, x2, dim=dim, eps=eps)
 
 
 def cosine_similarity(x1, x2, dim=1, eps=1e-8):
