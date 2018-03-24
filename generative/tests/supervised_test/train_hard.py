@@ -13,76 +13,39 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-import numpy as np
-from sklearn.metrics import accuracy_score
+from model import SketchNetHARD
+from dataset import SketchPlus32PhotosHARD 
 
-from model import SketchNet
-from dataset import SketchPlus32Photos 
-
-def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
-    if not os.path.isdir(folder):
-        os.mkdir(folder)
-    torch.save(state, os.path.join(folder, filename))
-    if is_best:
-        shutil.copyfile(os.path.join(folder, filename),
-                        os.path.join(folder, 'model_best.pth.tar'))
+from train import save_checkpoint
+from train import AverageMeter
 
 def load_checkpoint(file_path, use_cuda=False):
     checkpoint = torch.load(file_path) if use_cuda else \
         torch.load(file_path, map_location=lambda storage, location: storage)
-    model = SketchNet(checkpoint['layer'])
+    model = SketchNetHARD(checkpoint['layer'])
     model.load_state_dict(checkpoint['state_dict'])
     return model
-
-class AverageMeter(object):
-    """Computes and stores the average and current value"""
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
-
-
-def cross_entropy(log_input, target):
-    if not (target.size(0) == log_input.size(0)):
-        raise ValueError("Target size ({}) must be the same as input size ({})".format(
-            target.size(0), log_input.size(0)))
-    loss = Variable(log_input.data.new(log_input.size()))
-    K = log_input.size(1) # number of classes
-    for i in xrange(K):
-        loss[:, i] = target[:, i] * log_input[:, i] 
-    return -loss
-
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('layer', type=str, help='fc6|conv42')
-    parser.add_argument('--out-dir', type=str, default='./trained_models', 
-                        help='where to save model [default: ./trained_models]')
+    parser.add_argument('--out-dir', type=str, default='./trained_models/hard_fc6', 
+                        help='where to save model [default: ./trained_models/hard_fc6]')
     parser.add_argument('--batch-size', type=int, default=64, help='number of examples in a mini-batch [default: 64]')
-    parser.add_argument('--lr', type=float, default=1e-3, help='learning rate [default: 1e-3]')
+    parser.add_argument('--lr', type=float, default=3e-4, help='learning rate [default: 3e-4]')
     parser.add_argument('--epochs', type=int, default=100, help='number of epochs [default: 100]')
     parser.add_argument('--log-interval', type=int, default=10, help='how frequently to print stats [default: 10]')
     parser.add_argument('--cuda', action='store_true', default=False) 
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    train_loader = torch.utils.data.DataLoader(SketchPlus32Photos(layer=args.layer), 
+    train_loader = torch.utils.data.DataLoader(SketchPlus32PhotosHARD(layer=args.layer), 
                                                batch_size=args.batch_size)
-    test_loader = torch.utils.data.DataLoader(SketchPlus32Photos(layer=args.layer), 
+    test_loader = torch.utils.data.DataLoader(SketchPlus32PhotosHARD(layer=args.layer), 
                                               batch_size=args.batch_size, shuffle=False)
 
-    model = SketchNet(layer=args.layer) 
+    model = SketchNetHARD(layer=args.layer) 
     if args.cuda:
         model.cuda()
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -105,10 +68,8 @@ if __name__ == "__main__":
             
             optimizer.zero_grad()
             logits_distance = model(photos, sketch)
-            # loss = F.cross_entropy(logits_distance, label.squeeze(1))
-            log_distance = model(photos, sketch)
+            loss = F.cross_entropy(logits_distance, label)
             # use my own x-ent to compare soft-labels against distance
-            loss = torch.mean(torch.sum(cross_entropy(log_distance, label), dim=1))
             loss_meter.update(loss.data[0], len(photos))
             train_loss += loss.data[0]
 
@@ -127,22 +88,24 @@ if __name__ == "__main__":
         loss_meter = AverageMeter()
         test_loss = 0
         pbar = tqdm(total=len(test_loader))
+
         for batch_idx, (photos, sketch, label) in enumerate(test_loader):
             photos = Variable(photos, volatile=True)
             sketch = Variable(sketch, volatile=True)
             label = Variable(label, requires_grad=False)
             batch_size = len(photos)
+
             if args.cuda:
                 photos = photos.cuda()
                 sketch = sketch.cuda()
                 label = label.cuda()
+
             logits_distance = model(photos, sketch)
-            # loss = F.cross_entropy(logits_distance, label.squeeze(1))
-            log_distance = model(photos, sketch)
-            loss = torch.mean(torch.sum(cross_entropy(log_distance, label), dim=1))
+            loss = F.cross_entropy(logits_distance, label)
             loss_meter.update(loss.data[0], len(photos))
             test_loss += loss.data[0]
             pbar.update()
+
         pbar.close()
         print('====> Test Loss: {:.4f}'.format(loss_meter.avg))
         test_loss /= len(test_loader)

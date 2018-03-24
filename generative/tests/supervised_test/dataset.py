@@ -14,6 +14,7 @@ from torch.utils.data.dataset import Dataset
 class SketchPlus32Photos(Dataset):
     """Assumes that we have precomputed conv-4-2 layer embeddings."""
     def __init__(self, layer='fc6', train=True, return_paths=False, photo_transform=None, sketch_transform=None):
+        super(SketchPlus32Photos, self).__init__()
         db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_%s' % layer
         photos_path = os.path.join(db_path, 'photos')
         sketch_path = os.path.join(db_path, 'sketch')
@@ -42,6 +43,7 @@ class SketchPlus32Photos(Dataset):
         with open(os.path.join(db_path, 'sketchpad_label_dict.pickle')) as fp:
             self.label_dict = cPickle.load(fp)
 
+        self.db_path = db_path
         self.photos = photos
         self.photo_paths = photo_paths
         self.object_order = object_order
@@ -56,7 +58,6 @@ class SketchPlus32Photos(Dataset):
         photo_paths = self.photo_paths
         if self.photo_transform is not None:
             photos = self.photo_transform(photos)
-        
         # load a single sketch path
         sketch_path = self.sketch_paths[index]
         # use sketch path to find context
@@ -67,6 +68,43 @@ class SketchPlus32Photos(Dataset):
         sketch_ix = self.object_order.index(sketch_object)
         label = self.labels[sketch_ix, :, context]
         label = torch.from_numpy(label).float()
+        label_ix = torch.max(label, 0)[1]
+        # load the physical sketch conv-4-2 embedding
+        sketch = np.load(sketch_path)
+        sketch = torch.from_numpy(sketch)
+        if self.sketch_transform is not None:
+            sketch = self.sketch_transform(sketch)
+
+        if self.return_paths:
+            return photos, sketch, photo_paths, sketch_path, label_ix
+        return photos, sketch, label_ix
+    
+    def __len__(self):
+        return self.size
+ 
+
+class SketchPlus32PhotosHARD(SketchPlus32Photos):
+    def __init__(self, layer='fc6', train=True, return_paths=False, photo_transform=None, sketch_transform=None):
+        super(SketchPlus32PhotosHARD, self).__init__(layer=layer, train=train, return_paths=return_paths,
+                                                     photo_transform=photo_transform, 
+                                                     sketch_transform=sketch_transform)
+        self.hard_labels = np.load(os.path.join(self.db_path, 'sketchpad_hard_labels.npy'))
+        self.sketch_dir = os.path.dirname(self.sketch_paths[0])
+    
+    def __getitem__(self, index):
+        photos = self.photos
+        photo_paths = self.photo_paths
+        if self.photo_transform is not None:
+            photos = self.photo_transform(photos)
+    
+        sketch_path, sketch_label = self.hard_labels[index]
+        sketch_path = os.path.join(self.sketch_dir, sketch_path)
+        label = int(sketch_label)
+
+        # load a single sketch path
+        # use sketch path to find context
+        context = self.context_dict[os.path.basename(sketch_path)]
+        context = 0 if context == 'closer' else 1
         # load the physical sketch conv-4-2 embedding
         sketch = np.load(sketch_path)
         sketch = torch.from_numpy(sketch)
@@ -76,7 +114,7 @@ class SketchPlus32Photos(Dataset):
         if self.return_paths:
             return photos, sketch, photo_paths, sketch_path, label
         return photos, sketch, label
-    
+
     def __len__(self):
-        return self.size
- 
+        return len(self.hard_labels)
+

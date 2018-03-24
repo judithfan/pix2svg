@@ -85,10 +85,11 @@ if __name__ == "__main__":
     far_sketch_features = np.array([np.mean(np.array(far_sketch_features[object_name]), axis=0)
                                     for object_name in object_order])
     
-    close_rdm = np.corrcoef(render_features, close_sketch_features)
-    close_rdm = close_rdm[:32, 32:]
-    far_rdm = np.corrcoef(render_features, far_sketch_features)
-    far_rdm = far_rdm[:32, 32:]
+    close_rdm = np.corrcoef(np.vstack((render_features, close_sketch_features)))
+    # close_rdm = close_rdm[:32, 32:]
+    far_rdm = np.corrcoef(np.vstack((render_features, far_sketch_features)))
+    # far_rdm = far_rdm[:32, 32:]
+    import pdb; pdb.set_trace()
     
     import matplotlib.pyplot as plt
     plt.switch_backend('agg')
