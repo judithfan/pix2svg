@@ -484,16 +484,11 @@ if __name__ == "__main__":
     """Running this will generate the pickle file to run PreloadedGenerator"""
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--layer', type=str, help='conv_4_2|fc7', default='conv_4_2')
-    parser.add_argument('--photo_augment', action='store_true')
+    parser.add_argument('--layer', type=str, help='conv42|fc6', default='conv42')
     args = parser.parse_args()
-    assert args.layer in ['conv_4_2', 'fc7']
+    assert args.layer in ['conv42', 'fc6']
     
-    if args.photo_augment:
-        data_dir = '/data/jefan/sketchpad_basic_fixedpose96_photo_augmented_%s' % args.layer
-    else:
-        data_dir = '/data/jefan/sketchpad_basic_fixedpose96_%s' % args.layer
-
+    data_dir = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_%s' % args.layer
     generator = ContextFreeGenerator(data_dir=data_dir)
     with open(os.path.join(data_dir, 'preloaded_context_all.pkl'), 'wb') as fp:
         cPickle.dump({'cat2target': generator.cat2target, 
