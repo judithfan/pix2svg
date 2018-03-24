@@ -71,12 +71,12 @@ class SketchNetCATEGORY(SketchNet):
     
     # this only works for SINGLE photo and SINGLE sketch
     def forward(self, photo, sketch):
-        batch_size = photos.size(0)
+        batch_size = photo.size(0)
         sketch = self.sketch_adaptor(sketch)
         photo = self.photo_adaptor(photo)
         output = pearson_correlation(photo, sketch)
-        annotation = self.annotation_net(sketch)  # only sketch
-        return output, annotation
+        annotation = self.annotation_net(sketch[:int(batch_size / 4)])  # only sketch
+        return F.sigmoid(output), F.log_softmax(annotation)
 
 
 class Conv42AdaptorNet(nn.Module):
