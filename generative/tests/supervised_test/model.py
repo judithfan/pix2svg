@@ -76,7 +76,7 @@ class SketchNetCATEGORY(SketchNet):
         photo = self.photo_adaptor(photo)
         output = pearson_correlation(photo, sketch)
         annotation = self.annotation_net(sketch[:int(batch_size / 4)])  # only sketch
-        return F.sigmoid(output), F.log_softmax(annotation)
+        return F.sigmoid(output), F.log_softmax(annotation, dim=1)
 
 
 class Conv42AdaptorNet(nn.Module):
@@ -84,18 +84,20 @@ class Conv42AdaptorNet(nn.Module):
     def __init__(self):
         super(Conv42AdaptorNet, self).__init__()
         self.conv_layers = nn.Sequential(
-            nn.Conv2d(512, 16, kernel_size=5, stride=1),
-            nn.LeakyReLU(),
+            nn.Conv2d(512, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
+            Swish(),
             nn.MaxPool2d(2, stride=2, dilation=1))
         self.fc_layers = nn.Sequential(
-            nn.Linear(16 * 12 * 12, 1000),
-            nn.LeakyReLU(),
-            nn.Dropout(),
-            nn.Linear(1000, 1000))
+            nn.Linear(64 * 14 * 14, 4096),
+            nn.BatchNorm1d(4096),
+            Swish(),
+            nn.Dropout(.5),
+            nn.Linear(4096, 1000))
 
     def forward(self, x):
         x = self.conv_layers(x)
-        x = x.view(-1, 16 * 12 * 12)
+        x = x.view(-1, 64 * 14 * 14)
         return self.fc_layers(x)
 
 
