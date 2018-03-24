@@ -78,9 +78,9 @@ if __name__ == "__main__":
             same_pred, cat_pred = model(photo, sketch)
  
             same_loss = F.binary_cross_entropy(same_pred, label)
-            # cat_loss = torch.mean(torch.sum(cross_entropy(cat_pred, category), dim=1))
-            # loss = same_loss + cat_loss
-            loss = same_loss
+            cat_loss = torch.mean(torch.sum(cross_entropy(cat_pred, category), dim=1))
+            loss = same_loss + cat_loss
+            # loss = same_loss
             # use my own x-ent to compare soft-labels against distance
             loss_meter.update(loss.data[0], batch_size)
 
@@ -124,9 +124,9 @@ if __name__ == "__main__":
 
             same_pred, cat_pred = model(photo, sketch)            
             same_loss = F.binary_cross_entropy(same_pred, label)
-            # cat_loss = torch.mean(torch.sum(cross_entropy(cat_pred, category), dim=1))
-            # loss = same_loss + cat_loss
-            loss = same_loss
+            cat_loss = torch.mean(torch.sum(cross_entropy(cat_pred, category), dim=1))
+            loss = same_loss + cat_loss
+            # loss = same_loss
 
             loss_meter.update(loss.data[0], len(photo))
 

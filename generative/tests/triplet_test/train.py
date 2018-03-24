@@ -84,7 +84,6 @@ if __name__ == "__main__":
         while True: 
             try:
                 photos, sketches, labels, categories, instances = train_examples.next()
-                import pdb; pdb.set_trace()
                 batch_idx += 1
             except StopIteration:
                 break
