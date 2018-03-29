@@ -180,3 +180,65 @@ class SketchPlus32PhotosCATEGORY(SketchPlus32Photos):
                    [photo1_path, photo2_path], [sketch1_path, sketch2_path]
         return photo_group, sketch_group, label_group, category_group
  
+
+class SketchPlus32PhotosSOFT(SketchPlus32Photos):
+    def __init__(self, layer='fc6', train=True, return_paths=False, photo_transform=None, sketch_transform=None):
+        super(SketchPlus32PhotosSOFT, self).__init__(layer=layer, train=train, return_paths=return_paths,
+                                                     photo_transform=photo_transform,
+                                                     sketch_transform=sketch_transform)
+        self.reverse_label_dict = defaultdict(lambda: [])
+        for path, label in self.label_dict.iteritems():
+            self.reverse_label_dict[label].append(path)
+        self.sketch_dir = os.path.dirname(self.sketch_paths[0])
+
+    def __getitem__(self, index):
+        sketch1_path = self.sketch_paths[index] 
+        sketch1_object = self.label_dict[os.path.basename(sketch1_path)]
+        sketch1_object_ix = self.object_order.index(sketch1_object)
+        sketch2_object = random.choice(list(set(self.object_order) - set([sketch1_object])))
+        sketch2_object_ix = self.object_order.index(sketch2_object)
+        sketch2_path = random.choice(self.reverse_label_dict[sketch2_object])
+        photo1_path = self.photo_paths[sketch1_object_ix]
+        photo2_path = self.photo_paths[sketch2_object_ix]
+
+        # find context of sketch by path
+        context1 = self.context_dict[os.path.basename(sketch1_path)]
+        context2 = self.context_dict[os.path.basename(sketch2_path)]
+        context1 = 0 if context1 == 'closer' else 1
+        context2 = 0 if context2 == 'closer' else 1
+
+        sketch2_path = os.path.join(self.sketch_dir, sketch2_path)
+
+        sketch1 = np.load(sketch1_path)           # current sketch
+        sketch2 = np.load(sketch2_path)           # random sketch matching with photo 2
+        sketch1 = torch.from_numpy(sketch1)
+        sketch2 = torch.from_numpy(sketch2)
+        photo1 = self.photos[sketch1_object_ix]   # photo of current sketch
+        photo2 = self.photos[sketch2_object_ix]   # random photo that's not the current photo
+
+        # find category for sketch1 and sketch2
+        category1 = torch.from_numpy(sketch1_object_ix)
+        category2 = torch.from_numpy(sketch2_object_ix)
+        # category1 = sketch1_object_ix
+        # category2 = sketch2_object_ix
+
+        if self.sketch_transform:
+            sketch1 = self.sketch_transform(sketch1)
+            sketch2 = self.sketch_transform(sketch2)
+
+        if self.photo_transform:
+            photo1 = self.photo_transform(photo1)
+            photo2 = self.photo_transform(photo2)
+
+        photo_group = torch.cat((photo1.unsqueeze(0), photo2.unsqueeze(0), 
+                                 photo1.unsqueeze(0), photo2.unsqueeze(0)), dim=0)
+        sketch_group = torch.cat((sketch1.unsqueeze(0), sketch2.unsqueeze(0), 
+                                  sketch2.unsqueeze(0), sketch1.unsqueeze(0)), dim=0)
+        label_group = torch.Tensor([1, 1, 0, 0])
+        category_group = torch.cat([category1.unsqueeze(0), category2.unsqueeze(0), 
+                                    category2.unsqueeze(0), category1.unsqueeze(0)], dim=0)
+
+        if self.return_paths:
+            return photo_group, sketch_group, label_group, category_group, \
+                   [photo1_path, photo2_path], [sketch1_path, sketch2_path]
+        return photo_group, sketch_group, label_group, category_group

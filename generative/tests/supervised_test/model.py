@@ -75,6 +75,20 @@ class SketchNetCATEGORY(SketchNet):
         return F.sigmoid(output), annotation
 
 
+class SketchNetSOFT(SketchNet):
+    def __init__(self, layer='fc6', n_photos=32):
+        super(SketchNetSOFT, self).__init__(layer=layer, n_photos=n_photos)
+        self.category_net = CategoryNet()
+
+    def forward(self, photo, sketch):
+        batch_size = photo.size(0)
+        sketch = self.sketch_adaptor(sketch)
+        photo = self.photo_adaptor(photo)
+        output = pearson_correlation(photo, sketch)
+        categpry = self.category_net(sketch) 
+        return F.sigmoid(output), category
+
+
 class Conv42AdaptorNet(nn.Module):
     """Light network to learn an adapted embedding."""
     def __init__(self):
@@ -123,6 +137,15 @@ class AnnotationNet(nn.Module):
 
     def forward(self, x):
         return self.fc(x)
+
+
+class CategoryNet(nn.Module):
+    def __init__(self):
+        super(CategoryNet, self).__init__()
+        self.category_head = nn.Linear(1000, 32)
+
+    def forward(self, x):
+        return self.category_head(x)
 
 
 def pearson_correlation(x1, x2, dim=1, eps=1e-8):
