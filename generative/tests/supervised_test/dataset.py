@@ -232,7 +232,10 @@ class SketchPlus32PhotosSOFT(SketchPlus32Photos):
                                  photo1.unsqueeze(0), photo2.unsqueeze(0)), dim=0)
         sketch_group = torch.cat((sketch1.unsqueeze(0), sketch2.unsqueeze(0), 
                                   sketch2.unsqueeze(0), sketch1.unsqueeze(0)), dim=0)
-        label_group = torch.Tensor([1, 1, 0, 0])
+        label_group = torch.Tensor([self.labels[sketch1_object_ix, sketch1_object_ix, context1],
+                                    self.labels[sketch2_object_ix, sketch2_object_ix, context2],
+                                    self.labels[sketch2_object_ix, sketch1_object_ix, context2],
+                                    self.labels[sketch1_object_ix, sketch2_object_ix, context1]])
         category_group = torch.Tensor([category1, category2, category2, category1]).long()
 
         if self.return_paths:

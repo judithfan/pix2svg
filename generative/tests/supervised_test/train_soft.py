@@ -13,6 +13,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.autograd import Variable
 from sklearn.metrics import accuracy_score
+from sklearn.metrics import mean_squared_error
 
 from model import SketchNetSOFT
 from dataset import SketchPlus32PhotosSOFT
@@ -30,6 +31,10 @@ def load_checkpoint(file_path, use_cuda=False):
 
 def cross_entropy(input, soft_targets):
     return torch.mean(torch.sum(- soft_targets * F.log_softmax(input, dim=1), dim=1))
+
+def binary_cross_entropy(input, soft_target):
+    return torch.mean(- soft_target * torch.log(input))
+
 
 if __name__ == "__main__":
     import argparse
@@ -59,7 +64,6 @@ if __name__ == "__main__":
         model.train()
         same_loss_meter = AverageMeter()
         cat_loss_meter = AverageMeter()
-        acc_meter = AverageMeter()
         category_meter = AverageMeter()
 
         for batch_idx, (photo, sketch, label, category) in enumerate(train_loader):
@@ -82,17 +86,12 @@ if __name__ == "__main__":
  
             optimizer.zero_grad()
             same_pred, cat_pred = model(photo, sketch)
-            same_loss = F.binary_cross_entropy(same_pred, label)
+            same_loss = binary_cross_entropy(same_pred, label)
             cat_loss = F.cross_entropy(cat_pred, category)
             loss = same_loss + cat_loss
 
             same_loss_meter.update(same_loss.data[0], batch_size)
             cat_loss_meter.update(cat_loss.data[0], batch_size)
-
-            label_np = label.cpu().data.numpy()
-            same_pred_np = np.round(same_pred.cpu().data.numpy(), 0)
-            acc = accuracy_score(label_np, same_pred_np)
-            acc_meter.update(acc, batch_size)
 
             category_np = category.cpu().data.numpy()
             cat_pred_np = np.argmax(cat_pred.cpu().data.numpy(), axis=1)
@@ -103,19 +102,18 @@ if __name__ == "__main__":
             optimizer.step()
 
             if batch_idx % args.log_interval == 0:
-                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: ({:.6f}|{:.6f})\tAcc: ({:.2f}|{:.6f})'.format(
+                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: ({:.6f}|{:.6f})\tCategory-Acc: {:.6f}'.format(
                     epoch, batch_idx * batch_size, len(train_loader.dataset), 
                     100. * batch_idx / len(train_loader), same_loss_meter.avg, cat_loss_meter.avg,
-                    acc_meter.avg, category_meter.avg))
+                    category_meter.avg))
         
-        print('====> Epoch: {}\tLoss: ({:.4f}|{:.4f})\tAcc: ({:.2f}|{:.6f}'.format(
-            epoch, same_loss_meter.avg, cat_loss_meter.avg, acc_meter.avg, category_meter.avg))
+        print('====> Epoch: {}\tLoss: ({:.4f}|{:.4f})\tCategory-Acc: {:.6f}'.format(
+            epoch, same_loss_meter.avg, cat_loss_meter.avg, category_meter.avg))
 
     def test():
         model.eval()
         same_loss_meter = AverageMeter()
         cat_loss_meter = AverageMeter()
-        acc_meter = AverageMeter()
         category_meter = AverageMeter()
         pbar = tqdm(total=len(test_loader))
 
@@ -138,17 +136,12 @@ if __name__ == "__main__":
             category = category.view(batch_size * 4, 32)
 
             same_pred, cat_pred = model(photo, sketch)            
-            same_loss = F.binary_cross_entropy(same_pred, label)
+            same_loss = binary_cross_entropy(same_pred, label)
             cat_loss = F.cross_entropy(cat_pred, category)
             loss = same_loss + cat_loss
 
             same_loss_meter.update(same_loss.data[0], batch_size)
             cat_loss_meter.update(cat_loss.data[0], batch_size)
-
-            label_np = label.cpu().data.numpy()
-            same_pred_np = np.round(same_pred.cpu().data.numpy(), 0)
-            acc = accuracy_score(label_np, same_pred_np)
-            acc_meter.update(acc, batch_size)
 
             category_np = category.cpu().data.numpy()
             cat_pred_np = np.argmax(cat_pred.cpu().data.numpy(), axis=1)
@@ -158,8 +151,8 @@ if __name__ == "__main__":
             pbar.update()
 
         pbar.close()
-        print('====> Test Loss: ({:.4f}|{:.4f})\tTest Acc: ({:.2f}|{:.6f})'.format(
-            same_loss_meter.avg, cat_loss_meter.avg, acc_meter.avg, category_meter.avg))
+        print('====> Test Loss: ({:.4f}|{:.4f})\tTest Category-Acc: {:.6f}'.format(
+            same_loss_meter.avg, cat_loss_meter.avg, category_meter.avg))
         return same_loss_meter.avg + cat_loss_meter.avg
     
     best_loss = sys.maxint
