@@ -217,10 +217,8 @@ class SketchPlus32PhotosSOFT(SketchPlus32Photos):
         photo2 = self.photos[sketch2_object_ix]   # random photo that's not the current photo
 
         # find category for sketch1 and sketch2
-        category1 = torch.from_numpy(sketch1_object_ix)
-        category2 = torch.from_numpy(sketch2_object_ix)
-        # category1 = sketch1_object_ix
-        # category2 = sketch2_object_ix
+        category1 = sketch1_object_ix
+        category2 = sketch2_object_ix
 
         if self.sketch_transform:
             sketch1 = self.sketch_transform(sketch1)
@@ -235,8 +233,7 @@ class SketchPlus32PhotosSOFT(SketchPlus32Photos):
         sketch_group = torch.cat((sketch1.unsqueeze(0), sketch2.unsqueeze(0), 
                                   sketch2.unsqueeze(0), sketch1.unsqueeze(0)), dim=0)
         label_group = torch.Tensor([1, 1, 0, 0])
-        category_group = torch.cat([category1.unsqueeze(0), category2.unsqueeze(0), 
-                                    category2.unsqueeze(0), category1.unsqueeze(0)], dim=0)
+        category_group = torch.Tensor([category1, category2, category2, category1]).long()
 
         if self.return_paths:
             return photo_group, sketch_group, label_group, category_group, \

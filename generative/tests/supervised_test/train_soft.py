@@ -35,8 +35,8 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('layer', type=str, help='fc6|conv42')
-    parser.add_argument('--out-dir', type=str, default='./trained_models/category_fc6', 
-                        help='where to save model [default: ./trained_models/category_fc6]')
+    parser.add_argument('--out-dir', type=str, default='./trained_models/soft_fc6', 
+                        help='where to save model [default: ./trained_models/soft_fc6]')
     parser.add_argument('--batch-size', type=int, default=16, help='number of examples in a mini-batch [default: 16]')
     parser.add_argument('--lr', type=float, default=3e-4, help='learning rate [default: 3e-4]')
     parser.add_argument('--epochs', type=int, default=100, help='number of epochs [default: 100]')
@@ -74,11 +74,11 @@ if __name__ == "__main__":
                 sketch = sketch.cuda()
                 label = label.cuda()
                 category = category.cuda()
-         
+        
             photo = photo.view(batch_size * 4, 512, 28, 28)
             sketch = sketch.view(batch_size * 4, 512, 28, 28)
             label = label.view(batch_size * 4)
-            category = category.view(batch_size * 4, 32)
+            category = category.view(batch_size * 4)
  
             optimizer.zero_grad()
             same_pred, cat_pred = model(photo, sketch)
@@ -94,6 +94,7 @@ if __name__ == "__main__":
             acc = accuracy_score(label_np, same_pred_np)
             acc_meter.update(acc, batch_size)
 
+            category_np = category.cpu().data.numpy()
             cat_pred_np = np.argmax(cat_pred.cpu().data.numpy(), axis=1)
             category_acc = accuracy_score(cat_pred_np, category_np)
             category_meter.update(category_acc, batch_size)

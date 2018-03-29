@@ -85,7 +85,7 @@ class SketchNetSOFT(SketchNet):
         sketch = self.sketch_adaptor(sketch)
         photo = self.photo_adaptor(photo)
         output = pearson_correlation(photo, sketch)
-        categpry = self.category_net(sketch) 
+        category = self.category_net(sketch) 
         return F.sigmoid(output), category
 
 
