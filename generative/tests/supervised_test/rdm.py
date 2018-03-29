@@ -15,7 +15,7 @@ from torch.autograd import Variable
 
 from model import SketchNet
 from dataset import SketchPlus32Photos
-from train import load_checkpoint
+from train_category import load_checkpoint
 
 
 if __name__ == "__main__":
@@ -86,19 +86,25 @@ if __name__ == "__main__":
                                     for object_name in object_order])
     
     close_rdm = np.corrcoef(np.vstack((render_features, close_sketch_features)))
-    # close_rdm = close_rdm[:32, 32:]
+    close_rdm = close_rdm[:32, 32:]
     far_rdm = np.corrcoef(np.vstack((render_features, far_sketch_features)))
-    # far_rdm = far_rdm[:32, 32:]
-    import pdb; pdb.set_trace()
+    far_rdm = far_rdm[:32, 32:]
+    diff_rdm = close_rdm - far_rdm 
     
     import matplotlib.pyplot as plt
     plt.switch_backend('agg')
     import seaborn as sns
     sns.set_style('whitegrid')
-
+    
+    plt.figure()
     ax = sns.heatmap(close_rdm, cmap="YlGnBu")
     plt.savefig('./close_rdm.pdf')
 
-    ax = sns.heatmap(close_rdm, cmap="YlGnBu")
+    plt.figure()
+    ax = sns.heatmap(far_rdm, cmap="YlGnBu")
     plt.savefig('./far_rdm.pdf')
+
+    plt.figure()
+    ax = sns.heatmap(diff_rdm, cmap="YlGnBu")
+    plt.savefig('./diff_rdm.pdf')    
 

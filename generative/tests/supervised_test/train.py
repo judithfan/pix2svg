@@ -52,15 +52,8 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def cross_entropy(log_input, target):
-    if not (target.size(0) == log_input.size(0)):
-        raise ValueError("Target size ({}) must be the same as input size ({})".format(
-            target.size(0), log_input.size(0)))
-    loss = Variable(log_input.data.new(log_input.size()))
-    K = log_input.size(1) # number of classes
-    for i in xrange(K):
-        loss[:, i] = target[:, i] * log_input[:, i] 
-    return -loss
+def cross_entropy(input, soft_targets):
+    return torch.mean(torch.sum(- soft_targets * F.log_softmax(input, dim=1), dim=1))
 
 
 if __name__ == "__main__":
@@ -104,11 +97,10 @@ if __name__ == "__main__":
                 label = label.cuda()
             
             optimizer.zero_grad()
-            logits_distance = model(photos, sketch)
             # loss = F.cross_entropy(logits_distance, label.squeeze(1))
-            log_distance = model(photos, sketch)
+            distance = model(photos, sketch)
             # use my own x-ent to compare soft-labels against distance
-            loss = torch.mean(torch.sum(cross_entropy(log_distance, label), dim=1))
+            loss = cross_entropy(distance, label)
             loss_meter.update(loss.data[0], len(photos))
             train_loss += loss.data[0]
 
@@ -136,10 +128,8 @@ if __name__ == "__main__":
                 photos = photos.cuda()
                 sketch = sketch.cuda()
                 label = label.cuda()
-            logits_distance = model(photos, sketch)
-            # loss = F.cross_entropy(logits_distance, label.squeeze(1))
-            log_distance = model(photos, sketch)
-            loss = torch.mean(torch.sum(cross_entropy(log_distance, label), dim=1))
+            distance = model(photos, sketch)
+            loss = cross_entropy(distance, label)
             loss_meter.update(loss.data[0], len(photos))
             test_loss += loss.data[0]
             pbar.update()
