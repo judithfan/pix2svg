@@ -83,7 +83,7 @@ if __name__ == "__main__":
             photo = photo.view(batch_size * 4, 512, 28, 28)
             sketch = sketch.view(batch_size * 4, 512, 28, 28)
             label = label.view(batch_size * 4)
-            category = category.view(batch_size * 4, 32)
+            category = category.view(batch_size * 4)
  
             optimizer.zero_grad()
             same_pred, cat_pred = model(photo, sketch)
@@ -135,7 +135,7 @@ if __name__ == "__main__":
             photo = photo.view(batch_size * 4, 512, 28, 28)
             sketch = sketch.view(batch_size * 4, 512, 28, 28)
             label = label.view(batch_size * 4)
-            category = category.view(batch_size * 4, 32)
+            category = category.view(batch_size * 4)
 
             same_pred, cat_pred = model(photo, sketch)            
             same_loss = binary_cross_entropy(same_pred, label)
