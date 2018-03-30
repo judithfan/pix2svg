@@ -20,7 +20,6 @@ from dataset import SketchPlus32PhotosSOFT
 
 from train import save_checkpoint
 from train import AverageMeter
-from train import cross_entropy
 
 def load_checkpoint(file_path, use_cuda=False):
     checkpoint = torch.load(file_path) if use_cuda else \
@@ -28,9 +27,6 @@ def load_checkpoint(file_path, use_cuda=False):
     model = SketchNetSOFT(checkpoint['layer'])
     model.load_state_dict(checkpoint['state_dict'])
     return model
-
-def cross_entropy(input, soft_targets):
-    return torch.mean(torch.sum(- soft_targets * F.log_softmax(input, dim=1), dim=1))
 
 def binary_cross_entropy(input, soft_target):
     return torch.mean(- soft_target * torch.log(input))
@@ -63,40 +59,40 @@ if __name__ == "__main__":
     def train(epoch):
         model.train()
         same_loss_meter = AverageMeter()
-        cat_loss_meter = AverageMeter()
-        category_meter = AverageMeter()
+        # cat_loss_meter = AverageMeter()
+        # category_meter = AverageMeter()
 
         for batch_idx, (photo, sketch, label, category) in enumerate(train_loader):
             photo = Variable(photo)
             sketch = Variable(sketch)
             label = Variable(label)
-            category = Variable(category)
+            # category = Variable(category)
             batch_size = len(photo)
 
             if args.cuda:
                 photo = photo.cuda()
                 sketch = sketch.cuda()
                 label = label.cuda()
-                category = category.cuda()
+                # category = category.cuda()
         
             photo = photo.view(batch_size * 4, 512, 28, 28)
             sketch = sketch.view(batch_size * 4, 512, 28, 28)
             label = label.view(batch_size * 4)
-            category = category.view(batch_size * 4)
+            # category = category.view(batch_size * 4)
  
             optimizer.zero_grad()
             same_pred, cat_pred = model(photo, sketch)
-            same_loss = binary_cross_entropy(same_pred, label)
-            cat_loss = F.cross_entropy(cat_pred, category)
-            loss = same_loss + cat_loss
+            loss = binary_cross_entropy(same_pred, label)
+            # cat_loss = F.cross_entropy(cat_pred, category)
+            # loss = same_loss + cat_loss
 
-            same_loss_meter.update(same_loss.data[0], batch_size)
-            cat_loss_meter.update(cat_loss.data[0], batch_size)
+            same_loss_meter.update(loss.data[0], batch_size)
+            # cat_loss_meter.update(cat_loss.data[0], batch_size)
 
-            category_np = category.cpu().data.numpy()
-            cat_pred_np = np.argmax(cat_pred.cpu().data.numpy(), axis=1)
-            category_acc = accuracy_score(cat_pred_np, category_np)
-            category_meter.update(category_acc, batch_size)
+            # category_np = category.cpu().data.numpy()
+            # cat_pred_np = np.argmax(cat_pred.cpu().data.numpy(), axis=1)
+            # category_acc = accuracy_score(cat_pred_np, category_np)
+            # category_meter.update(category_acc, batch_size)
 
             loss.backward()
             optimizer.step()
@@ -104,56 +100,56 @@ if __name__ == "__main__":
             if batch_idx % args.log_interval == 0:
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: ({:.6f}|{:.6f})\tCategory-Acc: {:.6f}'.format(
                     epoch, batch_idx * batch_size, len(train_loader.dataset), 
-                    100. * batch_idx / len(train_loader), same_loss_meter.avg, cat_loss_meter.avg,
-                    category_meter.avg))
+                    100. * batch_idx / len(train_loader), same_loss_meter.avg, 0., 0.))  # , cat_loss_meter.avg,
+                    # category_meter.avg))
         
         print('====> Epoch: {}\tLoss: ({:.4f}|{:.4f})\tCategory-Acc: {:.6f}'.format(
-            epoch, same_loss_meter.avg, cat_loss_meter.avg, category_meter.avg))
+            epoch, same_loss_meter.avg, 0., 0.))  # cat_loss_meter.avg, category_meter.avg))
 
     def test():
         model.eval()
         same_loss_meter = AverageMeter()
-        cat_loss_meter = AverageMeter()
-        category_meter = AverageMeter()
+        # cat_loss_meter = AverageMeter()
+        # category_meter = AverageMeter()
         pbar = tqdm(total=len(test_loader))
 
         for batch_idx, (photo, sketch, label, category) in enumerate(test_loader):
             photo = Variable(photo, volatile=True)
             sketch = Variable(sketch, volatile=True)
             label = Variable(label, requires_grad=False)
-            category = Variable(category, volatile=True)
+            # category = Variable(category, volatile=True)
             batch_size = len(photo)
 
             if args.cuda:
                 photo = photo.cuda()
                 sketch = sketch.cuda()
                 label = label.cuda()
-                category = category.cuda()
+                # category = category.cuda()
 
             photo = photo.view(batch_size * 4, 512, 28, 28)
             sketch = sketch.view(batch_size * 4, 512, 28, 28)
             label = label.view(batch_size * 4)
-            category = category.view(batch_size * 4, 32)
+            # category = category.view(batch_size * 4)
 
             same_pred, cat_pred = model(photo, sketch)            
-            same_loss = binary_cross_entropy(same_pred, label)
-            cat_loss = F.cross_entropy(cat_pred, category)
-            loss = same_loss + cat_loss
+            loss = binary_cross_entropy(same_pred, label)
+            # cat_loss = F.cross_entropy(cat_pred, category)
+            # loss = same_loss + cat_loss
 
-            same_loss_meter.update(same_loss.data[0], batch_size)
-            cat_loss_meter.update(cat_loss.data[0], batch_size)
+            same_loss_meter.update(loss.data[0], batch_size)
+            # cat_loss_meter.update(cat_loss.data[0], batch_size)
 
-            category_np = category.cpu().data.numpy()
-            cat_pred_np = np.argmax(cat_pred.cpu().data.numpy(), axis=1)
-            category_acc = accuracy_score(cat_pred_np, category_np)
-            category_meter.update(category_acc, batch_size)
+            # category_np = category.cpu().data.numpy()
+            # cat_pred_np = np.argmax(cat_pred.cpu().data.numpy(), axis=1)
+            # category_acc = accuracy_score(cat_pred_np, category_np)
+            # category_meter.update(category_acc, batch_size)
 
             pbar.update()
 
         pbar.close()
         print('====> Test Loss: ({:.4f}|{:.4f})\tTest Category-Acc: {:.6f}'.format(
-            same_loss_meter.avg, cat_loss_meter.avg, category_meter.avg))
-        return same_loss_meter.avg + cat_loss_meter.avg
+            same_loss_meter.avg, 0., 0.))   # cat_loss_meter.avg, category_meter.avg))
+        return same_loss_meter.avg  # + cat_loss_meter.avg
     
     best_loss = sys.maxint
     for epoch in xrange(1, args.epochs + 1):

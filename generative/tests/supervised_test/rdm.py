@@ -15,7 +15,7 @@ from torch.autograd import Variable
 
 from model import SketchNet
 from dataset import SketchPlus32Photos
-from train_category import load_checkpoint
+from train_soft import load_checkpoint
 
 
 if __name__ == "__main__":
