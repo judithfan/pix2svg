@@ -89,6 +89,48 @@ class SketchNetSOFT(SketchNet):
         return F.sigmoid(output), category
 
 
+class SketchNetRAW(nn.Module):
+    def __init__(self):
+        super(SketchNet, self).__init__()
+        self.photo_adaptor = RawAdaptorNet()
+        self.sketch_adaptor = RawAdaptorNet()
+
+    def forward(self, photo, sketch):
+        batch_size = photo.size(0)
+        sketch = self.sketch_adaptor(sketch)
+        photo = self.photo_adaptor(photo)
+        output = pearson_correlation(photo, sketch)
+        return F.sigmoid(output)
+
+
+class RawAdaptorNet(nn.Module):
+    def __init__(self):
+        super(RawAdaptorNet, self).__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 32, 4, 2, 1, bias=False),
+            Swish(),
+            nn.Conv2d(32, 64, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(64),
+            Swish(),
+            nn.Conv2d(64, 128, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(128),
+            Swish(),
+            nn.Conv2d(128, 256, 4, 1, 0, bias=False),
+            nn.BatchNorm2d(256),
+            Swish())
+        self.classifier = nn.Sequential(
+            nn.Linear(256 * 5 * 5, 2048),
+            Swish(),
+            nn.Dropout(p=0.1),
+            nn.Linear(2048, 1000))
+
+    def forward(self, x):
+        x = self.features(x)
+        x = x.view(-1, 256 * 5 * 5)
+        x = self.classifier(x)
+        return x
+
+
 class Conv42AdaptorNet(nn.Module):
     """Light network to learn an adapted embedding."""
     def __init__(self):
