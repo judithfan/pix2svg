@@ -95,7 +95,7 @@ if __name__ == "__main__":
                     epoch, batch_idx * batch_size, len(train_loader.dataset), 
                     100. * batch_idx / len(train_loader), loss_meter.avg))
         
-        print('====> Epoch: {}\tLoss: {:.4f}'.format(epoch, same_loss_meter.avg))
+        print('====> Epoch: {}\tLoss: {:.4f}'.format(epoch, loss_meter.avg))
 
     def test():
         model.eval()
