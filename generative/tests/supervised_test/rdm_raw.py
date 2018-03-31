@@ -12,6 +12,7 @@ from collections import defaultdict
 
 import torch
 from torch.autograd import Variable
+from torchvision import transforms
 from dataset import SketchPlus32PhotosRAW
 from train_raw import load_checkpoint
 
@@ -24,6 +25,10 @@ if __name__ == "__main__":
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
+
+    preprocess_data = transforms.Compose([transforms.Resize(64),
+                                          transforms.CenterCrop(64),
+                                          transforms.ToTensor()])
 
     # load the trained model
     model = load_checkpoint(args.model_path, use_cuda=args.cuda)
@@ -48,7 +53,9 @@ if __name__ == "__main__":
     far_sketch_features = defaultdict(lambda: [])
 
     # load the dataset
-    loader = torch.utils.data.DataLoader(SketchPlus32PhotosRAW(return_paths=True),
+    loader = torch.utils.data.DataLoader(SketchPlus32PhotosRAW(photo_transform=preprocess_data, 
+                                                               sketch_transform=preprocess_data,
+                                                               return_paths=True),
                                          batch_size=1, shuffle=False)
     # loop through dataset, compute embeddings and store them.
     pbar = tqdm(total=len(loader))
