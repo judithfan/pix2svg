@@ -137,5 +137,4 @@ if __name__ == "__main__":
             'state_dict': model.state_dict(),
             'best_loss': best_loss,
             'optimizer' : optimizer.state_dict(),
-            'layer': args.layer,
         }, is_best, folder=args.out_dir)

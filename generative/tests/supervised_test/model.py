@@ -108,21 +108,24 @@ class RawAdaptorNet(nn.Module):
         super(RawAdaptorNet, self).__init__()
         self.features = nn.Sequential(
             nn.Conv2d(n_inputs, 32, 4, 2, 1, bias=False),
-            Swish(),
+            nn.LeakyReLU(),
             nn.Conv2d(32, 64, 4, 2, 1, bias=False),
             nn.BatchNorm2d(64),
-            Swish(),
+            nn.LeakyReLU(),
             nn.Conv2d(64, 128, 4, 2, 1, bias=False),
             nn.BatchNorm2d(128),
-            Swish(),
+            nn.LeakyReLU(),
             nn.Conv2d(128, 256, 4, 1, 0, bias=False),
             nn.BatchNorm2d(256),
-            Swish())
+            nn.LeakyReLU())
         self.classifier = nn.Sequential(
             nn.Linear(256 * 5 * 5, 2048),
-            Swish(),
+            nn.LeakyReLU(),
             nn.Dropout(p=0.1),
-            nn.Linear(2048, 1000))
+            nn.Linear(2048, 1000),
+            nn.LeakyReLU(),
+            nn.Dropout(p=0.1),
+            nn.Linear(1000, 1000))
 
     def forward(self, x):
         x = self.features(x)
