@@ -13,7 +13,7 @@ from collections import defaultdict
 import torch
 from torch.autograd import Variable
 from torchvision import transforms
-from dataset import SketchPlus32PhotosRAW
+from dataset import SketchPlus32PhotosRAWRDM
 from train_raw import load_checkpoint
 
 
@@ -53,9 +53,9 @@ if __name__ == "__main__":
     far_sketch_features = defaultdict(lambda: [])
 
     # load the dataset
-    loader = torch.utils.data.DataLoader(SketchPlus32PhotosRAW(photo_transform=preprocess_data, 
-                                                               sketch_transform=preprocess_data,
-                                                               return_paths=True),
+    loader = torch.utils.data.DataLoader(SketchPlus32PhotosRAWRDM(photo_transform=preprocess_data, 
+                                                                  sketch_transform=preprocess_data,
+                                                                  return_paths=True),
                                          batch_size=1, shuffle=False)
     # loop through dataset, compute embeddings and store them.
     pbar = tqdm(total=len(loader))
