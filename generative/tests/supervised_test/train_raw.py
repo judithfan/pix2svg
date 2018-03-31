@@ -14,6 +14,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import mean_squared_error
+from torchvision import transforms
 
 from model import SketchNetRAW
 from dataset import SketchPlus32PhotosRAW
@@ -35,8 +36,6 @@ def binary_cross_entropy(input, soft_target):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--category-weight', type=float, default=1.,
-                        help='multiplier for category loss [default: 1]')
     parser.add_argument('--out-dir', type=str, default='./trained_models/soft_fc6', 
                         help='where to save model [default: ./trained_models/soft_fc6]')
     parser.add_argument('--batch-size', type=int, default=16, help='number of examples in a mini-batch [default: 16]')
@@ -80,7 +79,7 @@ if __name__ == "__main__":
             label = Variable(label)
         
             photo = photo.view(batch_size * 4, 3, 64, 64)
-            sketch = sketch.view(batch_size * 4, 3, 64, 64)
+            sketch = sketch.view(batch_size * 4, 1, 64, 64)
             label = label.view(batch_size * 4)
  
             optimizer.zero_grad()
@@ -116,7 +115,7 @@ if __name__ == "__main__":
             label = Variable(label, requires_grad=False)
 
             photo = photo.view(batch_size * 4, 3, 64, 64)
-            sketch = sketch.view(batch_size * 4, 3, 64, 64)
+            sketch = sketch.view(batch_size * 4, 1, 64, 64)
             label = label.view(batch_size * 4)
 
             pred = model(photo, sketch)            

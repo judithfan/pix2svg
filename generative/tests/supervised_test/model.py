@@ -91,9 +91,9 @@ class SketchNetSOFT(SketchNet):
 
 class SketchNetRAW(nn.Module):
     def __init__(self):
-        super(SketchNet, self).__init__()
-        self.photo_adaptor = RawAdaptorNet()
-        self.sketch_adaptor = RawAdaptorNet()
+        super(SketchNetRAW, self).__init__()
+        self.photo_adaptor = RawAdaptorNet(3)
+        self.sketch_adaptor = RawAdaptorNet(1)
 
     def forward(self, photo, sketch):
         batch_size = photo.size(0)
@@ -104,10 +104,10 @@ class SketchNetRAW(nn.Module):
 
 
 class RawAdaptorNet(nn.Module):
-    def __init__(self):
+    def __init__(self, n_inputs):
         super(RawAdaptorNet, self).__init__()
         self.features = nn.Sequential(
-            nn.Conv2d(3, 32, 4, 2, 1, bias=False),
+            nn.Conv2d(n_inputs, 32, 4, 2, 1, bias=False),
             Swish(),
             nn.Conv2d(32, 64, 4, 2, 1, bias=False),
             nn.BatchNorm2d(64),

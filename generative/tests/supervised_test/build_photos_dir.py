@@ -10,9 +10,9 @@ import pandas as pd
 
 
 if __name__ == "__main__":
-    targets_dir = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_fc6/target'
+    targets_dir = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96/target'
     order_path = '/mnt/visual_communication_dataset/human_confusion_object_order.csv'
-    out_dir = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_fc6/photos'
+    out_dir = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96/photos'
 
     order = np.asarray(pd.read_csv(order_path))[:, 1]
     targets_localpath = os.listdir(targets_dir)
@@ -26,5 +26,5 @@ if __name__ == "__main__":
    
     for object_type in order:
         path = paths_dict[object_type]
-        shutil.copyfile(path, os.path.join(out_dir, '%s.npy' % object_type))    
+        shutil.copyfile(path, os.path.join(out_dir, '%s.png' % object_type))    
 

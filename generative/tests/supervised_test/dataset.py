@@ -254,7 +254,7 @@ class SketchPlus32PhotosSOFT(SketchPlus32Photos):
 class SketchPlus32PhotosRAW(Dataset):
     """Assumes that we have precomputed conv-4-2 layer embeddings."""
     def __init__(self, train=True, return_paths=False, photo_transform=None, sketch_transform=None):
-        super(SketchPlus32Photos, self).__init__()
+        super(SketchPlus32PhotosRAW, self).__init__()
         db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96'
         photos_path = os.path.join(db_path, 'photos')
         sketch_path = os.path.join(db_path, 'sketch')
@@ -289,28 +289,44 @@ class SketchPlus32PhotosRAW(Dataset):
         self.sketch_transform = sketch_transform
         self.return_paths = return_paths
 
+        self.reverse_label_dict = defaultdict(lambda: [])
+        for path, label in self.label_dict.iteritems():
+            self.reverse_label_dict[label].append(path)
+        self.sketch_dir = os.path.dirname(self.sketch_paths[0])
+
     def __getitem__(self, index):
         sketch1_path = self.sketch_paths[index] 
-        sketch1_object = self.label_dict[os.path.basename(sketch1_path)]
+        sketch1_object = self.label_dict[os.path.basename(sketch1_path).replace('.png', '.npy')]
         sketch1_object_ix = self.object_order.index(sketch1_object)
         sketch2_object = random.choice(list(set(self.object_order) - set([sketch1_object])))
         sketch2_object_ix = self.object_order.index(sketch2_object)
-        sketch2_path = random.choice(self.reverse_label_dict[sketch2_object])
-        photo1_path = self.photo_paths[sketch1_object_ix]
-        photo2_path = self.photo_paths[sketch2_object_ix]
+        sketch2_path = random.choice(self.reverse_label_dict[sketch2_object]).replace('.npy', '.png')
+        photo1_path = self.photo_paths[sketch1_object_ix].replace('.npy', '.png')
+        photo2_path = self.photo_paths[sketch2_object_ix].replace('.npy', '.png')
 
         # find context of sketch by path
-        context1 = self.context_dict[os.path.basename(sketch1_path)]
-        context2 = self.context_dict[os.path.basename(sketch2_path)]
+        context1 = self.context_dict[os.path.basename(sketch1_path).replace('.png', '.npy')]
+        context2 = self.context_dict[os.path.basename(sketch2_path).replace('.png', '.npy')]
         context1 = 0 if context1 == 'closer' else 1
         context2 = 0 if context2 == 'closer' else 1
 
-        sketch2_path = os.path.join(self.sketch_dir, sketch2_path)
+        def process_sketch(sketch):
+            sketch = alpha_composite_with_color(sketch)
+            return sketch.convert('L')
 
+        def process_photo(photo):
+            return photo.convert('RGB')
+
+        sketch2_path = os.path.join(self.sketch_dir, sketch2_path)
         sketch1 = Image.open(sketch1_path)        # current sketch
         sketch2 = Image.open(sketch2_path)        # random sketch matching with photo 2
         photo1 = Image.open(photo1_path)          # photo of current sketch
         photo2 = Image.open(photo2_path)          # random photo that's not the current photo
+
+        sketch1 = process_sketch(sketch1)
+        sketch2 = process_sketch(sketch2)
+        photo1 = process_photo(photo1)
+        photo2 = process_photo(photo2)
 
         if self.sketch_transform:
             sketch1 = self.sketch_transform(sketch1)
@@ -333,3 +349,44 @@ class SketchPlus32PhotosRAW(Dataset):
             return photo_group, sketch_group, label_group, \
                    [photo1_path, photo2_path], [sketch1_path, sketch2_path]
         return photo_group, sketch_group, label_group
+
+    def __len__(self):
+        return self.size
+
+
+def alpha_composite(front, back):
+    """Alpha composite two RGBA images.
+    Source: http://stackoverflow.com/a/9166671/284318
+    Keyword Arguments:
+    front -- PIL RGBA Image object
+    back -- PIL RGBA Image object
+    """
+    front = np.asarray(front)
+    back = np.asarray(back)
+    result = np.empty(front.shape, dtype='float')
+    alpha = np.index_exp[:, :, 3:]
+    rgb = np.index_exp[:, :, :3]
+    falpha = front[alpha] / 255.0
+    balpha = back[alpha] / 255.0
+    result[alpha] = falpha + balpha * (1 - falpha)
+    old_setting = np.seterr(invalid='ignore')
+    result[rgb] = (front[rgb] * falpha + back[rgb] * balpha * (1 - falpha)) / result[alpha]
+    np.seterr(**old_setting)
+    result[alpha] *= 255
+    np.clip(result, 0, 255)
+    # astype('uint8') maps np.nan and np.inf to 0
+    result = result.astype('uint8')
+    result = Image.fromarray(result, 'RGBA')
+    return result
+
+
+def alpha_composite_with_color(image, color=(255, 255, 255)):
+    """Alpha composite an RGBA image with a single color image of the
+    specified color and the same size as the original image.
+    Keyword Arguments:
+    image -- PIL RGBA Image object
+    color -- Tuple r, g, b (default 255, 255, 255)
+    """
+    back = Image.new('RGBA', size=image.size, color=color + (255,))
+    return alpha_composite(image, back)
+
