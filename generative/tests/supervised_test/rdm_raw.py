@@ -64,8 +64,8 @@ if __name__ == "__main__":
         if args.cuda:
             sketch = sketch.cuda()
         sketch = model.sketch_adaptor(sketch).cpu().data.numpy()
-        sketch_context = context_dict[os.path.basename(sketch_path[0])]
-        sketch_object = label_dict[os.path.basename(sketch_path[0])]
+        sketch_context = context_dict[os.path.basename(sketch_path[0]).replace('.png', '.npy')]
+        sketch_object = label_dict[os.path.basename(sketch_path[0]).replace('.png', '.npy')]
  
         if sketch_context == 'closer':
             close_sketch_features[sketch_object].append(sketch[0])

@@ -103,6 +103,18 @@ class SketchNetRAW(nn.Module):
         return F.sigmoid(output)
 
 
+class SketchNetDIST(SketchNet):
+    def __init__(self, layer='fc6', n_photos=32):
+        super(SketchNetDIST, self).__init__(layer=layer, n_photos=n_photos)    
+        self.distance = NNDistance(1000)
+
+    def forward(self, photo, sketch):
+        batch_size = photo.size(0)
+        sketch = self.sketch_adaptor(sketch)
+        photo = self.photo_adaptor(photo)
+        return self.distance(photo, sketch)
+
+
 class RawAdaptorNet(nn.Module):
     def __init__(self, n_inputs):
         super(RawAdaptorNet, self).__init__()
@@ -167,6 +179,17 @@ class FC6AdaptorNet(nn.Module):
 
     def forward(self, x):
         return self.net(x)
+
+
+class NNDistance(nn.Module):
+    def __init__(self, input_dim):
+        super(NNDistance, self).__init__()
+        self.fc1 = nn.Linear(input_dim * 2, 1)
+
+    def forward(self, x, y):
+        h = torch.cat((x, y), dim=1)
+        h = self.fc1(h)
+        return F.sigmoid(h)
 
 
 class Swish(nn.Module):

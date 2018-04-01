@@ -358,7 +358,7 @@ class SketchPlus32PhotosRAWRDM(Dataset):
     """Assumes that we have precomputed conv-4-2 layer embeddings."""
     def __init__(self, train=True, return_paths=False, photo_transform=None, sketch_transform=None):
         super(SketchPlus32PhotosRAWRDM, self).__init__()
-        db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_%s' % layer
+        db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96'
         photos_path = os.path.join(db_path, 'photos')
         sketch_path = os.path.join(db_path, 'sketch')
         sketch_paths = os.listdir(sketch_path)
@@ -384,7 +384,6 @@ class SketchPlus32PhotosRAWRDM(Dataset):
             self.label_dict = cPickle.load(fp)
 
         self.db_path = db_path
-        self.photos = photos
         self.photo_paths = photo_paths
         self.object_order = object_order
         self.sketch_paths = sketch_paths
