@@ -13,9 +13,8 @@ from collections import defaultdict
 import torch
 from torch.autograd import Variable
 
-from model import SketchNet
 from dataset import SketchPlus32Photos
-from train_soft import load_checkpoint
+from train_dist import load_checkpoint
 
 
 if __name__ == "__main__":
@@ -86,9 +85,9 @@ if __name__ == "__main__":
                                     for object_name in object_order])
     
     close_rdm = np.corrcoef(np.vstack((render_features, close_sketch_features)))
-    # close_rdm = close_rdm[:32, 32:]
+    close_rdm = close_rdm[:32, 32:]
     far_rdm = np.corrcoef(np.vstack((render_features, far_sketch_features)))
-    # far_rdm = far_rdm[:32, 32:]
+    far_rdm = far_rdm[:32, 32:]
     diff_rdm = close_rdm - far_rdm 
     
     import matplotlib.pyplot as plt

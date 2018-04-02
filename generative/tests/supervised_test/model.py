@@ -7,6 +7,7 @@ import shutil
 
 import torch
 import torch.nn as nn
+from torch.nn.parameter import Parameter
 import torch.nn.functional as F
 
 
@@ -26,7 +27,7 @@ class SketchNet(nn.Module):
             self.photo_adaptor = FC6AdaptorNet()
         else:
             raise Exception('%s layer not supported.' % layer)
-        self.combiner = nn.Linear((n_photos + 1) * 1000, 32)
+        self.distance = NNDistance(1000)
         self.n_photos = n_photos
         self.layer = layer
 
@@ -38,11 +39,9 @@ class SketchNet(nn.Module):
         sketch = self.sketch_adaptor(sketch)
         photos = torch.cat([self.photo_adaptor(photos[:, i]).unsqueeze(1)
                             for i in xrange(self.n_photos)], dim=1)
-        inputs = torch.cat((photos, sketch.unsqueeze(1)), dim=1)
-        distances = self.combiner(inputs.view(batch_size, -1))
-        # compute euclidean distance from sketch to each photo
-        # distances = torch.cat([pearson_correlation(photos[:, i], sketch, dim=1).unsqueeze(1)
-        #                        for i in xrange(self.n_photos)], dim=1)
+        # compute distance from sketch to each photo
+        distances = torch.cat([self.distance(photos[:, i], sketch)
+                               for i in xrange(self.n_photos)], dim=1)
         return distances
 
 
@@ -112,7 +111,26 @@ class SketchNetDIST(SketchNet):
         batch_size = photo.size(0)
         sketch = self.sketch_adaptor(sketch)
         photo = self.photo_adaptor(photo)
-        return self.distance(photo, sketch)
+        distance = self.distance(photo, sketch)
+        return F.sigmoid(distance)
+
+
+class SketchNetNODIST(SketchNet):
+    def __init__(self, layer='fc6', n_photos=32):
+        super(SketchNetNODIST, self).__init__(layer=layer, n_photos=n_photos)
+        self.net = nn.Sequential(nn.Linear(2000, 2000),
+                                 nn.BatchNorm1d(2000),
+                                 Swish(),
+                                 nn.Linear(2000, 2000))
+
+    def forward(self, photo, sketch):
+        batch_size = photo.size(0)
+        sketch = self.sketch_adaptor(sketch)
+        photo = self.photo_adaptor(photo)
+        both = torch.cat((photo, sketch), dim=1)
+        both = self.net(both)
+        photo, sketch = torch.chunk(both, 2, dim=1)
+        return photo, sketch
 
 
 class RawAdaptorNet(nn.Module):
@@ -172,10 +190,16 @@ class FC6AdaptorNet(nn.Module):
     def __init__(self):
         super(FC6AdaptorNet, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(4096, 2000),
+            nn.Linear(4096, 4096),
+            nn.BatchNorm1d(4096),
             Swish(),
-            nn.Dropout(),
-            nn.Linear(2000, 1000))
+            nn.Linear(4096, 2048),
+            nn.BatchNorm1d(2048),
+            Swish(),
+            nn.Linear(2048, 1000),
+            nn.BatchNorm1d(1000),
+            Swish(),
+            nn.Linear(1000, 1000))
 
     def forward(self, x):
         return self.net(x)
@@ -188,8 +212,19 @@ class NNDistance(nn.Module):
 
     def forward(self, x, y):
         h = torch.cat((x, y), dim=1)
-        h = self.fc1(h)
-        return F.sigmoid(h)
+        return self.fc1(h)
+
+
+class AffineDistance(nn.Module):
+    def __init__(self, input_dim):
+        super(AffineDistance, self).__init__()
+        self.W = Parameter(torch.normal(torch.zeros(2*input_dim), .1))
+        self.b = Parameter(torch.normal(torch.zeros(1), .1))
+
+    def forward(self, x, y):
+        h = torch.cat((x, y), dim=1)
+        h = torch.matmul(h, self.W.unsqueeze(1)) + self.b.unsqueeze(1)
+        return h
 
 
 class Swish(nn.Module):

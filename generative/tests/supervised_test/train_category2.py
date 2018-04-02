@@ -13,29 +13,31 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.autograd import Variable
 from sklearn.metrics import accuracy_score
+from sklearn.metrics import mean_squared_error
 
-from model import SketchNetNODIST, cosine_similarity, NNDistance, AffineDistance
-from dataset import SketchPlus32PhotosSOFT
+from model import SketchNetCATEGORY
+from dataset import SketchPlus32PhotosCATEGORY
+
 from train import save_checkpoint
 from train import AverageMeter
+from train import cross_entropy
 
 def load_checkpoint(file_path, use_cuda=False):
     checkpoint = torch.load(file_path) if use_cuda else \
         torch.load(file_path, map_location=lambda storage, location: storage)
-    model = SketchNetNODIST(checkpoint['layer'])
-    # distance = NNDistance(1000)
+    model = SketchNetCATEGORY(checkpoint['layer'])
     model.load_state_dict(checkpoint['state_dict'])
-    # distance.load_state_dict(checkpoint['distance_fn'])
-    # return model, distance
     return model
 
+def cross_entropy(input, soft_targets):
+    return torch.mean(torch.sum(- soft_targets * F.log_softmax(input, dim=1), dim=1))
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('layer', type=str, help='fc6|conv42')
-    parser.add_argument('--out-dir', type=str, default='./trained_models/dist_fc6', 
-                        help='where to save model [default: ./trained_models/dist_fc6]')
+    parser.add_argument('--out-dir', type=str, default='./trained_models/category_fc6', 
+                        help='where to save model [default: ./trained_models/category_fc6]')
     parser.add_argument('--batch-size', type=int, default=16, help='number of examples in a mini-batch [default: 16]')
     parser.add_argument('--lr', type=float, default=3e-4, help='learning rate [default: 3e-4]')
     parser.add_argument('--epochs', type=int, default=100, help='number of epochs [default: 100]')
@@ -44,24 +46,19 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    train_loader = torch.utils.data.DataLoader(SketchPlus32PhotosSOFT(layer=args.layer), 
+    train_loader = torch.utils.data.DataLoader(SketchPlus32PhotosCATEGORY(layer=args.layer), 
                                                batch_size=args.batch_size)
-    test_loader = torch.utils.data.DataLoader(SketchPlus32PhotosSOFT(layer=args.layer), 
+    test_loader = torch.utils.data.DataLoader(SketchPlus32PhotosCATEGORY(layer=args.layer), 
                                               batch_size=args.batch_size, shuffle=False)
 
-    model = SketchNetNODIST(layer=args.layer) 
-    distance_fn = cosine_similarity
-    distance_fn = NNDistance(1000)
-    # distance_fn = AffineDistance(1000)
+    model = SketchNetCATEGORY(layer=args.layer) 
     if args.cuda:
         model.cuda()
-        distance_fn.cuda()
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     
     def train(epoch):
         model.train()
-        distance_fn.train()
-        loss_meter = AverageMeter()
+        same_loss_meter = AverageMeter()
         acc_meter = AverageMeter()
 
         for batch_idx, (photo, sketch, label, category) in enumerate(train_loader):
@@ -74,41 +71,36 @@ if __name__ == "__main__":
                 photo = photo.cuda()
                 sketch = sketch.cuda()
                 label = label.cuda()
-            
-            if args.layer == 'conv42':        
-                photo = photo.view(batch_size * 4, 512, 28, 28)
-                sketch = sketch.view(batch_size * 4, 512, 28, 28)
-            else:
-                photo = photo.view(batch_size * 4, 4096)
-                sketch = sketch.view(batch_size * 4, 4096)
+         
+            photo = photo.view(batch_size * 4, 4096)  # 512, 28, 28)
+            sketch = sketch.view(batch_size * 4, 4096)  # 512, 28, 28)
             label = label.view(batch_size * 4)
  
             optimizer.zero_grad()
-            photo, sketch = model(photo, sketch)
-            pred = F.sigmoid(distance_fn(photo, sketch))
-            loss = F.binary_cross_entropy(pred, label)
-            loss_meter.update(loss.data[0], batch_size)
+            same_pred, cat_pred = model(photo, sketch)
+            same_loss = F.binary_cross_entropy(same_pred, label)
+            # use my own x-ent to compare soft-labels against distance
+            same_loss_meter.update(same_loss.data[0], batch_size)
 
-            label_np = np.round(label.cpu().data.numpy(), 0)
-            pred_np = np.round(pred.cpu().data.numpy(), 0)
-            acc = accuracy_score(label_np, pred_np)
+            label_np = label.cpu().data.numpy()
+            same_pred_np = np.round(same_pred.cpu().data.numpy(), 0)
+            acc = accuracy_score(label_np, same_pred_np)
             acc_meter.update(acc, batch_size)
 
-            loss.backward()
+            same_loss.backward()
             optimizer.step()
 
             if batch_idx % args.log_interval == 0:
-                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tAcc: {:2f}'.format(
+                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tAcc: {:.2f}'.format(
                     epoch, batch_idx * batch_size, len(train_loader.dataset), 
-                    100. * batch_idx / len(train_loader), loss_meter.avg, acc_meter.avg))
+                    100. * batch_idx / len(train_loader), same_loss_meter.avg, acc_meter.avg))
         
-        print('====> Epoch: {}\tLoss: {:.4f}\tAcc: {:.2f}'.format(epoch, loss_meter.avg, acc_meter.avg))
-
+        print('====> Epoch: {}\tLoss: {:.4f}\tAcc: {:.2f}'.format(
+            epoch, same_loss_meter.avg, acc_meter.avg))
 
     def test():
         model.eval()
-        distance_fn.eval()
-        loss_meter = AverageMeter()
+        same_loss_meter = AverageMeter()
         acc_meter = AverageMeter()
         pbar = tqdm(total=len(test_loader))
 
@@ -123,28 +115,24 @@ if __name__ == "__main__":
                 sketch = sketch.cuda()
                 label = label.cuda()
 
-            if args.layer == 'conv42':
-                photo = photo.view(batch_size * 4, 512, 28, 28)
-                sketch = sketch.view(batch_size * 4, 512, 28, 28)
-            else:
-                photo = photo.view(batch_size * 4, 4096)
-                sketch = sketch.view(batch_size * 4, 4096)
+            photo = photo.view(batch_size * 4, 4096)  # 512, 28, 28)
+            sketch = sketch.view(batch_size * 4, 4096)  # 512, 28, 28)
             label = label.view(batch_size * 4)
 
-            photo, sketch = model(photo, sketch)
-            pred = F.sigmoid(distance_fn(photo, sketch))
-            loss = F.binary_cross_entropy(pred, label)
-            loss_meter.update(loss.data[0], batch_size)
+            same_pred, cat_pred = model(photo, sketch)            
+            same_loss = F.binary_cross_entropy(same_pred, label)
+            same_loss_meter.update(same_loss.data[0], batch_size)
 
-            label_np = np.round(label.cpu().data.numpy(), 0)
-            pred_np = np.round(pred.cpu().data.numpy(), 0)
-            acc = accuracy_score(label_np, pred_np)
+            label_np = label.cpu().data.numpy()
+            same_pred_np = np.round(same_pred.cpu().data.numpy(), 0)
+            acc = accuracy_score(label_np, same_pred_np)
             acc_meter.update(acc, batch_size)
             pbar.update()
 
         pbar.close()
-        print('====> Test Loss: {:.4f}\tTest Acc: {:.2f}'.format(loss_meter.avg, acc_meter.avg))
-        return loss_meter.avg
+        print('====> Test Loss: {:.4f}\tTest Acc: {:.2f}'.format(
+            same_loss_meter.avg, acc_meter.avg))
+        return same_loss_meter.avg
     
     best_loss = sys.maxint
     for epoch in xrange(1, args.epochs + 1):
@@ -154,7 +142,6 @@ if __name__ == "__main__":
         best_loss = min(loss, best_loss)
         save_checkpoint({
             'state_dict': model.state_dict(),
-            'distance_fn': distance_fn.state_dict(),
             'best_loss': best_loss,
             'optimizer' : optimizer.state_dict(),
             'layer': args.layer,
