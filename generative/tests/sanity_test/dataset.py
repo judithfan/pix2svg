@@ -116,3 +116,74 @@ class SketchPlus32Photos(Dataset):
     def __len__(self):
         return self.size
  
+
+class SketchPlus32PhotosStream(SketchPlus32Photos):
+    def __init__(self, layer='fc6', train=True, return_paths=False, soft_labels=False,
+                 photo_transform=None, sketch_transform=None):
+        super(SketchPlus32PhotosStream, self).__init__(
+            layer=layer, train=train, return_paths=return_paths, soft_labels=soft_labels, 
+            photo_transform=photo_transform, sketch_transform=sketch_transform)
+        self._sketch_paths = copy.deepcopy(self.sketch_paths)
+        self._photo_paths = copy.deepcopy(self.photo_paths)
+        self.annotations = copy.deepcopy(self.labels)
+        self.negative_sample()
+
+    def negative_sample(self):
+        pos_sketch_paths = copy.deepcopy(self._sketch_paths)
+        neg_sketch_paths = []
+        pos_photo_paths = []
+        neg_photo_paths = []
+        
+        print('Building negative samples.')
+        for i in xrange(tqdm(len(pos_sketch_paths))):
+            sketch_path = pos_sketch_paths[i]
+            object1 = self.label_dict[os.path.basename(sketch_path)]
+            object1_ix = self.object_order.index(object1)
+            object2 = random.choice(list(set(self.object_order) - set([object1])))
+            object2_ix = self.object_order.index(object2)
+            neg_sketch_path = random.choice(self.reverse_label_dict[object2])
+            neg_sketch_paths.append(neg_sketch_path)
+            pos_photo_paths.append(self._photo_paths[object1_ix])
+            neg_photo_paths.append(self._photo_paths[object2_ix])
+
+        sketch_paths = pos_sketch_paths + neg_sketch_paths
+        photo_paths = pos_photo_paths + neg_photo_paths
+        hard_labels = ([1 for _ in xrange(len(pos_sketch_paths))] + 
+                       [0 for _ in xrange(len(neg_sketch_paths))])
+        self.sketch_paths = sketch_paths
+        self.photo_paths = photo_paths
+        self.hard_labels = hard_labels
+        self.size = len(sketch_paths)
+
+    def __getitem__(self, index):
+        sketch_path = self.sketch_paths[index]
+        photo_path = self.photo_paths[index]
+
+        sketch_object_name = self.label_dict[os.path.basename(sketch_path)]
+        sketch_object_ix = self.object_order.index(sketch_object_name)
+        photo_object_name = self.label_dict[os.path.basename(photo_path)]
+        photo_object_ix = self.object_order.index(photo_object_name)
+
+        sketch = np.load(sketch_path)
+        sketch = torch.from_numpy(sketch)
+        photo = np.load(photo_path)
+        photo = torch.from_numpy(photo)
+
+        if self.sketch_transform:
+            sketch = self.sketch_transform(sketch)
+
+        if self.photo_transform:
+            photo = self.photo_transform(photo)
+
+        if self.soft_labels:
+            context = self.context_dict[os.path.basename(sketch_path)]
+            label = self.annotations[sketch_object_ix, photo_object_ix, context]
+        else:
+            label = self.hard_labels[index]
+
+        if self.return_paths:
+            return photo, sketch, label, photo_path, sketch_path
+        return photo, sketch, label
+
+    def __len__(self):
+        return self.size
