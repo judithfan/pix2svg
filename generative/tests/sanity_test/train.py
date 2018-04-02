@@ -16,8 +16,15 @@ from sklearn.metrics import accuracy_score
 
 from model import SketchNet
 from dataset import SketchPlus32Photos
-from train import save_checkpoint
-from train import AverageMeter
+
+
+def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
+    if not os.path.isdir(folder):
+        os.mkdir(folder)
+    torch.save(state, os.path.join(folder, filename))
+    if is_best:
+        shutil.copyfile(os.path.join(folder, filename),
+                        os.path.join(folder, 'model_best.pth.tar'))
 
 
 def load_checkpoint(file_path, use_cuda=False):
@@ -26,6 +33,24 @@ def load_checkpoint(file_path, use_cuda=False):
     model = SketchNet(checkpoint['layer'])
     model.load_state_dict(checkpoint['state_dict'])
     return model
+
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
 
 
 if __name__ == "__main__":
@@ -37,14 +62,14 @@ if __name__ == "__main__":
                         help='where to save model [default: ./trained_models/]')
     parser.add_argument('--batch-size', type=int, default=16, help='number of examples in a mini-batch [default: 16]')
     parser.add_argument('--lr', type=float, default=3e-4, help='learning rate [default: 3e-4]')
-    parser.add_argument('--epochs', type=int, default=100, help='number of epochs [default: 100]')
+    parser.add_argument('--epochs', type=int, default=10, help='number of epochs [default: 10]')
     parser.add_argument('--log-interval', type=int, default=10, help='how frequently to print stats [default: 10]')
     parser.add_argument('--cuda', action='store_true', default=False) 
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
     train_loader = torch.utils.data.DataLoader(
         SketchPlus32Photos(layer='fc6', soft_labels=args.soft_labels),
-        batch_size=args.batch_size)
+        batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(
         SketchPlus32Photos(layer='fc6', soft_labels=args.soft_labels),
         batch_size=args.batch_size, shuffle=False)
@@ -59,7 +84,7 @@ if __name__ == "__main__":
         loss_meter = AverageMeter()
         acc_meter = AverageMeter()
 
-        for batch_idx, (photo, sketch, label, category) in enumerate(train_loader):
+        for batch_idx, (photo, sketch, label) in enumerate(train_loader):
             photo = Variable(photo)
             sketch = Variable(sketch)
             label = Variable(label)
@@ -101,7 +126,7 @@ if __name__ == "__main__":
         acc_meter = AverageMeter()
         pbar = tqdm(total=len(test_loader))
 
-        for batch_idx, (photo, sketch, label, category) in enumerate(test_loader):
+        for batch_idx, (photo, sketch, label) in enumerate(test_loader):
             photo = Variable(photo, volatile=True)
             sketch = Variable(sketch, volatile=True)
             label = Variable(label, requires_grad=False)
@@ -140,5 +165,4 @@ if __name__ == "__main__":
             'state_dict': model.state_dict(),
             'best_loss': best_loss,
             'optimizer' : optimizer.state_dict(),
-            'layer': args.layer,
         }, is_best, folder=args.out_dir)

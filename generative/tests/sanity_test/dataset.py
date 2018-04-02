@@ -46,7 +46,7 @@ class SketchPlus32Photos(Dataset):
         with open(os.path.join(db_path, 'sketchpad_label_dict.pickle')) as fp:
             self.label_dict = cPickle.load(fp)
 
-        reverse label from string to integer
+        # reverse label from string to integer
         self.reverse_label_dict = defaultdict(lambda: [])
         for path, label in self.label_dict.iteritems():
             self.reverse_label_dict[label].append(path)
@@ -66,12 +66,12 @@ class SketchPlus32Photos(Dataset):
     def __getitem__(self, index):
         sketch1_path = self.sketch_paths[index] 
         sketch1_object = self.label_dict[os.path.basename(sketch1_path)]
-        sketch1_object_ix = self.object_order.index(sketch1_object)
+        object1_ix = self.object_order.index(sketch1_object)
         sketch2_object = random.choice(list(set(self.object_order) - set([sketch1_object])))
-        sketch2_object_ix = self.object_order.index(sketch2_object)
+        object2_ix = self.object_order.index(sketch2_object)
         sketch2_path = random.choice(self.reverse_label_dict[sketch2_object])
-        photo1_path = self.photo_paths[sketch1_object_ix]
-        photo2_path = self.photo_paths[sketch2_object_ix]
+        photo1_path = self.photo_paths[object1_ix]
+        photo2_path = self.photo_paths[object2_ix]
 
         # find context of sketch by path
         context1 = self.context_dict[os.path.basename(sketch1_path)]
@@ -85,8 +85,8 @@ class SketchPlus32Photos(Dataset):
         sketch2 = np.load(sketch2_path)           # random sketch matching with photo 2
         sketch1 = torch.from_numpy(sketch1)
         sketch2 = torch.from_numpy(sketch2)
-        photo1 = self.photos[sketch1_object_ix]   # photo of current sketch
-        photo2 = self.photos[sketch2_object_ix]   # random photo that's not the current photo
+        photo1 = self.photos[object1_ix]   # photo of current sketch
+        photo2 = self.photos[object2_ix]   # random photo that's not the current photo
 
         if self.sketch_transform:
             sketch1 = self.sketch_transform(sketch1)
@@ -101,10 +101,10 @@ class SketchPlus32Photos(Dataset):
         sketch_group = torch.cat((sketch1.unsqueeze(0), sketch2.unsqueeze(0), 
                                   sketch2.unsqueeze(0), sketch1.unsqueeze(0)), dim=0)
         if self.soft_labels:
-            label_group = torch.Tensor([self.labels[sketch1_object_ix, sketch1_object_ix, context1],
-                                        self.labels[sketch2_object_ix, sketch2_object_ix, context2],
-                                        self.labels[sketch2_object_ix, sketch1_object_ix, context2],
-                                        self.labels[sketch1_object_ix, sketch2_object_ix, context1]])
+            label_group = torch.Tensor([self.labels[object1_ix, object1_ix, context1],
+                                        self.labels[object2_ix, object2_ix, context2],
+                                        self.labels[object2_ix, object1_ix, context2],
+                                        self.labels[object1_ix, object2_ix, context1]])
         else:
             label_group = torch.Tensor([1, 1, 0, 0]).float()
 

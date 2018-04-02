@@ -24,7 +24,7 @@ class SketchNet(nn.Module):
 
 class PredictorNet(nn.Module):
     def __init__(self):
-        super(FC6AdaptorNet, self).__init__()
+        super(PredictorNet, self).__init__()
         self.net = nn.Sequential(
             nn.Linear(8192, 4096),
             nn.BatchNorm1d(4096),
