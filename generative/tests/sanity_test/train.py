@@ -103,7 +103,7 @@ if __name__ == "__main__":
  
             optimizer.zero_grad()
             pred = model(photo, sketch)
-            loss = F.binary_cross_entropy(pred, label)
+            loss = F.binary_cross_entropy(pred, label.unsqueeze(1))
             loss_meter.update(loss.data[0], batch_size)
 
             label_np = np.round(label.cpu().data.numpy(), 0)
@@ -146,7 +146,7 @@ if __name__ == "__main__":
             label = label.view(batch_size * 4)
 
             pred = model(photo, sketch)
-            loss = F.binary_cross_entropy(pred, label)
+            loss = F.binary_cross_entropy(pred, label.unsqueeze(1))
             loss_meter.update(loss.data[0], batch_size)
 
             label_np = np.round(label.cpu().data.numpy(), 0)
