@@ -19,8 +19,8 @@ class SketchNet(nn.Module):
         self.photo_adaptor = AdaptorNet()
         # self.sketch_adaptor = ConvAdaptorNet()
         # self.photo_adaptor = ConvAdaptorNet()
-        self.merge_adaptor = MergeAdaptor()
-        # self.neural_distance = NeuralDistance()
+        # self.merge_adaptor = MergeAdaptor()
+        self.neural_distance = NeuralDistance()
         # self.norm = nn.BatchNorm1d(2000)
         self.swish = Swish()
 
@@ -31,11 +31,29 @@ class SketchNet(nn.Module):
         sketch = self.sketch_adaptor(sketch)
         input = torch.cat((photo, sketch), dim=1)
         input = self.swish(input)
-        input = self.merge_adaptor(input)
-        # input = self.neural_distance(input)
+        # input = self.merge_adaptor(input)
+        input = self.neural_distance(input)
         # photo, sketch = torch.chunk(input, 2, dim=1)
         # input = pearson_correlation(photo, sketch)
         return F.sigmoid(input)
+
+
+class SketchNetSoft(nn.Module):
+    def __init__(self):
+        super(SketchNetSoft, self).__init__()
+        self.sketch_adaptor = AdaptorNet()
+        self.photo_adaptor = AdaptorNet()
+        self.merge_adaptor = MergeAdaptor()
+        # self.neural_distance = NeuralDistance()
+        self.swish = Swish()
+
+    def forward(self, photo, sketch):
+        photo = self.photo_adaptor(photo)
+        sketch = self.sketch_adaptor(sketch)
+        input = self.swish(torch.cat((photo, sketch), dim=1))
+        input = self.merge_adaptor(input)
+        # input = self.neural_distance(input)
+        return F.softplus(input)
 
 
 class AdaptorNet(nn.Module):
@@ -78,13 +96,6 @@ class MergeAdaptor(nn.Module):
     def __init__(self):
         super(MergeAdaptor, self).__init__()
         self.net = nn.Sequential(
-            # Heavy version
-            # nn.Linear(2000, 1000),
-            # nn.BatchNorm1d(1000),
-            # Swish(),
-            # nn.Linear(1000, 256),
-            # nn.BatchNorm1d(256),
-            # Swish(),
             # Light version
             nn.Linear(2000, 256),
             nn.BatchNorm1d(256),
