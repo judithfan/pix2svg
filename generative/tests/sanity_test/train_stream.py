@@ -15,7 +15,7 @@ from torch.autograd import Variable
 from sklearn.metrics import accuracy_score
 
 from model import SketchNet
-from dataset import SketchPlus32PhotosStream
+from dataset import SketchPlusPhoto
 
 
 def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
@@ -68,10 +68,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
     train_loader = torch.utils.data.DataLoader(
-        SketchPlus32PhotosStream(layer='fc6', soft_labels=args.soft_labels),
+        SketchPlusPhoto(layer='fc6', soft_labels=args.soft_labels),
         batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(
-        SketchPlus32PhotosStream(layer='fc6', soft_labels=args.soft_labels),
+        SketchPlusPhoto(layer='fc6', soft_labels=args.soft_labels),
         batch_size=args.batch_size, shuffle=False)
 
     model = SketchNet()
@@ -97,7 +97,7 @@ if __name__ == "__main__":
 
             optimizer.zero_grad()
             pred = model(photo, sketch)
-            loss = F.binary_cross_entropy(pred, label)
+            loss = F.binary_cross_entropy(pred, label.unsqueeze(1).float())
             loss_meter.update(loss.data[0], batch_size)
 
             label_np = np.round(label.cpu().data.numpy(), 0)
@@ -134,7 +134,7 @@ if __name__ == "__main__":
                 label = label.cuda()
 
             pred = model(photo, sketch)
-            loss = F.binary_cross_entropy(pred, label)
+            loss = F.binary_cross_entropy(pred, label.unsqueeze(1).float())
             loss_meter.update(loss.data[0], batch_size)
 
             label_np = np.round(label.cpu().data.numpy(), 0)
@@ -160,5 +160,5 @@ if __name__ == "__main__":
         }, is_best, folder=args.out_dir)
         # reload the dataset
         train_loader = torch.utils.data.DataLoader(
-            SketchPlus32PhotosStream(layer='fc6', soft_labels=args.soft_labels),
+            SketchPlusPhoto(layer='fc6', soft_labels=args.soft_labels),
             batch_size=args.batch_size, shuffle=False)

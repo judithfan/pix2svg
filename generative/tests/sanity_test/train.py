@@ -15,7 +15,7 @@ from torch.autograd import Variable
 from sklearn.metrics import accuracy_score
 
 from model import SketchNet
-from dataset import SketchPlus32Photos
+from dataset import SketchPlusPhotoGroup
 
 
 def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
@@ -30,7 +30,7 @@ def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
 def load_checkpoint(file_path, use_cuda=False):
     checkpoint = torch.load(file_path) if use_cuda else \
         torch.load(file_path, map_location=lambda storage, location: storage)
-    model = SketchNet(checkpoint['layer'])
+    model = SketchNet()
     model.load_state_dict(checkpoint['state_dict'])
     return model
 
@@ -62,16 +62,16 @@ if __name__ == "__main__":
                         help='where to save model [default: ./trained_models/]')
     parser.add_argument('--batch-size', type=int, default=16, help='number of examples in a mini-batch [default: 16]')
     parser.add_argument('--lr', type=float, default=3e-4, help='learning rate [default: 3e-4]')
-    parser.add_argument('--epochs', type=int, default=10, help='number of epochs [default: 10]')
+    parser.add_argument('--epochs', type=int, default=500, help='number of epochs [default: 500]')
     parser.add_argument('--log-interval', type=int, default=10, help='how frequently to print stats [default: 10]')
     parser.add_argument('--cuda', action='store_true', default=False) 
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
     train_loader = torch.utils.data.DataLoader(
-        SketchPlus32Photos(layer='fc6', soft_labels=args.soft_labels),
+        SketchPlusPhotoGroup(layer='fc6', soft_labels=args.soft_labels),
         batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(
-        SketchPlus32Photos(layer='fc6', soft_labels=args.soft_labels),
+        SketchPlusPhotoGroup(layer='fc6', soft_labels=args.soft_labels),
         batch_size=args.batch_size, shuffle=False)
 
     model = SketchNet()
@@ -94,9 +94,11 @@ if __name__ == "__main__":
                 photo = photo.cuda()
                 sketch = sketch.cuda()
                 label = label.cuda()
-            
+
             photo = photo.view(batch_size * 4, 4096)
             sketch = sketch.view(batch_size * 4, 4096)
+            # photo = photo.view(batch_size * 4, 512, 28, 28)
+            # sketch = sketch.view(batch_size * 4, 512, 28, 28)
             label = label.view(batch_size * 4)
  
             optimizer.zero_grad()
@@ -139,6 +141,8 @@ if __name__ == "__main__":
 
             photo = photo.view(batch_size * 4, 4096)
             sketch = sketch.view(batch_size * 4, 4096)
+            # photo = photo.view(batch_size * 4, 512, 28, 28)
+            # sketch = sketch.view(batch_size * 4, 512, 28, 28)
             label = label.view(batch_size * 4)
 
             pred = model(photo, sketch)

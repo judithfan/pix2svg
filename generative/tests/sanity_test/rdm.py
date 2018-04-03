@@ -3,6 +3,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 import os
+import sys
 import json
 import cPickle
 import numpy as np
@@ -13,8 +14,8 @@ from collections import defaultdict
 import torch
 from torch.autograd import Variable
 
-from dataset import SketchPlus32Photos
 from train import load_checkpoint
+from dataset import SketchPlus32Photos
 
 
 if __name__ == "__main__":
@@ -49,7 +50,7 @@ if __name__ == "__main__":
     far_sketch_features = defaultdict(lambda: [])
 
     # load the dataset
-    loader = torch.utils.data.DataLoader(SketchPlus32Photos(layer=model.layer, return_paths=True),
+    loader = torch.utils.data.DataLoader(SketchPlus32Photos(layer='fc6', return_paths=True),
                                          batch_size=1, shuffle=False)
     # loop through dataset, compute embeddings and store them.
     pbar = tqdm(total=len(loader))
@@ -97,12 +98,12 @@ if __name__ == "__main__":
     
     plt.figure()
     ax = sns.heatmap(close_rdm, cmap="YlGnBu")
-    plt.savefig('./close_rdm.pdf')
+    plt.savefig('./outputs/close_rdm.pdf')
 
     plt.figure()
     ax = sns.heatmap(far_rdm, cmap="YlGnBu")
-    plt.savefig('./far_rdm.pdf')
+    plt.savefig('./outputs/far_rdm.pdf')
 
     plt.figure()
     ax = sns.heatmap(diff_rdm, cmap="YlGnBu")
-    plt.savefig('./diff_rdm.pdf')    
+    plt.savefig('./outputs/diff_rdm.pdf')    
