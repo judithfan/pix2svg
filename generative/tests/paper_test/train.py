@@ -170,7 +170,7 @@ if __name__ == "__main__":
         c3_acc_meter = AverageMeter()
 
         pbar = tqdm(total=len(test_loader))
-        for batch_idx, (sketch, good_photo, bad_photo, good_cat, bad_cat) in enumerate(train_loader):
+        for batch_idx, (sketch, good_photo, bad_photo, good_cat, bad_cat, soft_cat) in enumerate(train_loader):
             sketch = Variable(sketch, volatile=True)
             good_photo = Variable(good_photo, volatile=True)
             bad_photo = Variable(bad_photo, volatile=True)
