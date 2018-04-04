@@ -78,7 +78,7 @@ CATEGORY_NAME2IX_DICT = {v: k for k, v in CATEGORY_IX2NAME_DICT.iteritems()}
 
 
 class Generator(object):
-    """This takes all in images in 3 classes and uses them as 
+    """This takes all in images in 3 classes and uses them as
     training; it keeps the last class for testing. This is meant
     to measure cross-class generalization in sketchpad.
 
@@ -166,7 +166,7 @@ class Generator(object):
 
             for k, ix in enumerate(distractors_ix):
                 distractor_category = row[ix]
-                distractor_name = '{sketch}_{category}.npy'.format(sketch=sketch_base, 
+                distractor_name = '{sketch}_{category}.npy'.format(sketch=sketch_base,
                                                                    category=distractor_category)
                 if is_crop:
                     # if the current sketch is a crop, then find a distractor sketch which is
@@ -271,8 +271,8 @@ class Generator(object):
                 label_batch = Variable(label_batch, requires_grad=False)
                 sketch_cat_batch = Variable(sketch_cat_batch, requires_grad=False)
                 sketch_inst_batch = Variable(sketch_inst_batch, requires_grad=False)
-                
-                yield (render_batch, sketch_batch, label_batch, 
+
+                yield (render_batch, sketch_batch, label_batch,
                        sketch_cat_batch, sketch_inst_batch)
                 batch_idx = 0
 
@@ -325,7 +325,7 @@ class ContextFreeGenerator(Generator):
             context = [k] + v
             context = sorted(context)
             contexts.append(context)
-        unique_contexts = [list(x) for x in 
+        unique_contexts = [list(x) for x in
                            set(tuple(x) for x in contexts)]
         return unique_contexts
 
@@ -377,7 +377,7 @@ class ContextFreePreloadedGenerator(PreloadedGenerator):
             context = [k] + v
             context = sorted(context)
             contexts.append(context)
-        unique_contexts = [list(x) for x in 
+        unique_contexts = [list(x) for x in
                            set(tuple(x) for x in contexts)]
         return unique_contexts
 
@@ -434,9 +434,9 @@ def gen_instance_from_path(path):
 
 
 class ReferenceGamePreloadedGenerator(object):
-    """This generates pairs from the reference game data. 
-    This is not used for training purposes. This will yield a pair 
-    (sketch, render) for every sketch and every render, so it will 
+    """This generates pairs from the reference game data.
+    This is not used for training purposes. This will yield a pair
+    (sketch, render) for every sketch and every render, so it will
     be a total of |sketch| * |render| images.
 
     :param sketch_dir: path to folder of sketch pngs
@@ -445,7 +445,7 @@ class ReferenceGamePreloadedGenerator(object):
     """
     def __init__(self, data_dir='/data/jefan/sketchpad_basic_fixedpose96_conv_4_2', use_cuda=False):
         self.data_dir = data_dir
-        self.dtype = dtype = (torch.cuda.FloatTensor 
+        self.dtype = dtype = (torch.cuda.FloatTensor
                               if use_cuda else torch.FloatTensor)
 
         # only game ids in here are allowed
@@ -459,7 +459,7 @@ class ReferenceGamePreloadedGenerator(object):
                 good_sketch_paths.append(sketch_path)
         sketch_paths = good_sketch_paths
         # only 32 unique objects, so no need to look through too much.
-        render_paths = glob(os.path.join(self.data_dir, 'target', 
+        render_paths = glob(os.path.join(self.data_dir, 'target',
             'gameID_9903-d6e6a9ff-a878-4bee-b2d5-26e2e239460a_trial_*.npy'))
         self.generator = itertools.product(sketch_paths, render_paths)
         self.size = len(sketch_paths) * len(render_paths)
@@ -487,15 +487,15 @@ if __name__ == "__main__":
     parser.add_argument('--layer', type=str, help='conv42|fc6', default='conv42')
     args = parser.parse_args()
     assert args.layer in ['conv42', 'fc6']
-    
+
     data_dir = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_%s' % args.layer
     generator = ContextFreeGenerator(data_dir=data_dir)
     with open(os.path.join(data_dir, 'preloaded_context_all.pkl'), 'wb') as fp:
-        cPickle.dump({'cat2target': generator.cat2target, 
+        cPickle.dump({'cat2target': generator.cat2target,
                       'target2sketch': generator.target2sketch,
                       'distractor2sketch': generator.distractor2sketch,
                       'target2distractors': generator.target2distractors,
                       'path2folder': generator.path2folder,
                       'target2condition': generator.target2condition}, fp)
-    
+
     print('Pickle saved.')

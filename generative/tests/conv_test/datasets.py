@@ -65,12 +65,12 @@ CATEGORY_TO_INSTANCE_DICT = {
     'chair': ['inlay', 'knob', 'leather', 'sling', 'squat', 'straight', 'waiting', 'woven'],
 }
 
-INSTANCE_IX2NAME_DICT = {0: 'basset', 1: 'beetle', 2: 'bloodhound', 3: 'bluejay', 4: 'bluesedan', 
-                         5: 'bluesport', 6: 'brown', 7: 'bullmastiff', 8: 'chihuahua', 9: 'crow', 
-                         10: 'cuckoo', 11: 'doberman', 12: 'goldenretriever', 13: 'hatchback', 14: 'inlay', 
-                         15: 'knob', 16: 'leather', 17: 'nightingale', 18: 'pigeon', 19: 'pug', 
-                         20: 'redantique', 21: 'redsport', 22: 'robin', 23: 'sling', 24: 'sparrow', 
-                         25: 'squat', 26: 'straight', 27: 'tomtit', 28: 'waiting', 29: 'weimaraner', 
+INSTANCE_IX2NAME_DICT = {0: 'basset', 1: 'beetle', 2: 'bloodhound', 3: 'bluejay', 4: 'bluesedan',
+                         5: 'bluesport', 6: 'brown', 7: 'bullmastiff', 8: 'chihuahua', 9: 'crow',
+                         10: 'cuckoo', 11: 'doberman', 12: 'goldenretriever', 13: 'hatchback', 14: 'inlay',
+                         15: 'knob', 16: 'leather', 17: 'nightingale', 18: 'pigeon', 19: 'pug',
+                         20: 'redantique', 21: 'redsport', 22: 'robin', 23: 'sling', 24: 'sparrow',
+                         25: 'squat', 26: 'straight', 27: 'tomtit', 28: 'waiting', 29: 'weimaraner',
                          30: 'white', 31: 'woven'}
 INSTANCE_NAME2IX_DICT = {v: k for k, v in INSTANCE_IX2NAME_DICT.iteritems()}
 CATEGORY_IX2NAME_DICT = {0: 'bird', 1: 'car', 2: 'chair', 3: 'dog'}
@@ -78,7 +78,7 @@ CATEGORY_NAME2IX_DICT = {v: k for k, v in CATEGORY_IX2NAME_DICT.iteritems()}
 
 
 class Generator(object):
-    """This takes all in images in 3 classes and uses them as 
+    """This takes all in images in 3 classes and uses them as
     training; it keeps the last class for testing. This is meant
     to measure cross-class generalization in sketchpad.
 
@@ -93,7 +93,7 @@ class Generator(object):
     """
 
     def __init__(self, train=True, batch_size=10, use_cuda=False, closer_only=False,
-                 global_negatives=False, balance_crops=False, 
+                 global_negatives=False, balance_crops=False,
                  data_dir='/data/jefan/sketchpad_basic_fixedpose_conv_4_2'):
         self.data_dir = data_dir
         self.batch_size = batch_size
@@ -174,7 +174,7 @@ class Generator(object):
 
             for k, ix in enumerate(distractors_ix):
                 distractor_category = row[ix]
-                distractor_name = '{sketch}_{category}.npy'.format(sketch=sketch_base, 
+                distractor_name = '{sketch}_{category}.npy'.format(sketch=sketch_base,
                                                                    category=distractor_category)
                 if is_crop:
                     # if the current sketch is a crop, then find a distractor sketch which is
@@ -289,8 +289,8 @@ class Generator(object):
                 label_batch = Variable(label_batch, requires_grad=False)
                 sketch_cat_batch = Variable(sketch_cat_batch, requires_grad=False)
                 sketch_inst_batch = Variable(sketch_inst_batch, requires_grad=False)
-                
-                yield (render_batch, sketch_batch, label_batch, 
+
+                yield (render_batch, sketch_batch, label_batch,
                        sketch_cat_batch, sketch_inst_batch)
                 batch_idx = 0
 
@@ -316,7 +316,7 @@ class PreloadedGenerator(Generator):
         self.closer_only = closer_only
         self.global_negatives = global_negatives
         self.balance_crops = balance_crops
- 
+
         pickle_name = self.gen_pickle_name()
         with open(os.path.join(self.data_dir, pickle_name), 'r') as fp:
             data = cPickle.load(fp)
@@ -346,7 +346,7 @@ class ContextFreeGenerator(Generator):
             context = [k] + v
             context = sorted(context)
             contexts.append(context)
-        unique_contexts = [list(x) for x in 
+        unique_contexts = [list(x) for x in
                            set(tuple(x) for x in contexts)]
         return unique_contexts
 
@@ -398,7 +398,7 @@ class ContextFreePreloadedGenerator(PreloadedGenerator):
             context = [k] + v
             context = sorted(context)
             contexts.append(context)
-        unique_contexts = [list(x) for x in 
+        unique_contexts = [list(x) for x in
                            set(tuple(x) for x in contexts)]
         return unique_contexts
 
@@ -455,9 +455,9 @@ def gen_instance_from_path(path):
 
 
 class ReferenceGamePreloadedGenerator(object):
-    """This generates pairs from the reference game data. 
-    This is not used for training purposes. This will yield a pair 
-    (sketch, render) for every sketch and every render, so it will 
+    """This generates pairs from the reference game data.
+    This is not used for training purposes. This will yield a pair
+    (sketch, render) for every sketch and every render, so it will
     be a total of |sketch| * |render| images.
 
     :param sketch_dir: path to folder of sketch pngs
@@ -466,7 +466,7 @@ class ReferenceGamePreloadedGenerator(object):
     """
     def __init__(self, data_dir='/data/jefan/sketchpad_basic_fixedpose96_conv_4_2', use_cuda=False):
         self.data_dir = data_dir
-        self.dtype = dtype = (torch.cuda.FloatTensor 
+        self.dtype = dtype = (torch.cuda.FloatTensor
                               if use_cuda else torch.FloatTensor)
 
         # only game ids in here are allowed
@@ -480,7 +480,7 @@ class ReferenceGamePreloadedGenerator(object):
                 good_sketch_paths.append(sketch_path)
         sketch_paths = good_sketch_paths
         # only 32 unique objects, so no need to look through too much.
-        render_paths = glob(os.path.join(self.data_dir, 'target', 
+        render_paths = glob(os.path.join(self.data_dir, 'target',
             'gameID_9903-d6e6a9ff-a878-4bee-b2d5-26e2e239460a_trial_*.npy'))
         self.generator = itertools.product(sketch_paths, render_paths)
         self.size = len(sketch_paths) * len(render_paths)
@@ -527,7 +527,7 @@ if __name__ == "__main__":
     parser.add_argument('--photo_augment', action='store_true')
     args = parser.parse_args()
     assert args.layer in ['conv_4_2', 'fc7']
-    
+
     if args.photo_augment:
         data_dir = '/data/jefan/sketchpad_basic_fixedpose96_photo_augmented_%s' % args.layer
     else:
@@ -535,7 +535,7 @@ if __name__ == "__main__":
 
     generator = ContextFreeGenerator(data_dir=data_dir)
     with open(os.path.join(data_dir, 'preloaded_context_all.pkl'), 'wb') as fp:
-        cPickle.dump({'cat2target': generator.cat2target, 
+        cPickle.dump({'cat2target': generator.cat2target,
                       'target2sketch': generator.target2sketch,
                       'distractor2sketch': generator.distractor2sketch,
                       'target2distractors': generator.target2distractors,

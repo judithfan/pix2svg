@@ -19,7 +19,8 @@ from torch.utils.data.dataset import Dataset
 class SketchPlusGoodBadPhoto(Dataset):
     def __init__(self, layer='fc6', train=True, photo_transform=None, sketch_transform=None):
         super(SketchPlusGoodBadPhoto, self).__init__()
-        db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_%s' % layer
+        # db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_%s' % layer
+        db_path = '/data/jefan/sketchpad_basic_fixedpose96_%s'.format(layer)
         photos_path = os.path.join(db_path, 'photos')
         sketch_path = os.path.join(db_path, 'sketch')
         sketch_paths = os.listdir(sketch_path)
@@ -30,17 +31,17 @@ class SketchPlusGoodBadPhoto(Dataset):
         sketch_paths = [os.path.join(sketch_path, path) for path in sketch_paths]
 
         # this details how labels are stored (order of objects)
-        object_order = pd.read_csv('/mnt/visual_communication_dataset/human_confusion_object_order.csv')
+        object_order = pd.read_csv(os.path.join(db_path,'human_confusion_object_order.csv'))
         object_order = np.asarray(object_order['object_name']).tolist()
-        
+
         # load all 32 of them once since for every sketch we use the same 32 photos
         photo_paths = [os.path.join(photos_path, object_name + '.npy') for object_name in object_order]
-        photos = np.vstack([np.load(os.path.join(photos_path, object_name + '.npy'))[np.newaxis, ...] 
+        photos = np.vstack([np.load(os.path.join(photos_path, object_name + '.npy'))[np.newaxis, ...]
                             for object_name in object_order])
         photos = torch.from_numpy(photos)
 
         # load human annotated labels.
-        self.labels = np.load('/mnt/visual_communication_dataset/human_confusion.npy')
+        self.labels = np.load(os.path.join(db_path,'human_confusion.npy'))
         with open(os.path.join(db_path, 'sketchpad_context_dict.pickle')) as fp:
             self.context_dict = cPickle.load(fp)
 
@@ -63,7 +64,7 @@ class SketchPlusGoodBadPhoto(Dataset):
         self.sketch_dir = os.path.dirname(sketch_paths[0])
 
     def __getitem__(self, index):
-        sketch1_path = self.sketch_paths[index] 
+        sketch1_path = self.sketch_paths[index]
         sketch1_object = self.label_dict[os.path.basename(sketch1_path)]
         object1_ix = self.object_order.index(sketch1_object)
         other_object = random.choice(list(set(self.object_order) - set([sketch1_object])))
@@ -87,4 +88,3 @@ class SketchPlusGoodBadPhoto(Dataset):
 
     def __len__(self):
         return self.size
-
