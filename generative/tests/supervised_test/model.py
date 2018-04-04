@@ -11,7 +11,7 @@ import torch.nn.functional as F
 
 
 class SketchNet(nn.Module):
-    """Network that takes as input sketch and photo vectors and computes 
+    """Network that takes as input sketch and photo vectors and computes
     and adapted & normalized Euclidean distance between each photo and sketch.
 
     @param n_photos: integer [default: 32]
@@ -20,18 +20,19 @@ class SketchNet(nn.Module):
         super(SketchNet, self).__init__()
         self.sketch_adaptor = AdaptorNet()
         # there are 32 photos for each sketch
-        self.photo_adaptors = nn.ModuleList([AdaptorNet() for _ in xrange(n_photos)])
+        #self.photo_adaptors = nn.ModuleList([AdaptorNet() for _ in xrange(n_photos)])
+        self.photo_adaptor = AdaptorNet() ## trying out full weight sharing for photo adaptor rather than training multiple
         self.n_photos = n_photos
 
     def forward(self, photos, sketch):
         assert photos.size(1) == self.n_photos
-        # photos is a torch.Tensor of size batch_size x 32 x 4096 
+        # photos is a torch.Tensor of size batch_size x 32 x 4096
         # sketch is a torch.Tensor of size batch_size x 4096 (single sketch)
         sketch = self.sketch_adaptor(sketch)
-        photos = torch.cat([self.photo_adaptors[i](photos[:, i]).unsqueeze(1) 
+        photos = torch.cat([self.photo_adaptor(photos[:, i]).unsqueeze(1)
                             for i in xrange(self.n_photos)], dim=1)
         # compute euclidean distance from sketch to each photo
-        distances = torch.cat([torch.norm(photos[:, i] - sketch, p=2, dim=1).unsqueeze(1) 
+        distances = torch.cat([torch.norm(photos[:, i] - sketch, p=2, dim=1).unsqueeze(1)
                                for i in xrange(self.n_photos)], dim=1)
         # want this to sum to one
         distances = distances / torch.sum(distances, 1).unsqueeze(1)
@@ -44,12 +45,12 @@ class AdaptorNet(nn.Module):
         super(AdaptorNet, self).__init__()
         self.conv_layers = nn.Sequential(
             nn.Conv2d(512, 16, kernel_size=5, stride=1),
-            nn.BatchNorm2d(16),
+            # nn.BatchNorm2d(16),
             Swish(),
             nn.MaxPool2d(2, stride=2, dilation=1))
         self.fc_layers = nn.Sequential(
             nn.Linear(16 * 12 * 12, 1000),
-            nn.BatchNorm1d(1000),
+            # nn.BatchNorm1d(1000),
             Swish(),
             nn.Dropout(),
             nn.Linear(1000, 1000))
