@@ -103,6 +103,7 @@ if __name__ == "__main__":
                 bad_cat = bad_cat.cuda()
  
             optimizer.zero_grad()
+            import pdb; pdb.set_trace()
             (sketch_e, good_photo_e, bad_photo_e,
              sketch_c, good_photo_c, bad_photo_c) = model(sketch, good_photo, bad_photo)
             

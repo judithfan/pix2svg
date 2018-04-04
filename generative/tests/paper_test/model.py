@@ -35,7 +35,7 @@ class SketchNet(nn.Module):
 class CategoryNet(nn.Module):
     def __init__(self):
         super(CategoryNet, self).__init__()
-        self.category_head = nn.Linear(1000, 32)
+        self.category_head = nn.Linear(1024, 32)
 
     def forward(self, x):
         return self.category_head(x)
@@ -51,7 +51,14 @@ class AdaptorNet(nn.Module):
             nn.Linear(4096, 2048),
             nn.BatchNorm1d(2048),
             Swish(),
-            nn.Linear(2048, 1000)) 
+            nn.Linear(2048, 1024)) 
     
     def forward(self, input):
         return self.net(input)
+
+
+class Swish(nn.Module):
+    # https://arxiv.org/abs/1710.05941
+    def forward(self, x):
+        return x * F.sigmoid(x)
+
