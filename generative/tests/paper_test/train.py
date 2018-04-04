@@ -62,6 +62,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--soft-labels', action='store_true', default=False,
                         help='use soft or hard labels [default: False]')
+    parser.add_argument('--softplus-mse', action='store_true', default=False,
+                        help='use softplus+MSE instead of XEntropy [default: False]')
     parser.add_argument('--out-dir', type=str, default='./trained_models/', 
                         help='where to save model [default: ./trained_models/]')
     parser.add_argument('--batch-size', type=int, default=16, help='number of examples in a mini-batch [default: 16]')
@@ -118,7 +120,10 @@ if __name__ == "__main__":
             
             e_loss = F.triplet_margin_loss(sketch_e, good_photo_e, bad_photo_e, margin=15.)
             if args.soft_labels:
-                c1_loss = cross_entropy(sketch_c, soft_cat)
+                if args.softplus_mse:
+                    c1_loss = F.mse_loss(F.softplus(sketch_c), soft_cat)
+                else:
+                    c1_loss = cross_entropy(sketch_c, soft_cat)
             else:
                 c1_loss = F.cross_entropy(sketch_c, good_cat)
             c2_loss = F.cross_entropy(good_photo_c, good_cat)
@@ -189,7 +194,10 @@ if __name__ == "__main__":
             
             e_loss = F.triplet_margin_loss(sketch_e, good_photo_e, bad_photo_e, margin=15.)
             if args.soft_labels:
-                c1_loss = cross_entropy(sketch_c, soft_cat)
+                if args.softplus_mse:
+                    c1_loss = F.mse_loss(F.softplus(sketch_c), soft_cat)
+                else:
+                    c1_loss = cross_entropy(sketch_c, soft_cat)
             else:
                 c1_loss = F.cross_entropy(sketch_c, good_cat)
             c2_loss = F.cross_entropy(good_photo_c, good_cat)

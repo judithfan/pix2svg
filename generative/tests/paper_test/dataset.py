@@ -87,7 +87,7 @@ class SketchPlusGoodBadPhoto(Dataset):
         if self.soft_labels:
             context1 = self.context_dict[os.path.basename(sketch1_path)]
             context1 = 0 if context1 == 'closer' else 1
-            soft_label1 = self.labels[object1_ix, :, context1]
+            soft_label1 = torch.from_numpy(self.labels[object1_ix, :, context1]).float()
             return sketch1, photo1, photo2, object1_ix, object2_ix, soft_label1
             
         return sketch1, photo1, photo2, object1_ix, object2_ix, None
