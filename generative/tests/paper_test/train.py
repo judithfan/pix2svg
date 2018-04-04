@@ -35,6 +35,10 @@ def load_checkpoint(file_path, use_cuda=False):
     return model
 
 
+def cross_entropy(input, soft_targets):
+    return torch.mean(torch.sum(- soft_targets * F.log_softmax(input, dim=1), dim=1))
+
+
 class AverageMeter(object):
     """Computes and stores the average and current value"""
     def __init__(self):
@@ -56,6 +60,8 @@ class AverageMeter(object):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('--soft-labels', action='store_true', default=False,
+                        help='use soft or hard labels [default: False]')
     parser.add_argument('--out-dir', type=str, default='./trained_models/', 
                         help='where to save model [default: ./trained_models/]')
     parser.add_argument('--batch-size', type=int, default=16, help='number of examples in a mini-batch [default: 16]')
@@ -66,10 +72,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
     train_loader = torch.utils.data.DataLoader(
-        SketchPlusGoodBadPhoto(layer='fc6'),
+        SketchPlusGoodBadPhoto(layer='fc6', soft_labels=args.soft_labels),
         batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(
-        SketchPlusGoodBadPhoto(layer='fc6'),
+        SketchPlusGoodBadPhoto(layer='fc6', soft_labels=args.soft_labels),
         batch_size=args.batch_size, shuffle=False)
 
     model = SketchNet()
@@ -87,13 +93,15 @@ if __name__ == "__main__":
         c2_acc_meter = AverageMeter()
         c3_acc_meter = AverageMeter()
 
-        for batch_idx, (sketch, good_photo, bad_photo, good_cat, bad_cat) in enumerate(train_loader):
+        for batch_idx, (sketch, good_photo, bad_photo, good_cat, bad_cat, soft_cat) in enumerate(train_loader):
             sketch = Variable(sketch)
             good_photo = Variable(good_photo)
             bad_photo = Variable(bad_photo)
             good_cat = Variable(good_cat)
             bad_cat = Variable(bad_cat)
             batch_size = len(good_photo)
+            if args.soft_labels:
+                soft_cat = Variable(soft_cat)
 
             if args.cuda:
                 sketch = sketch.cuda()
@@ -101,18 +109,26 @@ if __name__ == "__main__":
                 bad_photo = bad_photo.cuda()
                 good_cat = good_cat.cuda()
                 bad_cat = bad_cat.cuda()
+                if args.soft_labels:
+                    soft_cat = soft_cat.cuda()
  
             optimizer.zero_grad()
             (sketch_e, good_photo_e, bad_photo_e,
              sketch_c, good_photo_c, bad_photo_c) = model(sketch, good_photo, bad_photo)
             
             e_loss = F.triplet_margin_loss(sketch_e, good_photo_e, bad_photo_e, margin=15.)
-            c1_loss = F.cross_entropy(sketch_c, good_cat)
+            if args.soft_labels:
+                c1_loss = cross_entropy(sketch_c, soft_cat)
+            else:
+                c1_loss = F.cross_entropy(sketch_c, good_cat)
             c2_loss = F.cross_entropy(good_photo_c, good_cat)
             c3_loss = F.cross_entropy(bad_photo_c, bad_cat)
             loss = e_loss + c1_loss + c2_loss + c3_loss
             
-            c1_acc = np.sum(np.argmax(sketch_c.cpu().data.numpy(), axis=1) == good_cat.cpu().data.numpy()) / float(batch_size)
+            if args.soft_labels:
+                c1_acc = -1.
+            else:
+                c1_acc = np.sum(np.argmax(sketch_c.cpu().data.numpy(), axis=1) == good_cat.cpu().data.numpy()) / float(batch_size)
             c2_acc = np.sum(np.argmax(good_photo_c.cpu().data.numpy(), axis=1) == good_cat.cpu().data.numpy()) / float(batch_size)
             c3_acc = np.sum(np.argmax(bad_photo_c.cpu().data.numpy(), axis=1) == bad_cat.cpu().data.numpy()) / float(batch_size)
             
@@ -156,6 +172,8 @@ if __name__ == "__main__":
             good_cat = Variable(good_cat, volatile=True)
             bad_cat = Variable(bad_cat, volatile=True)
             batch_size = len(good_photo)
+            if args.soft_labels:
+                soft_cat = Variable(soft_cat)
 
             if args.cuda:
                 sketch = sketch.cuda()
@@ -163,16 +181,24 @@ if __name__ == "__main__":
                 bad_photo = bad_photo.cuda()
                 good_cat = good_cat.cuda()
                 bad_cat = bad_cat.cuda()
+                if args.soft_labels:
+                    soft_cat = soft_cat.cuda()
 
             (sketch_e, good_photo_e, bad_photo_e,
              sketch_c, good_photo_c, bad_photo_c) = model(sketch, good_photo, bad_photo)
             
             e_loss = F.triplet_margin_loss(sketch_e, good_photo_e, bad_photo_e, margin=15.)
-            c1_loss = F.cross_entropy(sketch_c, good_cat)
+            if args.soft_labels:
+                c1_loss = cross_entropy(sketch_c, soft_cat)
+            else:
+                c1_loss = F.cross_entropy(sketch_c, good_cat)
             c2_loss = F.cross_entropy(good_photo_c, good_cat)
             c3_loss = F.cross_entropy(bad_photo_c, bad_cat)
 
-            c1_acc = np.sum(np.argmax(sketch_c.cpu().data.numpy(), axis=1) == good_cat.cpu().data.numpy()) / float(batch_size)
+            if args.soft_labels:
+                c1_acc = -1.
+            else:
+                c1_acc = np.sum(np.argmax(sketch_c.cpu().data.numpy(), axis=1) == good_cat.cpu().data.numpy()) / float(batch_size)
             c2_acc = np.sum(np.argmax(good_photo_c.cpu().data.numpy(), axis=1) == good_cat.cpu().data.numpy()) / float(batch_size)
             c3_acc = np.sum(np.argmax(bad_photo_c.cpu().data.numpy(), axis=1) == bad_cat.cpu().data.numpy()) / float(batch_size)
             

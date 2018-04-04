@@ -17,7 +17,7 @@ from torch.utils.data.dataset import Dataset
 
 
 class SketchPlusGoodBadPhoto(Dataset):
-    def __init__(self, layer='fc6', train=True, photo_transform=None, sketch_transform=None):
+    def __init__(self, layer='fc6', soft_labels=False, train=True, photo_transform=None, sketch_transform=None):
         super(SketchPlusGoodBadPhoto, self).__init__()
         db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_%s' % layer
         photos_path = os.path.join(db_path, 'photos')
@@ -61,6 +61,7 @@ class SketchPlusGoodBadPhoto(Dataset):
         self.photo_transform = photo_transform
         self.sketch_transform = sketch_transform
         self.sketch_dir = os.path.dirname(sketch_paths[0])
+        self.soft_labels = soft_labels
 
     def __getitem__(self, index):
         sketch1_path = self.sketch_paths[index] 
@@ -83,7 +84,13 @@ class SketchPlusGoodBadPhoto(Dataset):
             photo1 = self.photo_transform(photo1)
             photo2 = self.photo_transform(photo2)
 
-        return sketch1, photo1, photo2, object1_ix, object2_ix
+        if self.soft_labels:
+            context1 = self.context_dict[os.path.basename(sketch1_path)]
+            context1 = 0 if context1 == 'closer' else 1
+            soft_label1 = self.labels[object1_ix, :, context1]
+            return sketch1, photo1, photo2, object1_ix, object2_ix, soft_label1
+            
+        return sketch1, photo1, photo2, object1_ix, object2_ix, None
 
     def __len__(self):
         return self.size
