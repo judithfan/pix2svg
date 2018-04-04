@@ -36,8 +36,8 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('out_dir', type=str)
-    parser.add_argument('--layer', type=str, help='conv_4_2|fc7 (default: conv_4_2)', 
-                        default='conv_4_2')
+    parser.add_argument('--layer', type=str, help='conv42|fc6 (default: conv42)', 
+                        default='conv42')
     parser.add_argument('--batch_size', type=int, default=25, help='(default: batch_size)')
     parser.add_argument('--lr', type=float, default=1e-3, help='(default: 1e-3)')
     parser.add_argument('--epochs', type=int, default=20, help='(default: 20)')
@@ -47,14 +47,14 @@ if __name__ == "__main__":
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
-    assert args.layer in ['conv_4_2', 'fc7']
+    assert args.layer in ['conv42', 'fc6']
 
     if args.photo_augment:
-        data_dir = '/data/jefan/sketchpad_basic_fixedpose96_photo_augmented_%s' % args.layer
+        raise Exception('photo-augmented is not supported')
     else:
-        data_dir = '/data/jefan/sketchpad_basic_fixedpose96_%s' % args.layer
+        data_dir = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_%s' % args.layer
 
-    EmbedNet = ConvEmbedNet if args.layer == 'conv_4_2' else FCEmbedNet
+    EmbedNet = ConvEmbedNet if args.layer == 'conv42' else FCEmbedNet
 
     def reset_generators():
         train_generator = Generator(train=True, batch_size=args.batch_size, use_cuda=args.cuda, 
