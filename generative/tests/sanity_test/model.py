@@ -20,6 +20,7 @@ class SketchNet(nn.Module):
         # self.sketch_adaptor = ConvAdaptorNet()
         # self.photo_adaptor = ConvAdaptorNet()
         # self.merge_adaptor = MergeAdaptor()
+        self.bilinear_adaptor = BilinearAdaptor()
         self.neural_distance = NeuralDistance()
         # self.norm = nn.BatchNorm1d(2000)
         self.swish = Swish()
@@ -29,10 +30,12 @@ class SketchNet(nn.Module):
         # input = self.predictor(input)
         photo = self.photo_adaptor(photo)
         sketch = self.sketch_adaptor(sketch)
-        input = torch.cat((photo, sketch), dim=1)
-        input = self.swish(input)
+        # photo = self.swish(photo)
+        # sketch = self.swish(sketch)
+        # input = torch.cat((photo, sketch), dim=1)
         # input = self.merge_adaptor(input)
-        input = self.neural_distance(input)
+        # sketch = self.bilinear_adaptor(sketch)
+        input = self.neural_distance(photo, sketch)
         # photo, sketch = torch.chunk(input, 2, dim=1)
         # input = pearson_correlation(photo, sketch)
         return F.sigmoid(input)
@@ -50,7 +53,9 @@ class SketchNetSoft(nn.Module):
     def forward(self, photo, sketch):
         photo = self.photo_adaptor(photo)
         sketch = self.sketch_adaptor(sketch)
-        input = self.swish(torch.cat((photo, sketch), dim=1))
+        photo = self.swish(photo)
+        sketch = self.swish(sketch)
+        input = torch.cat((photo, sketch), dim=1)
         input = self.merge_adaptor(input)
         # input = self.neural_distance(input)
         return F.softplus(input)
@@ -92,6 +97,15 @@ class ConvAdaptorNet(nn.Module):
         return self.fc_layers(x)
 
 
+class BilinearAdaptor(nn.Module):
+    def __init__(self):
+        super(BilinearAdaptor, self).__init__()
+        self.M = Parameter(torch.normal(torch.zeros(1000, 1000), 1))
+   
+    def forward(self, sketch):
+        return torch.matmul(sketch, self.M)
+ 
+
 class MergeAdaptor(nn.Module):
     def __init__(self):
         super(MergeAdaptor, self).__init__()
@@ -111,7 +125,8 @@ class NeuralDistance(nn.Module):
         super(NeuralDistance, self).__init__()
         self.net = nn.Sequential(nn.Linear(2000, 1))
 
-    def forward(self, input):
+    def forward(self, photo, sketch):
+        input = torch.cat((photo, sketch), dim=1) 
         return self.net(input)
 
 
