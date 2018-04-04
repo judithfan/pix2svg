@@ -12,7 +12,7 @@ import torch.nn.functional as F
 
 
 class SketchNet(nn.Module):
-    """Network that takes as input sketch and photo vectors and computes 
+    """Network that takes as input sketch and photo vectors and computes
     and adapted & normalized Euclidean distance between each photo and sketch.
 
     @param n_photos: integer [default: 32]
@@ -34,7 +34,7 @@ class SketchNet(nn.Module):
     def forward(self, photos, sketch):
         batch_size = photos.size(0)
         assert photos.size(1) == self.n_photos
-        # photos is a torch.Tensor of size batch_size x 32 x 4096 
+        # photos is a torch.Tensor of size batch_size x 32 x 4096
         # sketch is a torch.Tensor of size batch_size x 4096 (single sketch)
         sketch = self.sketch_adaptor(sketch)
         photos = torch.cat([self.photo_adaptor(photos[:, i]).unsqueeze(1)
