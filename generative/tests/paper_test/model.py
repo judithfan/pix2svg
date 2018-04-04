@@ -25,9 +25,9 @@ class SketchNet(nn.Module):
         good_photo_emb = self.photo_adaptor(good_photo)
         bad_photo_emb = self.photo_adaptor(bad_photo)
         
-        sketch_cls = self.sketch_classifier(sketch)
-        good_photo_cls = self.photo_classifier(good_photo)
-        bad_photo_cls = self.photo_classifier(bad_photo)
+        sketch_cls = self.sketch_classifier(sketch_emb)
+        good_photo_cls = self.photo_classifier(good_photo_emb)
+        bad_photo_cls = self.photo_classifier(bad_photo_emb)
         return (sketch_emb, good_photo_emb, bad_photo_emb, 
                 sketch_cls, good_photo_cls, bad_photo_cls)
 

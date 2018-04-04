@@ -60,7 +60,7 @@ if __name__ == "__main__":
                         help='where to save model [default: ./trained_models/]')
     parser.add_argument('--batch-size', type=int, default=16, help='number of examples in a mini-batch [default: 16]')
     parser.add_argument('--lr', type=float, default=1e-5, help='learning rate [default: 1e-5]')
-    parser.add_argument('--epochs', type=int, default=500, help='number of epochs [default: 500]')
+    parser.add_argument('--epochs', type=int, default=100, help='number of epochs [default: 100]')
     parser.add_argument('--log-interval', type=int, default=10, help='how frequently to print stats [default: 10]')
     parser.add_argument('--cuda', action='store_true', default=False) 
     args = parser.parse_args()
@@ -93,7 +93,7 @@ if __name__ == "__main__":
             bad_photo = Variable(bad_photo)
             good_cat = Variable(good_cat)
             bad_cat = Variable(bad_cat)
-            batch_size = len(photo)
+            batch_size = len(good_photo)
 
             if args.cuda:
                 sketch = sketch.cuda()
@@ -103,7 +103,6 @@ if __name__ == "__main__":
                 bad_cat = bad_cat.cuda()
  
             optimizer.zero_grad()
-            import pdb; pdb.set_trace()
             (sketch_e, good_photo_e, bad_photo_e,
              sketch_c, good_photo_c, bad_photo_c) = model(sketch, good_photo, bad_photo)
             
@@ -156,7 +155,7 @@ if __name__ == "__main__":
             bad_photo = Variable(bad_photo, volatile=True)
             good_cat = Variable(good_cat, volatile=True)
             bad_cat = Variable(bad_cat, volatile=True)
-            batch_size = len(photo)
+            batch_size = len(good_photo)
 
             if args.cuda:
                 sketch = sketch.cuda()

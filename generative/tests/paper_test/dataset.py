@@ -85,6 +85,6 @@ class SketchPlusGoodBadPhoto(Dataset):
 
         return sketch1, photo1, photo2, object1_ix, object2_ix
 
-    def __size__(self):
+    def __len__(self):
         return self.size
 
