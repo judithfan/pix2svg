@@ -51,6 +51,7 @@ if __name__ == "__main__":
             sketch = sketch.view(batch_size * 4, 4096)
             label = label.view(batch_size * 4)
             pred = model(photo, sketch)
+            import pdb; pdb.set_trace()
             loss = F.binary_cross_entropy(pred, label.unsqueeze(1))
             loss_meter.update(loss.data[0], batch_size)
             label_np = np.round(label.cpu().data.numpy(), 0)

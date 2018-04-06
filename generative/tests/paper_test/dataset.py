@@ -90,7 +90,7 @@ class SketchPlusGoodBadPhoto(Dataset):
             soft_label1 = torch.from_numpy(self.labels[object1_ix, :, context1]).float()
             return sketch1, photo1, photo2, object1_ix, object2_ix, soft_label1
             
-        return sketch1, photo1, photo2, object1_ix, object2_ix, None
+        return sketch1, photo1, photo2, object1_ix, object2_ix, -1
 
     def __len__(self):
         return self.size

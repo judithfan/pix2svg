@@ -69,7 +69,7 @@ if __name__ == "__main__":
     args.cuda = args.cuda and torch.cuda.is_available()
     train_loader = torch.utils.data.DataLoader(
         SketchPlusPhoto(layer='fc6', soft_labels=args.soft_labels),
-        batch_size=args.batch_size, shuffle=False)
+        batch_size=args.batch_size, shuffle=True)
     test_loader = torch.utils.data.DataLoader(
         SketchPlusPhoto(layer='fc6', soft_labels=args.soft_labels),
         batch_size=args.batch_size, shuffle=False)
@@ -159,6 +159,6 @@ if __name__ == "__main__":
             'optimizer' : optimizer.state_dict(),
         }, is_best, folder=args.out_dir)
         # reload the dataset
-        train_loader = torch.utils.data.DataLoader(
-            SketchPlusPhoto(layer='fc6', soft_labels=args.soft_labels),
-            batch_size=args.batch_size, shuffle=False)
+        # train_loader = torch.utils.data.DataLoader(
+        #     SketchPlusPhoto(layer='fc6', soft_labels=args.soft_labels),
+        #     batch_size=args.batch_size, shuffle=False)

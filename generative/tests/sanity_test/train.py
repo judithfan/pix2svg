@@ -77,7 +77,7 @@ if __name__ == "__main__":
     model = SketchNet()
     if args.cuda:
         model.cuda()
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=2e-3)
     
     def train(epoch):
         model.train()

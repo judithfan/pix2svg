@@ -14,28 +14,31 @@ import torch.nn.functional as F
 class SketchNet(nn.Module):
     def __init__(self):
         super(SketchNet, self).__init__()
-        # self.predictor = PredictorNet()
-        self.sketch_adaptor = AdaptorNet()
-        self.photo_adaptor = AdaptorNet()
+        # self.concat_distance = ConcatDistance()
+        self.predictor = PredictorNet()
+        # self.sketch_adaptor = AdaptorNet()
+        # self.photo_adaptor = AdaptorNet()
         # self.sketch_adaptor = ConvAdaptorNet()
         # self.photo_adaptor = ConvAdaptorNet()
         # self.merge_adaptor = MergeAdaptor()
-        self.bilinear_adaptor = BilinearAdaptor()
-        self.neural_distance = NeuralDistance()
+        # self.bilinear_adaptor = BilinearAdaptor()
+        # self.neural_distance = nn.Linear(2000, 1)
         # self.norm = nn.BatchNorm1d(2000)
-        self.swish = Swish()
+        # self.swish = Swish()
 
     def forward(self, photo, sketch):
-        # input = torch.cat((photo, sketch), dim=1)
-        # input = self.predictor(input)
-        photo = self.photo_adaptor(photo)
-        sketch = self.sketch_adaptor(sketch)
+        input = torch.cat((photo, sketch), dim=1)
+        # input = self.concat_distance(input)
+        input = self.predictor(input)
+        # photo = self.photo_adaptor(photo)
+        # sketch = self.sketch_adaptor(sketch)
+        # prod = photo * sketch
         # photo = self.swish(photo)
         # sketch = self.swish(sketch)
         # input = torch.cat((photo, sketch), dim=1)
         # input = self.merge_adaptor(input)
         # sketch = self.bilinear_adaptor(sketch)
-        input = self.neural_distance(photo, sketch)
+        # input = self.neural_distance(input)
         # photo, sketch = torch.chunk(input, 2, dim=1)
         # input = pearson_correlation(photo, sketch)
         return F.sigmoid(input)
@@ -66,10 +69,10 @@ class AdaptorNet(nn.Module):
         super(AdaptorNet, self).__init__()
         self.net = nn.Sequential(
             nn.Linear(4096, 4096),
-            nn.BatchNorm1d(4096),
+            # nn.BatchNorm1d(4096),
             Swish(),
             nn.Linear(4096, 2048),
-            nn.BatchNorm1d(2048),
+            # nn.BatchNorm1d(2048),
             Swish(),
             nn.Linear(2048, 1000)) 
     
@@ -121,13 +124,22 @@ class MergeAdaptor(nn.Module):
 
 
 class NeuralDistance(nn.Module):
-    def __init__(self):
+    def __init__(self, num_inputs):
         super(NeuralDistance, self).__init__()
-        self.net = nn.Sequential(nn.Linear(2000, 1))
+        self.net = nn.Sequential(nn.Linear(num_inputs, 1))
 
     def forward(self, photo, sketch):
         input = torch.cat((photo, sketch), dim=1) 
         return self.net(input)
+
+
+class ConcatDistance(nn.Module):
+    def __init__(self):
+        super(ConcatDistance, self).__init__()
+        self.net = nn.Sequential(nn.Linear(8192, 1))
+
+    def forward(self, x):
+        return self.net(x)
 
 
 class PredictorNet(nn.Module):
@@ -147,6 +159,9 @@ class PredictorNet(nn.Module):
             nn.BatchNorm1d(256),
             Swish(),
             nn.Linear(256, 1))
+            # nn.Linear(8192, 256),
+            # Swish(),
+            # nn.Linear(256, 1))
 
     def forward(self, x):
         return self.net(x)
