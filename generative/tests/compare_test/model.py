@@ -11,6 +11,9 @@ from torch.nn.parameter import Parameter
 import torch.nn.functional as F
 
 
+# Epoch: 500
+# Train Loss: 0.6355    Train Acc: 0.60
+# Test  Loss: 0.9016    Test  Acc: 0.47
 class ModelA(nn.Module):
     # 8192 --> 1
     def __init__(self):
@@ -23,6 +26,9 @@ class ModelA(nn.Module):
         return F.sigmoid(input)
 
 
+# Epoch: 500
+# Train Loss: 0.5361     Train Acc: 0.69
+# Test  Loss: 1.1756     Test  Acc: 0.46
 class ModelB(nn.Module):
     # 8192 --> 256 --> 1
     def __init__(self):
@@ -39,6 +45,9 @@ class ModelB(nn.Module):
         return F.sigmoid(input)
 
 
+# Epoch: 500
+# Train Loss: 0.4897     Train Acc: 0.71
+# Test  Loss: 2.1062     Test  Acc: 0.49
 class ModelC(nn.Module):
     # 8192 --> 4096 --> 2048 --> 1024 --> 256 --> 1
     def __init__(self):
@@ -61,6 +70,9 @@ class ModelC(nn.Module):
         return F.sigmoid(input)
 
 
+# Epoch: 500
+# Train Loss: 0.0104    Train Acc: 0.99
+# Test  Loss: 4.1160    Test  Acc: 0.48
 class ModelD(nn.Module):
     # adaptors --> cat --> 1
     def __init__(self):
@@ -77,6 +89,9 @@ class ModelD(nn.Module):
         return F.sigmoid(input)
 
 
+# Epoch: 500
+# Train Loss: 0.0079     Train Acc: 0.99
+# Test  Loss: 5.0543     Test  Acc: 0.47
 class ModelE(nn.Module):
     # adaptors --> swish --> cat --> 1
     def __init__(self):
@@ -94,6 +109,9 @@ class ModelE(nn.Module):
         return F.sigmoid(input)
 
 
+# Epoch: 500
+# Train Loss: 0.0075    Train Acc: 0.99
+# Test  Loss: 6.9078    Test Acc : 0.48
 class ModelF(nn.Module):
     # adaptors --> cat --> 256 --> 1
     def __init__(self):
@@ -114,6 +132,9 @@ class ModelF(nn.Module):
         return F.sigmoid(input)
 
 
+# Epoch: 500
+# Train Loss: 0.0240    Train Acc: 0.99
+# Test  Loss: 3.7667    Test  Acc: 0.46
 class ModelG(nn.Module):
     # adaptors --> cat w/ prod --> 1
     def __init__(self):
@@ -130,6 +151,9 @@ class ModelG(nn.Module):
         return F.sigmoid(input)
 
 
+# Epoch: 500
+# Train Loss: 0.3420    Train Acc: 0.97
+# Test  Loss: 0.8223    Test  Acc: 0.46
 class ModelH(nn.Module):
     def __init__(self):
         super(ModelH, self).__init__()
@@ -143,6 +167,9 @@ class ModelH(nn.Module):
         return F.sigmoid(dist)
 
 
+# Epoch: 383
+# Train Loss: 0.4019    Train Acc: 0.91
+# Test  Loss: 0.8413    Test  Acc: 0.47
 class ModelI(nn.Module):
     def __init__(self):
         super(ModelI, self).__init__()
@@ -164,6 +191,9 @@ class ModelI(nn.Module):
         return F.sigmoid(dist)
 
 
+# Epoch: 500
+# Train Loss: 0.0108    Train Acc: 0.99
+# Test  Loss: 2.2515    Test  Acc: 0.46
 class ModelJ(nn.Module):
     def __init__(self):
         super(ModelJ, self).__init__()
@@ -179,6 +209,9 @@ class ModelJ(nn.Module):
         return F.sigmoid(self.norm(input))
 
 
+# Epoch: 500
+# Train Loss: 0.0116    Train Acc: 0.99
+# Test  Loss: 2.3577    Test  Acc: 0.46
 class ModelK(nn.Module):
     def __init__(self):
         super(ModelK, self).__init__()
