@@ -51,8 +51,8 @@ if __name__ == "__main__":
     parser.add_argument('model', type=str, help='ModelA|ModelB|ModelC|ModelD|ModelE|ModelF|ModelG|ModelH|ModelI|ModelJ|ModelK')
     # parser.add_argument('--soft-labels', action='store_true', default=False,
     #                     help='use soft or hard labels [default: False]')
-    parser.add_argument('--batch-size', type=int, default=32, 
-                        help='number of examples in a mini-batch [default: 32]')
+    parser.add_argument('--batch-size', type=int, default=64, 
+                        help='number of examples in a mini-batch [default: 64]')
     parser.add_argument('--lr', type=float, default=3e-4, help='learning rate [default: 3e-4]')
     parser.add_argument('--epochs', type=int, default=500, help='number of epochs [default: 500]')
     parser.add_argument('--log-interval', type=int, default=10, help='how frequently to print stats [default: 10]')
@@ -62,13 +62,35 @@ if __name__ == "__main__":
     args.out_dir = os.path.join('./trained_models/', args.model)
 
     train_loader = torch.utils.data.DataLoader(
-        SketchPlusPhotoGroup(layer='fc6', train=True, soft_labels=False),
-        batch_size=args.batch_size, shuffle=False)
+        SketchPlusPhotoDataset(layer='fc6', train=True, soft_labels=False),
+        batch_size=args.batch_size, shuffle=True)
     test_loader = torch.utils.data.DataLoader(
-        SketchPlusPhotoGroup(layer='fc6', train=False, soft_labels=False),
+        SketchPlusPhotoDataset(layer='fc6', train=False, soft_labels=False),
         batch_size=args.batch_size, shuffle=False)
 
-    model = SketchNet()
+    if args.model == 'ModelA':
+        model = ModelA()
+    elif args.model == 'ModelB':
+        model = ModelB()
+    elif args.model == 'ModelC':
+        model = ModelC()
+    elif args.model == 'ModelD':
+        model = ModelD()
+    elif args.model == 'ModelE':
+        model = ModelE()
+    elif args.model == 'ModelF':
+        model = ModelF()
+    elif args.model == 'ModelG':
+        model = ModelG()
+    elif args.model == 'ModelH':
+        model = ModelH()
+    elif args.model == 'ModelI':
+        model = ModelI()
+    elif args.model == 'ModelJ':
+        model = ModelJ()
+    elif args.model == 'ModelK':
+        model = ModelK()
+
     if args.cuda:
         model.cuda()
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -81,7 +103,7 @@ if __name__ == "__main__":
         for batch_idx, (photo, sketch, label) in enumerate(train_loader):
             photo = Variable(photo)
             sketch = Variable(sketch)
-            label = Variable(label)
+            label = Variable(label).float()
             batch_size = len(photo)
 
             if args.cuda:
@@ -119,7 +141,7 @@ if __name__ == "__main__":
         for batch_idx, (photo, sketch, label) in enumerate(test_loader):
             photo = Variable(photo, volatile=True)
             sketch = Variable(sketch, volatile=True)
-            label = Variable(label, requires_grad=False)
+            label = Variable(label, requires_grad=False).float()
             batch_size = len(photo)
 
             if args.cuda:
@@ -153,3 +175,8 @@ if __name__ == "__main__":
             'modelType': args.model,
             'optimizer' : optimizer.state_dict(),
         }, is_best, folder=args.out_dir)
+
+        train_loader = torch.utils.data.DataLoader(
+            SketchPlusPhotoDataset(layer='fc6', train=True, soft_labels=False),
+            batch_size=args.batch_size, shuffle=False)
+

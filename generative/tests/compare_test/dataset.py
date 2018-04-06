@@ -68,10 +68,10 @@ class SketchPlusPhotoDataset(Dataset):
         all_closer_basepaths = [path for path in sketch_basepaths if self.context_dict[path] == 'closer']
         all_further_basepaths = [path for path in sketch_basepaths if self.context_dict[path] == 'further']
 
-        train_closer_basepaths = list(set(all_closer_basepaths).intersect(set(train_sketch_basepaths)))
-        train_further_basepaths = list(set(all_further_basepaths).intersect(set(train_sketch_basepaths)))
-        n_closer_train = train_closer_basepaths
-        n_further_train = train_further_basepaths
+        train_closer_basepaths = list(set(all_closer_basepaths).intersection(set(train_sketch_basepaths)))
+        train_further_basepaths = list(set(all_further_basepaths).intersection(set(train_sketch_basepaths)))
+        n_closer_train = len(train_closer_basepaths)
+        n_further_train = len(train_further_basepaths)
 
         if n_closer_train > n_further_train:
             n_diff = n_closer_train - n_further_train
@@ -82,8 +82,10 @@ class SketchPlusPhotoDataset(Dataset):
 
         train_sketch_paths = [os.path.join(sketch_dirname, path) for path in train_sketch_basepaths]
         test_sketch_paths = [os.path.join(sketch_dirname, path) for path in test_sketch_basepaths]
-        sketch_paths = train_sketch_paths if self.train else test_sketch_paths
+        sketch_paths = train_sketch_paths if train else test_sketch_paths
 
+        self.train = train
+        self.use_soft_labels = soft_labels
         self.photo_32_paths = photo_32_paths
         self.object_order = object_order
         self.sketch_paths = sketch_paths
@@ -102,7 +104,7 @@ class SketchPlusPhotoDataset(Dataset):
                        [0 for _ in xrange(len(neg_sketch_paths))])
         soft_labels = [self.annotations[self.object_order.index(self.label_dict[os.path.basename(sketch)]), 
                                         self.object_order.index(os.path.splitext(os.path.basename(photo))[0]),
-                                        self.context_dict[os.path.basename(sketch)]] 
+                                        0 if self.context_dict[os.path.basename(sketch)] == 'closer' else 1] 
                        for photo, sketch in zip(photo_paths, sketch_paths)]
         examples = zip(photo_paths, sketch_paths, hard_labels, soft_labels)
         random.shuffle(examples)
@@ -131,14 +133,14 @@ class SketchPlusPhotoDataset(Dataset):
             neg_sketch_paths.append(neg_sketch_path)
             neg_photo_paths.append(photo_paths[object2_ix])
             pos_sketch_paths.append(sketch_path)
-            pos_photo_paths.append(photo_paths[object_1_ix])
+            pos_photo_paths.append(photo_paths[object1_ix])
 
         return pos_photo_paths, pos_sketch_paths, neg_photo_paths, neg_sketch_paths
 
     def __getitem__(self, index):
         photo = torch.from_numpy(np.load(self.photo_data[index]))
         sketch = torch.from_numpy(np.load(self.sketch_data[index]))
-        label = self.soft_labels[index] if self.soft_labels else self.hard_labels[index]
+        label = self.soft_labels[index] if self.use_soft_labels else self.hard_labels[index]
 
         if self.sketch_transform:
             sketch = self.sketch_transform(sketch)

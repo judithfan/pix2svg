@@ -25,12 +25,13 @@ class ModelA(nn.Module):
 
 class ModelB(nn.Module):
     # 8192 --> 256 --> 1
-    super(ModelB, self).__init__() 
-    self.net = nn.Sequential(
-        nn.Linear(8192, 256),
-        nn.LeakyReLU(),
-        nn.Linear(256, 1),
-    )
+    def __init__(self):
+        super(ModelB, self).__init__() 
+        self.net = nn.Sequential(
+            nn.Linear(8192, 256),
+            nn.LeakyReLU(),
+            nn.Linear(256, 1),
+        )
 
     def forward(self, photo, sketch):
         input = torch.cat((photo, sketch), dim=1)
@@ -40,18 +41,19 @@ class ModelB(nn.Module):
 
 class ModelC(nn.Module):
     # 8192 --> 4096 --> 2048 --> 1024 --> 256 --> 1
-    super(ModelC, self).__init__() 
-    self.net = nn.Sequential(
-        nn.Linear(8192, 4096),
-        nn.LeakyReLU(),
-        nn.Linear(4096, 2048),
-        nn.LeakyReLU(),
-        nn.Linear(2048, 1024),
-        nn.LeakyReLU(),
-        nn.Linear(1024, 256),
-        nn.LeakyReLU(),
-        nn.Linear(256, 1),
-    )
+    def __init__(self):
+        super(ModelC, self).__init__() 
+        self.net = nn.Sequential(
+            nn.Linear(8192, 4096),
+            nn.LeakyReLU(),
+            nn.Linear(4096, 2048),
+            nn.LeakyReLU(),
+            nn.Linear(2048, 1024),
+            nn.LeakyReLU(),
+            nn.Linear(1024, 256),
+            nn.LeakyReLU(),
+            nn.Linear(256, 1),
+        )
 
     def forward(self, photo, sketch):
         input = torch.cat((photo, sketch), dim=1)
@@ -65,7 +67,7 @@ class ModelD(nn.Module):
         super(ModelD, self).__init__()
         self.photo_adaptor = AdaptorNet()
         self.sketch_adaptor = AdaptorNet()
-        self.fc = nn.Linear(256, 1)
+        self.fc = nn.Linear(2000, 1)
 
     def forward(self, photo, sketch):
         photo = self.photo_adaptor(photo)
@@ -108,7 +110,7 @@ class ModelF(nn.Module):
         photo = self.photo_adaptor(photo)
         sketch = self.sketch_adaptor(sketch)
         input = torch.cat((photo, sketch), dim=1)
-        input = self.fc(input)
+        input = self.net(input)
         return F.sigmoid(input)
 
 
@@ -143,7 +145,7 @@ class ModelH(nn.Module):
 
 class ModelI(nn.Module):
     def __init__(self):
-        super(ModelH, self).__init__()
+        super(ModelI, self).__init__()
         self.photo_adaptor = AdaptorNet()
         self.sketch_adaptor = AdaptorNet()
         self.net = nn.Sequential(
@@ -173,7 +175,7 @@ class ModelJ(nn.Module):
     def forward(self, photo, sketch):
         photo = self.photo_adaptor(photo)
         sketch = self.sketch_adaptor(sketch)
-        input = torch.bmm(torch.matmul(photo, self.M).unsqueeze(1), sketch.unsqueeze(2)).squeeze(1).squeeze(1)
+        input = torch.bmm(torch.matmul(photo, self.M).unsqueeze(1), sketch.unsqueeze(2)).squeeze(1)
         return F.sigmoid(self.norm(input))
 
 
@@ -187,7 +189,7 @@ class ModelK(nn.Module):
     def forward(self, photo, sketch):
         photo = self.photo_adaptor(photo)
         sketch = self.sketch_adaptor(sketch)
-        input = torch.norm(photo - sketch, 2)
+        input = torch.norm(photo - sketch, 2, dim=1).unsqueeze(1)
         return F.sigmoid(self.norm(input))
 
 
