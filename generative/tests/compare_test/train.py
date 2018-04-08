@@ -27,6 +27,36 @@ def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
                         os.path.join(folder, 'model_best.pth.tar'))
 
 
+def load_checkpoint(file_path, use_cuda=False):
+    checkpoint = torch.load(file_path) if use_cuda else \
+        torch.load(file_path, map_location=lambda storage, location: storage)
+    model_type = checkpoint['modelType']
+    if model_type == 'ModelA':
+        model = ModelA()
+    elif model_type == 'ModelB':
+        model = ModelB()
+    elif model_type == 'ModelC':
+        model = ModelC()
+    elif model_type == 'ModelD':
+        model = ModelD()
+    elif model_type == 'ModelE':
+        model = ModelE()
+    elif model_type == 'ModelF':
+        model = ModelF()
+    elif model_type == 'ModelG':
+        model = ModelG()
+    elif model_type == 'ModelH':
+        model = ModelH()
+    elif model_type == 'ModelI':
+        model = ModelI()
+    elif model_type == 'ModelJ':
+        model = ModelJ()
+    elif model_type == 'ModelK':
+        model = ModelK()
+    model.load_state_dict(checkpoint['state_dict'])
+    return model
+
+
 class AverageMeter(object):
     """Computes and stores the average and current value"""
     def __init__(self):
@@ -179,4 +209,3 @@ if __name__ == "__main__":
         train_loader = torch.utils.data.DataLoader(
             SketchPlusPhotoDataset(layer='fc6', train=True, soft_labels=False),
             batch_size=args.batch_size, shuffle=False)
-
