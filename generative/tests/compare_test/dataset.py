@@ -16,32 +16,6 @@ import torch
 from torch.utils.data.dataset import Dataset
  
 
-class TargetedGeneralization(SketchPlusPhotoDataset):
-    def __init__(self, test_sketch_basepath, layer='fc6', split='train', soft_labels=False, photo_transform=None, 
-                 sketch_transform=None, random_seed=42):
-        super(TargetedGeneralization, self).__init__(layer=layer, split=split, soft_labels=soft_labels, photo_transform=photo_transform,
-                                                     sketch_transform=sketch_transform, random_seed=random_seed)
-        self.test_sketch_basepath = test_sketch_basepath
-
-    def train_test_split(self, split, sketch_dirname, sketch_basepaths):
-        test_sketch_basepaths = [self.test_sketch_basepath]
-        other_sketch_basepaths = list(set(sketch_basepaths) - set(test_sketch_basepaths))
-        train_sketch_basepaths = other_sketch_basepaths[:int(0.8 * len(other_sketch_basepaths))]
-        val_sketch_basepaths = other_sketch_basepaths[int(0.8 * len(other_sketch_basepaths)):]
-
-        train_sketch_paths = [os.path.join(sketch_dirname, path) for path in train_sketch_basepaths]
-        val_sketch_paths = [os.path.join(sketch_dirname, path) for path in val_sketch_basepaths]
-        test_sketch_paths = [os.path.join(sketch_dirname, path) for path in test_sketch_basepaths]
-
-        if split == 'train':
-            sketch_paths = train_sketch_paths
-        elif split == 'val':
-            sketch_paths = val_sketch_paths
-        else:  # split == 'test'
-            sketch_paths = test_sketch_paths
-        return sketch_paths
-
-
 class SketchPlusPhotoDataset(Dataset):
     def __init__(self, layer='fc6', split='train', soft_labels=False, photo_transform=None, 
                  sketch_transform=None, random_seed=42):
@@ -121,7 +95,7 @@ class SketchPlusPhotoDataset(Dataset):
             train_sketch_basepaths = list(set(train_sketch_basepaths) - set(train_further_basepaths[:n_diff]))
 
         _train_sketch_paths = [os.path.join(sketch_dirname, path) for path in train_sketch_basepaths]
-        random.shuffle(train_sketch_paths)
+        random.shuffle(_train_sketch_paths)
         train_sketch_paths = _train_sketch_paths[:int(0.8 * len(_train_sketch_paths))]
         val_sketch_paths = _train_sketch_paths[int(0.8 * len(_train_sketch_paths)):]
         test_sketch_paths = [os.path.join(sketch_dirname, path) for path in test_sketch_basepaths]
@@ -191,3 +165,31 @@ class SketchPlusPhotoDataset(Dataset):
 
     def __len__(self):
         return self.size
+
+
+class TargetedGeneralization(SketchPlusPhotoDataset):
+    def __init__(self, test_sketch_basepath, layer='fc6', split='train', soft_labels=False, photo_transform=None,
+                 sketch_transform=None, random_seed=42):
+        self.test_sketch_basepath = test_sketch_basepath
+        super(TargetedGeneralization, self).__init__(layer=layer, split=split, soft_labels=soft_labels, photo_transform=photo_transform,
+                                                     sketch_transform=sketch_transform, random_seed=random_seed)
+
+    def train_test_split(self, split, sketch_dirname, sketch_basepaths):
+        test_sketch_basepaths = [self.test_sketch_basepath]
+        other_sketch_basepaths = list(set(sketch_basepaths) - set(test_sketch_basepaths))
+        random.shuffle(other_sketch_basepaths)
+        train_sketch_basepaths = other_sketch_basepaths[:int(0.8 * len(other_sketch_basepaths))]
+        val_sketch_basepaths = other_sketch_basepaths[int(0.8 * len(other_sketch_basepaths)):]
+
+        train_sketch_paths = [os.path.join(sketch_dirname, path) for path in train_sketch_basepaths]
+        val_sketch_paths = [os.path.join(sketch_dirname, path) for path in val_sketch_basepaths]
+        test_sketch_paths = [os.path.join(sketch_dirname, path) for path in test_sketch_basepaths]
+
+        if split == 'train':
+            sketch_paths = train_sketch_paths
+        elif split == 'val':
+            sketch_paths = val_sketch_paths
+        else:  # split == 'test'
+            sketch_paths = test_sketch_paths
+        return sketch_paths
+

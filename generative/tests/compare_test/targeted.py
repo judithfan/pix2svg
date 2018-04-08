@@ -81,7 +81,9 @@ if __name__ == "__main__":
     parser.add_argument('model', type=str, help='ModelA|ModelB|ModelC|ModelD|ModelE|ModelF|ModelG|ModelH|ModelI|ModelJ|ModelK')
     # parser.add_argument('--soft-labels', action='store_true', default=False,
     #                     help='use soft or hard labels [default: False]')
-    parser.add_argument('test-sketch-basepath', type=str, help='path to test sketch file')
+    parser.add_argument('test_sketch_basepath', type=str, help='path to test sketch file')
+    parser.add_argument('--out-dir', type=str, default='./trained_models', 
+                        help='where to store model [default: ./trained_models]')
     parser.add_argument('--batch-size', type=int, default=64, 
                         help='number of examples in a mini-batch [default: 64]')
     parser.add_argument('--lr', type=float, default=3e-4, help='learning rate [default: 3e-4]')
@@ -90,7 +92,6 @@ if __name__ == "__main__":
     parser.add_argument('--cuda', action='store_true', default=False) 
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
-    args.out_dir = os.path.join('./trained_models/', args.model)
 
     train_loader = torch.utils.data.DataLoader(
         TargetedGeneralization(args.test_sketch_basepath, layer='fc6', split='train', soft_labels=False),
@@ -220,6 +221,7 @@ if __name__ == "__main__":
             'state_dict': model.state_dict(),
             'best_loss': best_loss,
             'modelType': args.model,
+            'test_sketch_basepath': args.test_sketch_basepath,
             'optimizer' : optimizer.state_dict(),
         }, is_best, folder=args.out_dir)
         train_loader = torch.utils.data.DataLoader(
