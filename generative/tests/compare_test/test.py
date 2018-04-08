@@ -54,7 +54,7 @@ if __name__ == "__main__":
             loss = F.binary_cross_entropy(pred, label.unsqueeze(1))
             loss_meter.update(loss.data[0], batch_size)
             label_np = np.round(label.cpu().data.numpy(), 0)
-            pred_np = np.round(pred.cpu().data.numpy(), 0)
+            pred_np = np.round(pred.cpu().data.numpy(), 0).ravel()
             acc = accuracy_score(label_np, pred_np)
             acc_meter.update(acc, batch_size)
             pbar.update()
