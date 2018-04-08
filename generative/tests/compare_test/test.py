@@ -33,7 +33,7 @@ if __name__ == "__main__":
     if args.cuda:
         model.cuda()
     test_loader = torch.utils.data.DataLoader(
-        SketchPlusPhotoDataset(layer='fc6', train=False, soft_labels=False),
+        SketchPlusPhotoDataset(layer='fc6', split='test', soft_labels=False),
         batch_size=args.batch_size, shuffle=False)
     
     def test():
