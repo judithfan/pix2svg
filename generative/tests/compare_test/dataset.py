@@ -16,8 +16,34 @@ import torch
 from torch.utils.data.dataset import Dataset
  
 
+class TargetedGeneralization(SketchPlusPhotoDataset):
+    def __init__(self, test_sketch_basepath, layer='fc6', split='train', soft_labels=False, photo_transform=None, 
+                 sketch_transform=None, random_seed=42):
+        super(TargetedGeneralization, self).__init__(layer=layer, split=split, soft_labels=soft_labels, photo_transform=photo_transform,
+                                                     sketch_transform=sketch_transform, random_seed=random_seed)
+        self.test_sketch_basepath = test_sketch_basepath
+
+    def train_test_split(self, split, sketch_dirname, sketch_basepaths):
+        test_sketch_basepaths = [self.test_sketch_basepath]
+        other_sketch_basepaths = list(set(sketch_basepaths) - set(test_sketch_basepaths))
+        train_sketch_basepaths = other_sketch_basepaths[:int(0.8 * len(other_sketch_basepaths))]
+        val_sketch_basepaths = other_sketch_basepaths[int(0.8 * len(other_sketch_basepaths)):]
+
+        train_sketch_paths = [os.path.join(sketch_dirname, path) for path in train_sketch_basepaths]
+        val_sketch_paths = [os.path.join(sketch_dirname, path) for path in val_sketch_basepaths]
+        test_sketch_paths = [os.path.join(sketch_dirname, path) for path in test_sketch_basepaths]
+
+        if split == 'train':
+            sketch_paths = train_sketch_paths
+        elif split == 'val':
+            sketch_paths = val_sketch_paths
+        else:  # split == 'test'
+            sketch_paths = test_sketch_paths
+        return sketch_paths
+
+
 class SketchPlusPhotoDataset(Dataset):
-    def __init__(self, layer='fc6', train=True, soft_labels=False, photo_transform=None, 
+    def __init__(self, layer='fc6', split='train', soft_labels=False, photo_transform=None, 
                  sketch_transform=None, random_seed=42):
         super(Dataset, self).__init__()
         np.random.seed(random_seed)
@@ -53,6 +79,20 @@ class SketchPlusPhotoDataset(Dataset):
             for path, label in self.label_dict.iteritems():
                 self.reverse_label_dict[label].append(path)
 
+        sketch_paths = self.train_test_split(split, sketch_dirname, sketch_basepaths)
+
+        self.split = split
+        self.use_soft_labels = soft_labels
+        self.photo_32_paths = photo_32_paths
+        self.object_order = object_order
+        self.sketch_paths = sketch_paths
+        self.photo_transform = photo_transform
+        self.sketch_transform = sketch_transform
+        
+        # negative sample + add labels
+        self.preprocess_data()
+
+    def train_test_split(self, split, sketch_dirname, sketch_basepaths):
         # find which trials to use in training
         trial_nums = [int(os.path.splitext(path)[0].split('_')[-1]) for path in sketch_basepaths]
         uniq_trial_nums = list(set(trial_nums))
@@ -80,20 +120,19 @@ class SketchPlusPhotoDataset(Dataset):
             n_diff = n_further_train - n_closer_train
             train_sketch_basepaths = list(set(train_sketch_basepaths) - set(train_further_basepaths[:n_diff]))
 
-        train_sketch_paths = [os.path.join(sketch_dirname, path) for path in train_sketch_basepaths]
+        _train_sketch_paths = [os.path.join(sketch_dirname, path) for path in train_sketch_basepaths]
+        random.shuffle(train_sketch_paths)
+        train_sketch_paths = _train_sketch_paths[:int(0.8 * len(_train_sketch_paths))]
+        val_sketch_paths = _train_sketch_paths[int(0.8 * len(_train_sketch_paths)):]
         test_sketch_paths = [os.path.join(sketch_dirname, path) for path in test_sketch_basepaths]
-        sketch_paths = train_sketch_paths if train else test_sketch_paths
 
-        self.train = train
-        self.use_soft_labels = soft_labels
-        self.photo_32_paths = photo_32_paths
-        self.object_order = object_order
-        self.sketch_paths = sketch_paths
-        self.photo_transform = photo_transform
-        self.sketch_transform = sketch_transform
-        
-        # negative sample + add labels
-        self.preprocess_data()
+        if split == 'train':
+            sketch_paths = train_sketch_paths
+        elif split == 'val':
+            sketch_paths = val_sketch_paths
+        else:  # split == 'test'
+            sketch_paths = test_sketch_paths
+        return sketch_paths
 
     def preprocess_data(self):
         pos_photo_paths, pos_sketch_paths, neg_photo_paths, neg_sketch_paths = \
