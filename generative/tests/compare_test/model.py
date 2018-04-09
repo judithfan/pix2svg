@@ -23,13 +23,14 @@ class ModelA(nn.Module):
             in_dim = 8192
         elif layer == 'conv42':
             in_dim = 1568
+            self.attn = Conv42AttentionNet()
         self.fc = nn.Linear(in_dim, 1)
         self.layer = layer
 
     def forward(self, photo, sketch):
         if self.layer == 'conv42':
-            photo = photo.view(-1, 784)
-            sketch = sketch.view(-1, 784)
+            photo = self.attn(photo)
+            sketch = self.attn(sketch)
         input = torch.cat((photo, sketch), dim=1)
         input = self.fc(input)
         return F.sigmoid(input)
@@ -47,6 +48,7 @@ class ModelB(nn.Module):
             in_dim = 8192
         elif layer == 'conv42':
             in_dim = 1568
+            self.attn = Conv42AttentionNet()
         self.net = nn.Sequential(
             nn.Linear(in_dim, 256),
             nn.LeakyReLU(),
@@ -56,8 +58,8 @@ class ModelB(nn.Module):
 
     def forward(self, photo, sketch):
         if self.layer == 'conv42':
-            photo = photo.view(-1, 784)
-            sketch = sketch.view(-1, 784)
+            photo = self.attn(photo)
+            sketch = self.attn(sketch)
         input = torch.cat((photo, sketch), dim=1)
         input = self.net(input)
         return F.sigmoid(input)
@@ -85,6 +87,7 @@ class ModelC(nn.Module):
             )
         elif layer == 'conv42':
             in_dim = 1568
+            self.attn = Conv42AttentionNet()
             self.net = nn.Sequential(
                 nn.Linear(1568, 1024),
                 nn.LeakyReLU(),
@@ -100,8 +103,8 @@ class ModelC(nn.Module):
         
     def forward(self, photo, sketch):
         if self.layer == 'conv42':
-            photo = photo.view(-1, 784)
-            sketch = sketch.view(-1, 784)
+            photo = self.attn(photo)
+            sketch = self.attn(sketch)
         input = torch.cat((photo, sketch), dim=1)
         input = self.net(input)
         return F.sigmoid(input)
@@ -341,10 +344,23 @@ class FC6AdaptorNet(nn.Module):
         return self.net(input)
 
 
+class Conv42AttentionNet(nn.Module):
+    def __init__(self):
+        super(Conv42AttentionNet, self).__init__()
+        self.attention = Parameter(torch.normal(torch.zeros(512), 1))
+
+    def forward(self, input):
+        batch_size = len(input)
+        attention = self.attention.unsqueeze(0).unsqueeze(2).unsqueeze(2).expand(batch_size, 512, 1, 1)
+        input = attention * input
+        input = torch.sum(input, dim=1)
+        return input.view(batch_size, -1)
+
+
 class Conv42AdaptorNet(nn.Module):
     def __init__(self):
         super(Conv42AdaptorNet, self).__init__()
-        self.attention = Parameter(torch.normal(torch.zeros(512), 1))
+        self.attn = Conv42AttentionNet()
         self.net = nn.Sequential(
             nn.Linear(784, 512),
             nn.BatchNorm1d(512),
@@ -355,10 +371,7 @@ class Conv42AdaptorNet(nn.Module):
             nn.Linear(512, 256))
 
     def forward(self, input):
-        batch_size = len(input)
-        attention = self.attention.unsqueeze(0).expand(batch_size, 1) 
-        input = attention * input
-        input = torch.sum(input, dim=1)
+        input = self.attn(input)
         return self.net(input)
 
 
