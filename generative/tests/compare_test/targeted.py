@@ -93,15 +93,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    train_loader = torch.utils.data.DataLoader(
-        TargetedGeneralization(args.test_sketch_basepath, layer='fc6', split='train', soft_labels=False),
-        batch_size=args.batch_size, shuffle=True)
-    val_loader = torch.utils.data.DataLoader(
-        TargetedGeneralization(args.test_sketch_basepath, layer='fc6', split='val', soft_labels=False),
-        batch_size=args.batch_size, shuffle=False)
-    test_loader = torch.utils.data.DataLoader(
-        TargetedGeneralization(args.test_sketch_basepath, layer='fc6', split='test', soft_labels=False),
-        batch_size=args.batch_size, shuffle=False)
+    train_dataset = TargetedGeneralization(args.test_sketch_basepath, layer='fc6', split='train', soft_labels=False)
+    val_dataset = TargetedGeneralization(args.test_sketch_basepath, layer='fc6', split='val', soft_labels=False)
+    test_dataset = TargetedGeneralization(args.test_sketch_basepath, layer='fc6', split='test', soft_labels=False)
+
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
     if args.model == 'ModelA':
         model = ModelA()
@@ -158,6 +156,7 @@ if __name__ == "__main__":
                     epoch, batch_idx * batch_size, len(train_loader.dataset), 
                     100. * batch_idx / len(train_loader), loss_meter.avg, acc_meter.avg))
         print('====> Epoch: {}\tLoss: {:.4f}\tAcc: {:.2f}'.format(epoch, loss_meter.avg, acc_meter.avg))
+        return loss_meter.avg, acc_meter.avg
 
     def validate():
         model.eval()
@@ -183,7 +182,7 @@ if __name__ == "__main__":
             pbar.update()
         pbar.close()
         print('====> Val Loss: {:.4f}\Val Acc: {:.2f}'.format(loss_meter.avg, acc_meter.avg))
-        return loss_meter.avg
+        return loss_meter.avg, acc_meter.avg
 
     def test():
         model.eval()
@@ -209,23 +208,30 @@ if __name__ == "__main__":
             pbar.update()
         pbar.close()
         print('\n====> Test Loss: {:.4f}\tTest Acc: {:.2f}'.format(loss_meter.avg, acc_meter.avg))
-        return loss_meter.avg
+        return loss_meter.avg, acc_meter.avg
     
     best_loss = sys.maxint
     for epoch in xrange(1, args.epochs + 1):
-        train(epoch)
-        val_loss = validate()
+        train_loss, train_acc = train(epoch)
+        val_loss, val_acc = validate()
+        test_loss, test_acc = test()
         is_best = val_loss < best_loss
         best_loss = min(val_loss, best_loss)
         save_checkpoint({
             'state_dict': model.state_dict(),
-            'best_loss': best_loss,
+            'train_loss': train_loss,
+            'train_acc': train_acc,
+            'val_loss': val_loss,
+            'val_acc': val_acc,
+            'test_loss': test_loss,
+            'test_acc': test_acc,
             'modelType': args.model,
             'test_sketch_basepath': args.test_sketch_basepath,
             'optimizer' : optimizer.state_dict(),
         }, is_best, folder=args.out_dir)
-        train_loader = torch.utils.data.DataLoader(
-            TargetedGeneralization(args.test_sketch_basepath, layer='fc6', split='train', soft_labels=False),
-            batch_size=args.batch_size, shuffle=False)
+	# fresh pair of negative samples
+        # do not reinstantiate the train_dataset b/c that changes a lot of random choices
+        train_dataset.preprocess_data()
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+        # no need to reload validation or testing
 
-    test_loss = test()

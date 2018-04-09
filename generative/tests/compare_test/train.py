@@ -92,12 +92,13 @@ if __name__ == "__main__":
     args.cuda = args.cuda and torch.cuda.is_available()
     args.out_dir = os.path.join(args.out_dir, args.model)
 
-    train_loader = torch.utils.data.DataLoader(
-        SketchPlusPhotoDataset(layer='fc6', split='train', soft_labels=False),
-        batch_size=args.batch_size, shuffle=True)
-    test_loader = torch.utils.data.DataLoader(
-        SketchPlusPhotoDataset(layer='fc6', split='val', soft_labels=False),
-        batch_size=args.batch_size, shuffle=False)
+    train_dataset = SketchPlusPhotoDataset(layer='fc6', split='train', soft_labels=False)
+    val_dataset = SketchPlusPhotoDataset(layer='fc6', split='val', soft_labels=False)
+    test_dataset = SketchPlusPhotoDataset(layer='fc6', split='test', soft_labels=False)
+
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    val_loader = torch.utils.data.DataLoader(val_loader, batch_size=args.batch_size, shuffle=False)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
     if args.model == 'ModelA':
         model = ModelA()
@@ -161,7 +162,38 @@ if __name__ == "__main__":
                     100. * batch_idx / len(train_loader), loss_meter.avg, acc_meter.avg))
         
         print('====> Epoch: {}\tLoss: {:.4f}\tAcc: {:.2f}'.format(epoch, loss_meter.avg, acc_meter.avg))
+	return loss_meter.avg, acc_meter.avg
 
+    def validate():
+        model.eval()
+        loss_meter = AverageMeter()
+        acc_meter = AverageMeter()
+        pbar = tqdm(total=len(val_loader))
+
+        for batch_idx, (photo, sketch, label) in enumerate(val_loader):
+            photo = Variable(photo, volatile=True)
+            sketch = Variable(sketch, volatile=True)
+            label = Variable(label, requires_grad=False).float()
+            batch_size = len(photo)
+
+            if args.cuda:
+                photo = photo.cuda()
+                sketch = sketch.cuda()
+                label = label.cuda()
+
+            pred = model(photo, sketch)
+            loss = F.binary_cross_entropy(pred, label.unsqueeze(1))
+            loss_meter.update(loss.data[0], batch_size)
+
+            label_np = np.round(label.cpu().data.numpy(), 0)
+            pred_np = np.round(pred.cpu().data.numpy(), 0).ravel()
+            acc = accuracy_score(label_np, pred_np)
+            acc_meter.update(acc, batch_size)
+            pbar.update()
+
+        pbar.close()
+        print('====> Val Loss: {:.4f}\tVal Acc: {:.2f}'.format(loss_meter.avg, acc_meter.avg))
+        return loss_meter.avg, acc_meter.avg
 
     def test():
         model.eval()
@@ -192,21 +224,29 @@ if __name__ == "__main__":
 
         pbar.close()
         print('====> Test Loss: {:.4f}\tTest Acc: {:.2f}'.format(loss_meter.avg, acc_meter.avg))
-        return loss_meter.avg
+        return loss_meter.avg, acc_meter.avg
     
     best_loss = sys.maxint
     for epoch in xrange(1, args.epochs + 1):
-        train(epoch)
-        loss = test()
-        is_best = loss < best_loss
-        best_loss = min(loss, best_loss)
+        train_loss, train_acc = train(epoch)
+	val_loss, val_acc = validate()
+	test_loss, test_acc = test()
+        is_best = val_loss < best_loss
+        best_loss = min(val_loss, best_loss)
         save_checkpoint({
             'state_dict': model.state_dict(),
-            'best_loss': best_loss,
+            'train_loss': train_loss,
+            'train_acc': train_acc,
+            'val_loss': val_loss,
+            'val_acc': val_acc,
+            'test_loss': test_loss,
+            'test_acc': test_acc,
             'modelType': args.model,
             'optimizer' : optimizer.state_dict(),
         }, is_best, folder=args.out_dir)
+        # fresh pair of negative samples
+        # do not reinstantiate the train_dataset b/c that changes a lot of random choices
+        train_dataset.preprocess_data()
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+        # no need to reload validation or testing
 
-        train_loader = torch.utils.data.DataLoader(
-            SketchPlusPhotoDataset(layer='fc6', split='train', soft_labels=False),
-            batch_size=args.batch_size, shuffle=True)

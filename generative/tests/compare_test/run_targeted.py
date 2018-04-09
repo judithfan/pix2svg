@@ -26,6 +26,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('num_targets', type=int, help='number of different "folds" to do')
     parser.add_argument('cuda_device', type=int, help='which CUDA device to use')
+    parser.add_argument('out_superdir', type=str, help='where to save folders of files')
     parser.add_argument('model', type=str, help='ModelA|ModelB|ModelC|ModelD|ModelE|ModelF|ModelG|ModelH|ModelI|ModelJ|ModelK')
     # parser.add_argument('--soft-labels', action='store_true', default=False,
     #                     help='use soft or hard labels [default: False]')
@@ -37,11 +38,10 @@ if __name__ == "__main__":
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
-    out_superdir = '/mnt/visual_communication_dataset/targeted_models'
     sketch_basepaths = get_sketch_basenames('fc6')
     test_choices = np.random.choice(np.arange(len(sketch_basepaths)), size=args.num_targets, replace=False)
     for i in xrange(args.num_targets):
-        out_dir = os.path.join(out_superdir, 'fold-%d' % i)
+        out_dir = os.path.join(args.out_superdir, 'fold-%d' % i)
         if not os.path.isdir(out_dir):
             os.makedirs(out_dir)
         test_sketch_basepath = sketch_basepaths[test_choices[i]]
