@@ -15,7 +15,7 @@ from torch.autograd import Variable
 from sklearn.metrics import accuracy_score
 from model import (ModelA, ModelB, ModelC, ModelD, ModelE, ModelF,
                    ModelG, ModelH, ModelI, ModelJ, ModelK)
-from dataset import SketchPlusPhotoDataset
+from dataset import (SketchPlusPhotoDataset, ObjectSplitDataset)
 
 
 def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
@@ -81,6 +81,7 @@ if __name__ == "__main__":
     parser.add_argument('model', type=str, help='ModelA|ModelB|ModelC|ModelD|ModelE|ModelF|ModelG|ModelH|ModelI|ModelJ|ModelK')
     # parser.add_argument('--soft-labels', action='store_true', default=False,
     #                     help='use soft or hard labels [default: False]')
+    parser.add_argument('dataset', type=str, help='Object|Trial')
     parser.add_argument('--out-dir', type=str, default='./trained_models', help='where to save checkpoints [./trained_models]')
     parser.add_argument('--batch-size', type=int, default=64, 
                         help='number of examples in a mini-batch [default: 64]')
@@ -91,10 +92,16 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
     args.out_dir = os.path.join(args.out_dir, args.model)
-
-    train_dataset = SketchPlusPhotoDataset(layer='fc6', split='train', soft_labels=False)
-    val_dataset = SketchPlusPhotoDataset(layer='fc6', split='val', soft_labels=False)
-    test_dataset = SketchPlusPhotoDataset(layer='fc6', split='test', soft_labels=False)
+    assert args.dataset in ['Object', 'Trial']
+    
+    if args.dataset == 'Trial':
+        train_dataset = SketchPlusPhotoDataset(layer='fc6', split='train', soft_labels=False)
+        val_dataset = SketchPlusPhotoDataset(layer='fc6', split='val', soft_labels=False)
+        test_dataset = SketchPlusPhotoDataset(layer='fc6', split='test', soft_labels=False)
+    else:
+        train_dataset = ObjectSplitDataset(layer='fc6', split='train', soft_labels=False)
+        val_dataset = ObjectSplitDataset(layer='fc6', split='val', soft_labels=False)
+        test_dataset = ObjectSplitDataset(layer='fc6', split='test', soft_labels=False)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
@@ -244,6 +251,7 @@ if __name__ == "__main__":
             'test_loss': test_loss,
             'test_acc': test_acc,
             'modelType': args.model,
+            'datasetType': args.dataset,
             'optimizer' : optimizer.state_dict(),
         }, is_best, folder=args.out_dir)
         # save stuff for plots
@@ -279,7 +287,4 @@ if __name__ == "__main__":
     plt.legend()
     plt.tight_layout()
     plt.savefig(os.path.join(args.out_dir, 'accuracy.png'))
-
-
-
 

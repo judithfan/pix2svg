@@ -70,7 +70,6 @@ class SketchPlusPhotoDataset(Dataset):
         # find which trials to use in training
         trial_nums = [int(os.path.splitext(path)[0].split('_')[-1]) for path in sketch_basepaths]
         uniq_trial_nums = list(set(trial_nums))
-        random.shuffle(uniq_trial_nums)
         train_trial_nums = uniq_trial_nums[:int(0.8 * len(uniq_trial_nums))]
         test_trial_nums = uniq_trial_nums[int(0.8 * len(uniq_trial_nums)):]
         train_sketch_basepaths = [path for path in sketch_basepaths 
@@ -165,6 +164,39 @@ class SketchPlusPhotoDataset(Dataset):
 
     def __len__(self):
         return self.size
+
+
+class ObjectSplitDataset(SketchPlusPhotoDataset):
+    def train_test_split(self, split, sketch_dirname, sketch_basepaths):
+        train_sketch_basepaths = []
+        val_sketch_basepaths = []
+        test_sketch_basepaths = []
+
+        object_names = self.reverse_label_dict.keys()
+        sketch_objects = np.asarray([self.label_dict[basepath] for basepath in sketch_basepaths])
+        sketch_basepaths = np.asarray(sketch_basepaths)
+
+        for object_name in object_names:
+            object_basepaths = sketch_basepaths[sketch_objects == object_name].tolist()
+            num_basepaths = len(object_basepaths)
+            num_train = int(0.64 * num_basepaths)
+            num_val = int(0.8 * num_basepaths) - num_train
+            random.shuffle(object_basepaths)
+            train_sketch_basepaths += object_basepaths[:num_train]
+            val_sketch_basepaths += object_basepaths[num_train:num_train+num_val]
+            test_sketch_basepaths += object_basepaths[num_train+num_val:]
+
+        train_sketch_paths = [os.path.join(sketch_dirname, path) for path in train_sketch_basepaths]
+        val_sketch_paths = [os.path.join(sketch_dirname, path) for path in val_sketch_basepaths]
+        test_sketch_paths = [os.path.join(sketch_dirname, path) for path in test_sketch_basepaths]
+
+        if split == 'train':
+            sketch_paths = train_sketch_paths
+        elif split == 'val':
+            sketch_paths = val_sketch_paths
+        else:  # split == 'test'
+            sketch_paths = test_sketch_paths
+        return sketch_paths     
 
 
 class TargetedGeneralization(SketchPlusPhotoDataset):
