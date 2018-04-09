@@ -179,8 +179,8 @@ class ObjectSplitDataset(SketchPlusPhotoDataset):
         for object_name in object_names:
             object_basepaths = sketch_basepaths[sketch_objects == object_name].tolist()
             num_basepaths = len(object_basepaths)
-            num_train = int(0.64 * num_basepaths)
-            num_val = int(0.8 * num_basepaths) - num_train
+            num_train = int(0.8 * num_basepaths)
+            num_val = int(0.9 * num_basepaths) - num_train
             random.shuffle(object_basepaths)
             train_sketch_basepaths += object_basepaths[:num_train]
             val_sketch_basepaths += object_basepaths[num_train:num_train+num_val]

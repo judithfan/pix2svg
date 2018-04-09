@@ -15,7 +15,7 @@ from torch.autograd import Variable
 from sklearn.metrics import accuracy_score
 from model import (ModelA, ModelB, ModelC, ModelD, ModelE, ModelF,
                    ModelG, ModelH, ModelI, ModelJ, ModelK)
-from dataset import SketchPlusPhotoDataset
+from dataset import SketchPlusPhotoDataset, ObjectSplitDataset
 from train import load_checkpoint
 from train import AverageMeter
 
@@ -32,7 +32,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    test_dataset = SketchPlusPhotoDataset(layer='fc6', split='test', soft_labels=False)
+    dataset_type = torch.load(args.model_path)['datasetType']
+    if dataset_type == 'Trial':
+        test_dataset = SketchPlusPhotoDataset(layer='fc6', split='test', soft_labels=False)
+    elif dataset_type == 'Object':
+        test_dataset = ObjectSplitDataset(layer='fc6', split='test', soft_labels=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
     model = load_checkpoint(args.model_path)
