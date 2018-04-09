@@ -16,11 +16,20 @@ import torch.nn.functional as F
 # Test  Loss: 0.9016    Test  Acc: 0.47
 class ModelA(nn.Module):
     # 8192 --> 1
-    def __init__(self):
-       super(ModelA, self).__init__() 
-       self.fc = nn.Linear(8192, 1)
+    def __init__(self, layer):
+        super(ModelA, self).__init__() 
+        assert layer in ['fc6', 'conv42']
+        if layer == 'fc6':
+            in_dim = 8192
+        elif layer == 'conv42':
+            in_dim = 1568
+        self.fc = nn.Linear(in_dim, 1)
+        self.layer = layer
 
     def forward(self, photo, sketch):
+        if self.layer == 'conv42':
+            photo = photo.view(-1, 784)
+            sketch = sketch.view(-1, 784)
         input = torch.cat((photo, sketch), dim=1)
         input = self.fc(input)
         return F.sigmoid(input)
@@ -31,15 +40,24 @@ class ModelA(nn.Module):
 # Test  Loss: 1.1756     Test  Acc: 0.46
 class ModelB(nn.Module):
     # 8192 --> 256 --> 1
-    def __init__(self):
+    def __init__(self, layer):
         super(ModelB, self).__init__() 
+        assert layer in ['fc6', 'conv42']
+        if layer == 'fc6':
+            in_dim = 8192
+        elif layer == 'conv42':
+            in_dim = 1568
         self.net = nn.Sequential(
-            nn.Linear(8192, 256),
+            nn.Linear(in_dim, 256),
             nn.LeakyReLU(),
             nn.Linear(256, 1),
         )
+        self.layer = layer
 
     def forward(self, photo, sketch):
+        if self.layer == 'conv42':
+            photo = photo.view(-1, 784)
+            sketch = sketch.view(-1, 784)
         input = torch.cat((photo, sketch), dim=1)
         input = self.net(input)
         return F.sigmoid(input)
@@ -50,21 +68,40 @@ class ModelB(nn.Module):
 # Test  Loss: 2.1062     Test  Acc: 0.49
 class ModelC(nn.Module):
     # 8192 --> 4096 --> 2048 --> 1024 --> 256 --> 1
-    def __init__(self):
+    def __init__(self, layer):
         super(ModelC, self).__init__() 
-        self.net = nn.Sequential(
-            nn.Linear(8192, 4096),
-            nn.LeakyReLU(),
-            nn.Linear(4096, 2048),
-            nn.LeakyReLU(),
-            nn.Linear(2048, 1024),
-            nn.LeakyReLU(),
-            nn.Linear(1024, 256),
-            nn.LeakyReLU(),
-            nn.Linear(256, 1),
-        )
-
+        assert layer in ['fc6', 'conv42']
+        if layer == 'fc6':
+            self.net = nn.Sequential(
+                nn.Linear(8192, 4096),
+                nn.LeakyReLU(),
+                nn.Linear(4096, 2048),
+                nn.LeakyReLU(),
+                nn.Linear(2048, 1024),
+                nn.LeakyReLU(),
+                nn.Linear(1024, 256),
+                nn.LeakyReLU(),
+                nn.Linear(256, 1),
+            )
+        elif layer == 'conv42':
+            in_dim = 1568
+            self.net = nn.Sequential(
+                nn.Linear(1568, 1024),
+                nn.LeakyReLU(),
+                nn.Linear(1024, 512),
+                nn.LeakyReLU(),
+                nn.Linear(512, 512),
+                nn.LeakyReLU(),
+                nn.Linear(512, 256),
+                nn.LeakyReLU(),
+                nn.Linear(256, 1),
+            )
+            self.layer = layer
+        
     def forward(self, photo, sketch):
+        if self.layer == 'conv42':
+            photo = photo.view(-1, 784)
+            sketch = sketch.view(-1, 784)
         input = torch.cat((photo, sketch), dim=1)
         input = self.net(input)
         return F.sigmoid(input)
@@ -75,11 +112,18 @@ class ModelC(nn.Module):
 # Test  Loss: 4.1160    Test  Acc: 0.48
 class ModelD(nn.Module):
     # adaptors --> cat --> 1
-    def __init__(self):
+    def __init__(self, layer):
         super(ModelD, self).__init__()
-        self.photo_adaptor = FC6AdaptorNet()
-        self.sketch_adaptor = FC6AdaptorNet()
-        self.fc = nn.Linear(2000, 1)
+        assert layer in ['fc6', 'conv42']
+        if layer == 'fc6':
+            self.photo_adaptor = FC6AdaptorNet()
+            self.sketch_adaptor = FC6AdaptorNet()
+            self.fc = nn.Linear(2000, 1)
+        else:
+            self.photo_adaptor = Conv42AdaptorNet()
+            self.sketch_adaptor = Conv42AdaptorNet()
+            self.fc = nn.Linear(512, 1)
+        self.layer = layer
 
     def forward(self, photo, sketch):
         photo = self.photo_adaptor(photo)
@@ -94,11 +138,19 @@ class ModelD(nn.Module):
 # Test  Loss: 5.0543     Test  Acc: 0.47
 class ModelE(nn.Module):
     # adaptors --> swish --> cat --> 1
-    def __init__(self):
+    def __init__(self, layer):
         super(ModelE, self).__init__()
-        self.photo_adaptor = FC6AdaptorNet()
-        self.sketch_adaptor = FC6AdaptorNet()
-        self.fc = nn.Linear(2000, 1)
+        assert layer in ['fc6', 'conv42']
+        if layer == 'fc6':
+            self.photo_adaptor = FC6AdaptorNet()
+            self.sketch_adaptor = FC6AdaptorNet()
+            in_dim = 2000
+        elif layer == 'conv42':
+            self.photo_adaptor = Conv42AdaptorNet()
+            self.sketch_adaptor = Conv42AdaptorNet()
+            in_dim = 512
+        self.fc = nn.Linear(in_dim, 1)
+        self.layer = layer
 
     def forward(self, photo, sketch):
         photo = self.photo_adaptor(photo)
@@ -114,15 +166,23 @@ class ModelE(nn.Module):
 # Test  Loss: 6.9078    Test Acc : 0.48
 class ModelF(nn.Module):
     # adaptors --> cat --> 256 --> 1
-    def __init__(self):
+    def __init__(self, layer):
         super(ModelF, self).__init__()
-        self.photo_adaptor = FC6AdaptorNet()
-        self.sketch_adaptor = FC6AdaptorNet()
+        assert layer in ['fc6', 'conv42']
+        if layer == 'fc6':
+            self.photo_adaptor = FC6AdaptorNet()
+            self.sketch_adaptor = FC6AdaptorNet()
+            in_dim = 2000
+        elif layer == 'conv42':
+            self.photo_adaptor = Conv42AdaptorNet()
+            self.sketch_adaptor = Conv42AdaptorNet()
+            in_dim = 512
         self.net = nn.Sequential(
-            nn.Linear(2000, 256), 
+            nn.Linear(in_dim, 256), 
             nn.LeakyReLU(),
             nn.Linear(256, 1),
         )
+        self.layer = layer
 
     def forward(self, photo, sketch):
         photo = self.photo_adaptor(photo)
@@ -137,11 +197,19 @@ class ModelF(nn.Module):
 # Test  Loss: 3.7667    Test  Acc: 0.46
 class ModelG(nn.Module):
     # adaptors --> cat w/ prod --> 1
-    def __init__(self):
+    def __init__(self, layer):
         super(ModelG, self).__init__()
-        self.photo_adaptor = FC6AdaptorNet()
-        self.sketch_adaptor = FC6AdaptorNet()
-        self.fc = nn.Linear(3000, 1)
+        assert layer in ['fc6', 'conv42']
+        if layer == 'fc6':
+            self.photo_adaptor = FC6AdaptorNet()
+            self.sketch_adaptor = FC6AdaptorNet()
+            in_dim = 3000
+        elif layer == 'conv42':
+            self.photo_adaptor = Conv42AdaptorNet()
+            self.sketch_adaptor = Conv42AdaptorNet()
+            in_dim = 768
+        self.fc = nn.Linear(in_dim, 1)
+        self.layer = layer
 
     def forward(self, photo, sketch):
         photo = self.photo_adaptor(photo)
@@ -155,10 +223,16 @@ class ModelG(nn.Module):
 # Train Loss: 0.3420    Train Acc: 0.97
 # Test  Loss: 0.8223    Test  Acc: 0.46
 class ModelH(nn.Module):
-    def __init__(self):
+    def __init__(self, layer):
         super(ModelH, self).__init__()
-        self.photo_adaptor = FC6AdaptorNet()
-        self.sketch_adaptor = FC6AdaptorNet()
+        assert layer in ['fc6', 'conv42']
+        if layer == 'fc6':
+            self.photo_adaptor = FC6AdaptorNet()
+            self.sketch_adaptor = FC6AdaptorNet()
+        elif layer == 'conv42':
+            self.photo_adaptor = Conv42AdaptorNet()
+            self.sketch_adaptor = Conv42AdaptorNet()
+        self.layer = layer
     
     def forward(self, photo, sketch):
         photo = self.photo_adaptor(photo)
@@ -171,15 +245,26 @@ class ModelH(nn.Module):
 # Train Loss: 0.4019    Train Acc: 0.91
 # Test  Loss: 0.8413    Test  Acc: 0.47
 class ModelI(nn.Module):
-    def __init__(self):
+    def __init__(self, layer):
         super(ModelI, self).__init__()
-        self.photo_adaptor = FC6AdaptorNet()
-        self.sketch_adaptor = FC6AdaptorNet()
-        self.net = nn.Sequential(
-            nn.Linear(2000, 1000), 
-            nn.LeakyReLU(),
-            nn.Linear(1000, 256),
-        )
+        assert layer in ['fc6', 'conv42']
+        if layer == 'fc6':
+            self.photo_adaptor = FC6AdaptorNet()
+            self.sketch_adaptor = FC6AdaptorNet()
+            self.net = nn.Sequential(
+                nn.Linear(2000, 1000), 
+                nn.LeakyReLU(),
+                nn.Linear(1000, 256),
+            )
+        elif layer == 'conv42':
+            self.photo_adaptor = Conv42AdaptorNet()
+            self.sketch_adaptor = Conv42AdaptorNet()
+            self.net = nn.Sequential(
+                nn.Linear(512, 512), 
+                nn.LeakyReLU(),
+                nn.Linear(512, 256),
+            )
+        self.layer = layer
     
     def forward(self, photo, sketch):
         photo = self.photo_adaptor(photo)
@@ -195,12 +280,20 @@ class ModelI(nn.Module):
 # Train Loss: 0.0108    Train Acc: 0.99
 # Test  Loss: 2.2515    Test  Acc: 0.46
 class ModelJ(nn.Module):
-    def __init__(self):
+    def __init__(self, layer):
         super(ModelJ, self).__init__()
-        self.photo_adaptor = FC6AdaptorNet()
-        self.sketch_adaptor = FC6AdaptorNet()
-        self.M = Parameter(torch.normal(torch.zeros(1000, 1000), 1))
+        assert layer in ['fc6', 'conv42']
+        if layer == 'fc6':
+            self.photo_adaptor = FC6AdaptorNet()
+            self.sketch_adaptor = FC6AdaptorNet()
+            in_dim = 1000
+        elif layer == 'conv42':
+            self.photo_adaptor = Conv42AdaptorNet()
+            self.sketch_adaptor = Conv42AdaptorNet()
+            in_dim = 256
+        self.M = Parameter(torch.normal(torch.zeros(in_dim, in_dim), 1))
         self.norm = nn.BatchNorm1d(1)
+        self.layer = layer
    
     def forward(self, photo, sketch):
         photo = self.photo_adaptor(photo)
@@ -213,11 +306,17 @@ class ModelJ(nn.Module):
 # Train Loss: 0.0116    Train Acc: 0.99
 # Test  Loss: 2.3577    Test  Acc: 0.46
 class ModelK(nn.Module):
-    def __init__(self):
+    def __init__(self, layer):
         super(ModelK, self).__init__()
-        self.photo_adaptor = FC6AdaptorNet()
-        self.sketch_adaptor = FC6AdaptorNet()
+        assert layer in ['fc6', 'conv42']
+        if layer == 'fc6':
+            self.photo_adaptor = FC6AdaptorNet()
+            self.sketch_adaptor = FC6AdaptorNet()
+        elif layer == 'conv42':
+            self.photo_adaptor = Conv42AdaptorNet()
+            self.sketch_adaptor = Conv42AdaptorNet()
         self.norm = nn.BatchNorm1d(1)
+        self.layer = layer
    
     def forward(self, photo, sketch):
         photo = self.photo_adaptor(photo)
@@ -247,39 +346,19 @@ class Conv42AdaptorNet(nn.Module):
         super(Conv42AdaptorNet, self).__init__()
         self.attention = Parameter(torch.normal(torch.zeros(512), 1))
         self.net = nn.Sequential(
-            nn.Linear(784, 2048),
-            nn.BatchNorm1d(2048),
+            nn.Linear(784, 512),
+            nn.BatchNorm1d(512),
             nn.LeakyReLU(),
-            nn.Linear(2048, 1000))
+            nn.Linear(512, 512),
+            nn.BatchNorm1d(512),
+            nn.LeakyReLU(),
+            nn.Linear(512, 256))
 
     def forward(self, input):
         batch_size = len(input)
         attention = self.attention.unsqueeze(0).expand(batch_size, 1) 
         input = attention * input
         input = torch.sum(input, dim=1)
-        return self.net(input)
-
-
-class Pool1AdaptorNet(nn.Module):
-    def __init__(self):
-        super(Pool1AdaptorNet, self).__init__()
-        self.attention = Parameter(torch.normal(torch.zeros(64), 1))
-        self.pool = nn.AvgPool2d(5, stride=2)
-        self.net = nn.Sequential(
-            nn.Linear(4096, 4096),
-            nn.BatchNorm1d(4096),
-            nn.LeakyReLU(),
-            nn.Linear(4096, 2048),
-            nn.BatchNorm1d(2048),
-            nn.LeakyReLU(),
-            nn.Linear(2048, 1000))
-
-    def forward(self, input):
-        batch_size = len(input)
-        attention = self.attention.unsqueeze(0).expand(batch_size, 1)
-        input = attention * input
-        input = torch.sum(input, dim=1)
-        input = self.pool(input)
         return self.net(input)
 
 

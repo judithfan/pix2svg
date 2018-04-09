@@ -31,28 +31,29 @@ def load_checkpoint(file_path, use_cuda=False):
     checkpoint = torch.load(file_path) if use_cuda else \
         torch.load(file_path, map_location=lambda storage, location: storage)
     model_type = checkpoint['modelType']
+    layer_type = checkpoint['layerType']
     if model_type == 'ModelA':
-        model = ModelA()
+        model = ModelA(layer_type)
     elif model_type == 'ModelB':
-        model = ModelB()
+        model = ModelB(layer_type)
     elif model_type == 'ModelC':
-        model = ModelC()
+        model = ModelC(layer_type)
     elif model_type == 'ModelD':
-        model = ModelD()
+        model = ModelD(layer_type)
     elif model_type == 'ModelE':
-        model = ModelE()
+        model = ModelE(layer_type)
     elif model_type == 'ModelF':
-        model = ModelF()
+        model = ModelF(layer_type)
     elif model_type == 'ModelG':
-        model = ModelG()
+        model = ModelG(layer_type)
     elif model_type == 'ModelH':
-        model = ModelH()
+        model = ModelH(layer_type)
     elif model_type == 'ModelI':
-        model = ModelI()
+        model = ModelI(layer_type)
     elif model_type == 'ModelJ':
-        model = ModelJ()
+        model = ModelJ(layer_type)
     elif model_type == 'ModelK':
-        model = ModelK()
+        model = ModelK(layer_type)
     model.load_state_dict(checkpoint['state_dict'])
     return model
 
@@ -82,6 +83,7 @@ if __name__ == "__main__":
     # parser.add_argument('--soft-labels', action='store_true', default=False,
     #                     help='use soft or hard labels [default: False]')
     parser.add_argument('dataset', type=str, help='Object|Trial')
+    parser.add_argument('layer', type=str, help='fc6|conv42')
     parser.add_argument('--out-dir', type=str, default='./trained_models', help='where to save checkpoints [./trained_models]')
     parser.add_argument('--batch-size', type=int, default=64, 
                         help='number of examples in a mini-batch [default: 64]')
@@ -93,42 +95,43 @@ if __name__ == "__main__":
     args.cuda = args.cuda and torch.cuda.is_available()
     args.out_dir = os.path.join(args.out_dir, args.model)
     assert args.dataset in ['Object', 'Trial']
+    assert args.layer in ['fc6', 'conv42']
     
     if args.dataset == 'Trial':
-        train_dataset = SketchPlusPhotoDataset(layer='fc6', split='train', soft_labels=False)
-        val_dataset = SketchPlusPhotoDataset(layer='fc6', split='val', soft_labels=False)
-        test_dataset = SketchPlusPhotoDataset(layer='fc6', split='test', soft_labels=False)
+        train_dataset = SketchPlusPhotoDataset(layer=args.layer, split='train', soft_labels=False)
+        val_dataset = SketchPlusPhotoDataset(layer=args.layer, split='val', soft_labels=False)
+        test_dataset = SketchPlusPhotoDataset(layer=args.layer, split='test', soft_labels=False)
     else:
-        train_dataset = ObjectSplitDataset(layer='fc6', split='train', soft_labels=False)
-        val_dataset = ObjectSplitDataset(layer='fc6', split='val', soft_labels=False)
-        test_dataset = ObjectSplitDataset(layer='fc6', split='test', soft_labels=False)
+        train_dataset = ObjectSplitDataset(layer=args.layer, split='train', soft_labels=False)
+        val_dataset = ObjectSplitDataset(layer=args.layer, split='val', soft_labels=False)
+        test_dataset = ObjectSplitDataset(layer=args.layer, split='test', soft_labels=False)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
     if args.model == 'ModelA':
-        model = ModelA()
+        model = ModelA(args.layer)
     elif args.model == 'ModelB':
-        model = ModelB()
+        model = ModelB(args.layer)
     elif args.model == 'ModelC':
-        model = ModelC()
+        model = ModelC(args.layer)
     elif args.model == 'ModelD':
-        model = ModelD()
+        model = ModelD(args.layer)
     elif args.model == 'ModelE':
-        model = ModelE()
+        model = ModelE(args.layer)
     elif args.model == 'ModelF':
-        model = ModelF()
+        model = ModelF(args.layer)
     elif args.model == 'ModelG':
-        model = ModelG()
+        model = ModelG(args.layer)
     elif args.model == 'ModelH':
-        model = ModelH()
+        model = ModelH(args.layer)
     elif args.model == 'ModelI':
-        model = ModelI()
+        model = ModelI(args.layer)
     elif args.model == 'ModelJ':
-        model = ModelJ()
+        model = ModelJ(args.layer)
     elif args.model == 'ModelK':
-        model = ModelK()
+        model = ModelK(args.layer)
 
     if args.cuda:
         model.cuda()
@@ -252,6 +255,7 @@ if __name__ == "__main__":
             'test_acc': test_acc,
             'modelType': args.model,
             'datasetType': args.dataset,
+            'layerType': args.layer,
             'optimizer' : optimizer.state_dict(),
         }, is_best, folder=args.out_dir)
         # save stuff for plots
@@ -287,4 +291,3 @@ if __name__ == "__main__":
     plt.legend()
     plt.tight_layout()
     plt.savefig(os.path.join(args.out_dir, 'accuracy.png'))
-
