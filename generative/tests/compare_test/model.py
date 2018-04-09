@@ -77,8 +77,8 @@ class ModelD(nn.Module):
     # adaptors --> cat --> 1
     def __init__(self):
         super(ModelD, self).__init__()
-        self.photo_adaptor = AdaptorNet()
-        self.sketch_adaptor = AdaptorNet()
+        self.photo_adaptor = FC6AdaptorNet()
+        self.sketch_adaptor = FC6AdaptorNet()
         self.fc = nn.Linear(2000, 1)
 
     def forward(self, photo, sketch):
@@ -96,8 +96,8 @@ class ModelE(nn.Module):
     # adaptors --> swish --> cat --> 1
     def __init__(self):
         super(ModelE, self).__init__()
-        self.photo_adaptor = AdaptorNet()
-        self.sketch_adaptor = AdaptorNet()
+        self.photo_adaptor = FC6AdaptorNet()
+        self.sketch_adaptor = FC6AdaptorNet()
         self.fc = nn.Linear(2000, 1)
 
     def forward(self, photo, sketch):
@@ -116,8 +116,8 @@ class ModelF(nn.Module):
     # adaptors --> cat --> 256 --> 1
     def __init__(self):
         super(ModelF, self).__init__()
-        self.photo_adaptor = AdaptorNet()
-        self.sketch_adaptor = AdaptorNet()
+        self.photo_adaptor = FC6AdaptorNet()
+        self.sketch_adaptor = FC6AdaptorNet()
         self.net = nn.Sequential(
             nn.Linear(2000, 256), 
             nn.LeakyReLU(),
@@ -139,8 +139,8 @@ class ModelG(nn.Module):
     # adaptors --> cat w/ prod --> 1
     def __init__(self):
         super(ModelG, self).__init__()
-        self.photo_adaptor = AdaptorNet()
-        self.sketch_adaptor = AdaptorNet()
+        self.photo_adaptor = FC6AdaptorNet()
+        self.sketch_adaptor = FC6AdaptorNet()
         self.fc = nn.Linear(3000, 1)
 
     def forward(self, photo, sketch):
@@ -157,8 +157,8 @@ class ModelG(nn.Module):
 class ModelH(nn.Module):
     def __init__(self):
         super(ModelH, self).__init__()
-        self.photo_adaptor = AdaptorNet()
-        self.sketch_adaptor = AdaptorNet()
+        self.photo_adaptor = FC6AdaptorNet()
+        self.sketch_adaptor = FC6AdaptorNet()
     
     def forward(self, photo, sketch):
         photo = self.photo_adaptor(photo)
@@ -173,8 +173,8 @@ class ModelH(nn.Module):
 class ModelI(nn.Module):
     def __init__(self):
         super(ModelI, self).__init__()
-        self.photo_adaptor = AdaptorNet()
-        self.sketch_adaptor = AdaptorNet()
+        self.photo_adaptor = FC6AdaptorNet()
+        self.sketch_adaptor = FC6AdaptorNet()
         self.net = nn.Sequential(
             nn.Linear(2000, 1000), 
             nn.LeakyReLU(),
@@ -197,8 +197,8 @@ class ModelI(nn.Module):
 class ModelJ(nn.Module):
     def __init__(self):
         super(ModelJ, self).__init__()
-        self.photo_adaptor = AdaptorNet()
-        self.sketch_adaptor = AdaptorNet()
+        self.photo_adaptor = FC6AdaptorNet()
+        self.sketch_adaptor = FC6AdaptorNet()
         self.M = Parameter(torch.normal(torch.zeros(1000, 1000), 1))
         self.norm = nn.BatchNorm1d(1)
    
@@ -215,8 +215,8 @@ class ModelJ(nn.Module):
 class ModelK(nn.Module):
     def __init__(self):
         super(ModelK, self).__init__()
-        self.photo_adaptor = AdaptorNet()
-        self.sketch_adaptor = AdaptorNet()
+        self.photo_adaptor = FC6AdaptorNet()
+        self.sketch_adaptor = FC6AdaptorNet()
         self.norm = nn.BatchNorm1d(1)
    
     def forward(self, photo, sketch):
@@ -226,9 +226,9 @@ class ModelK(nn.Module):
         return F.sigmoid(self.norm(input))
 
 
-class AdaptorNet(nn.Module):
+class FC6AdaptorNet(nn.Module):
     def __init__(self):
-        super(AdaptorNet, self).__init__()
+        super(FC6AdaptorNet, self).__init__()
         self.net = nn.Sequential(
             nn.Linear(4096, 4096),
             nn.BatchNorm1d(4096),
@@ -239,6 +239,47 @@ class AdaptorNet(nn.Module):
             nn.Linear(2048, 1000)) 
     
     def forward(self, input):
+        return self.net(input)
+
+
+class Conv42AdaptorNet(nn.Module):
+    def __init__(self):
+        super(Conv42AdaptorNet, self).__init__()
+        self.attention = Parameter(torch.normal(torch.zeros(512), 1))
+        self.net = nn.Sequential(
+            nn.Linear(784, 2048),
+            nn.BatchNorm1d(2048),
+            nn.LeakyReLU(),
+            nn.Linear(2048, 1000))
+
+    def forward(self, input):
+        batch_size = len(input)
+        attention = self.attention.unsqueeze(0).expand(batch_size, 1) 
+        input = attention * input
+        input = torch.sum(input, dim=1)
+        return self.net(input)
+
+
+class Pool1AdaptorNet(nn.Module):
+    def __init__(self):
+        super(Pool1AdaptorNet, self).__init__()
+        self.attention = Parameter(torch.normal(torch.zeros(64), 1))
+        self.pool = nn.AvgPool2d(5, stride=2)
+        self.net = nn.Sequential(
+            nn.Linear(4096, 4096),
+            nn.BatchNorm1d(4096),
+            nn.LeakyReLU(),
+            nn.Linear(4096, 2048),
+            nn.BatchNorm1d(2048),
+            nn.LeakyReLU(),
+            nn.Linear(2048, 1000))
+
+    def forward(self, input):
+        batch_size = len(input)
+        attention = self.attention.unsqueeze(0).expand(batch_size, 1)
+        input = attention * input
+        input = torch.sum(input, dim=1)
+        input = self.pool(input)
         return self.net(input)
 
 

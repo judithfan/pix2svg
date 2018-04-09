@@ -246,7 +246,7 @@ if __name__ == "__main__":
         }, is_best, folder=args.out_dir)
         # fresh pair of negative samples
         # do not reinstantiate the train_dataset b/c that changes a lot of random choices
-        train_dataset.preprocess_data()
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+        # train_dataset.preprocess_data()
+        # train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
         # no need to reload validation or testing
 
