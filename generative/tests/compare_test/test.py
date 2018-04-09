@@ -24,6 +24,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('model_path', type=str, help='where to find saved file')
+    parser.add_argument('--split', type=str, default='test', help='train|val|test')
     # parser.add_argument('--soft-labels', action='store_true', default=False,
     #                     help='use soft or hard labels [default: False]')
     parser.add_argument('--batch-size', type=int, default=64, 
@@ -33,10 +34,11 @@ if __name__ == "__main__":
     args.cuda = args.cuda and torch.cuda.is_available()
 
     dataset_type = torch.load(args.model_path)['datasetType']
+    layer_type = torch.load(args.model_path)['layerType']
     if dataset_type == 'Trial':
-        test_dataset = SketchPlusPhotoDataset(layer='fc6', split='test', soft_labels=False)
+        test_dataset = SketchPlusPhotoDataset(layer=layer_type, split=args.split, soft_labels=False)
     elif dataset_type == 'Object':
-        test_dataset = ObjectSplitDataset(layer='fc6', split='test', soft_labels=False)
+        test_dataset = ObjectSplitDataset(layer=layer_type, split=args.split, soft_labels=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
     model = load_checkpoint(args.model_path)
@@ -70,4 +72,4 @@ if __name__ == "__main__":
         return loss_meter.avg, acc_meter.avg
 
     test_loss, test_acc = test()
-    print('====> Test Loss: {:.4f}\tTest Acc: {:.2f}'.format(test_loss, test_acc))
+    print('====> {} Loss: {:.4f}\t{} Acc: {:.2f}'.format(args.split.capitalize(), test_loss, args.split.capitalize(), test_acc))

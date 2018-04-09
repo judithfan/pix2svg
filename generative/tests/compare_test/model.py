@@ -99,7 +99,7 @@ class ModelC(nn.Module):
                 nn.LeakyReLU(),
                 nn.Linear(256, 1),
             )
-            self.layer = layer
+        self.layer = layer
         
     def forward(self, photo, sketch):
         if self.layer == 'conv42':

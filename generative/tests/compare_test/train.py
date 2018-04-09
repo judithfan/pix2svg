@@ -87,7 +87,7 @@ if __name__ == "__main__":
     parser.add_argument('--out-dir', type=str, default='./trained_models', help='where to save checkpoints [./trained_models]')
     parser.add_argument('--batch-size', type=int, default=64, 
                         help='number of examples in a mini-batch [default: 64]')
-    parser.add_argument('--lr', type=float, default=3e-4, help='learning rate [default: 3e-4]')
+    parser.add_argument('--lr', type=float, default=1e-5, help='learning rate [default: 1e-5]')
     parser.add_argument('--epochs', type=int, default=500, help='number of epochs [default: 500]')
     parser.add_argument('--log-interval', type=int, default=10, help='how frequently to print stats [default: 10]')
     parser.add_argument('--cuda', action='store_true', default=False) 
