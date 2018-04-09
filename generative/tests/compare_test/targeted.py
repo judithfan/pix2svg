@@ -181,7 +181,7 @@ if __name__ == "__main__":
             acc_meter.update(acc, batch_size)
             pbar.update()
         pbar.close()
-        print('====> Val Loss: {:.4f}\Val Acc: {:.2f}'.format(loss_meter.avg, acc_meter.avg))
+        print('====> Val Loss: {:.4f}\tVal Acc: {:.2f}'.format(loss_meter.avg, acc_meter.avg))
         return loss_meter.avg, acc_meter.avg
 
     def test():

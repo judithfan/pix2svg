@@ -97,7 +97,7 @@ if __name__ == "__main__":
     test_dataset = SketchPlusPhotoDataset(layer='fc6', split='test', soft_labels=False)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    val_loader = torch.utils.data.DataLoader(val_loader, batch_size=args.batch_size, shuffle=False)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
     if args.model == 'ModelA':
