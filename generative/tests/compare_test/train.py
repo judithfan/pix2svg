@@ -225,7 +225,9 @@ if __name__ == "__main__":
         pbar.close()
         print('====> Test Loss: {:.4f}\tTest Acc: {:.2f}'.format(loss_meter.avg, acc_meter.avg))
         return loss_meter.avg, acc_meter.avg
-    
+
+    loss_db = np.zeros((args.epochs, 3))
+    acc_db = np.zeros((args.epochs, 3))
     best_loss = sys.maxint
     for epoch in xrange(1, args.epochs + 1):
         train_loss, train_acc = train(epoch)
@@ -244,9 +246,40 @@ if __name__ == "__main__":
             'modelType': args.model,
             'optimizer' : optimizer.state_dict(),
         }, is_best, folder=args.out_dir)
+        # save stuff for plots
+        loss_db[epoch - 1, 0] = train_loss
+        loss_db[epoch - 1, 1] = val_loss
+        loss_db[epoch - 1, 2] = test_loss
+        acc_db[epoch - 1, 0] = train_acc
+        acc_db[epoch - 1, 1] = val_acc
+        acc_db[epoch - 1, 2] = test_acc
         # fresh pair of negative samples
         # do not reinstantiate the train_dataset b/c that changes a lot of random choices
         # train_dataset.preprocess_data()
         # train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
         # no need to reload validation or testing
+
+    # plot the training numbers
+    import matplotlib.pyplot as plt
+    plt.switch_backend('Agg')
+    import seaborn as sns
+    sns.set_style('whitegrid')
+    plt.figure()
+    plt.plot(loss_db[:, 0], '-', label='Train')
+    plt.plot(loss_db[:, 1], '-', label='Val')
+    plt.plot(loss_db[:, 2], '-', label='Test')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(args.out_dir, 'loss.png'))
+
+    plt.figure()
+    plt.plot(acc_db[:, 0], '-', label='Train')
+    plt.plot(acc_db[:, 1], '-', label='Val')
+    plt.plot(acc_db[:, 2], '-', label='Test')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(args.out_dir, 'accuracy.png'))
+
+
+
 
