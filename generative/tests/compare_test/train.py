@@ -229,8 +229,8 @@ if __name__ == "__main__":
     best_loss = sys.maxint
     for epoch in xrange(1, args.epochs + 1):
         train_loss, train_acc = train(epoch)
-	val_loss, val_acc = validate()
-	test_loss, test_acc = test()
+        val_loss, val_acc = validate()
+        test_loss, test_acc = test()
         is_best = val_loss < best_loss
         best_loss = min(val_loss, best_loss)
         save_checkpoint({
