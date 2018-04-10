@@ -12,7 +12,7 @@ import torch
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.autograd import Variable
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, mean_squared_error
 
 from model import EmbedNet
 from dataset import VisualCommunicationDataset
@@ -56,8 +56,8 @@ class AverageMeter(object):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    # parser.add_argument('--soft-labels', action='store_true', default=False,
-    #                     help='use soft or hard labels [default: False]')
+    parser.add_argument('--soft-labels', action='store_true', default=False,
+                        help='use soft or hard labels [default: False]')
     parser.add_argument('--out-dir', type=str, default='./trained_models', 
                         help='where to save checkpoints [./trained_models]')
     parser.add_argument('--distance', type=str, default='cosine', help='cosine|euclidean')
@@ -69,9 +69,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
    
-    train_dataset = VisualCommunicationDataset(layer='conv42', split='train', soft_labels=False)
-    val_dataset = VisualCommunicationDataset(layer='conv42', split='val', soft_labels=False)
-    test_dataset = VisualCommunicationDataset(layer='conv42', split='test', soft_labels=False)
+    train_dataset = VisualCommunicationDataset(layer='conv42', split='train', soft_labels=args.soft_labels)
+    val_dataset = VisualCommunicationDataset(layer='conv42', split='val', soft_labels=args.soft_labels)
+    test_dataset = VisualCommunicationDataset(layer='conv42', split='test', soft_labels=args.soft_labels)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
@@ -84,7 +84,7 @@ if __name__ == "__main__":
     def train(epoch):
         model.train()
         loss_meter = AverageMeter()
-        acc_meter = AverageMeter()
+        metric_meter = AverageMeter()
 
         for batch_idx, (photo, sketch, label) in enumerate(train_loader):
             photo = Variable(photo)
@@ -99,32 +99,38 @@ if __name__ == "__main__":
 
             photo = photo.view(batch_size * 4, 512, 28, 28)
             sketch = sketch.view(batch_size * 4, 512, 28, 28)
-            label = label.view(batch_size * 4)
+            label = label.view(batch_size * 4, 1)
 
             optimizer.zero_grad()
             pred = model(photo, sketch)
             loss = F.binary_cross_entropy(pred, label)
             loss_meter.update(loss.data[0], batch_size)
 
-            label_np = label.cpu().data.numpy()
-            pred_np = np.round(pred.cpu().data.numpy(), 0)
-            acc = accuracy_score(label_np, pred_np)
-            acc_meter.update(acc, batch_size)
+            if args.soft_labels:
+                label_np = label.cpu().data.numpy()
+                pred_np = pred.cpu().data.numpy()
+                mse = mean_squared_error(label_np, pred_np)
+                metric_meter.update(mse, batch_size)
+            else:
+                label_np = np.round(label.cpu().data.numpy(), 0)
+                pred_np = np.round(pred.cpu().data.numpy(), 0)
+                acc = accuracy_score(label_np, pred_np)
+                metric_meter.update(acc, batch_size)
 
             loss.backward()
             optimizer.step()
 
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tAcc: {:2f}'.format(
-                epoch, batch_idx * batch_size, len(train_loader.dataset), 
-                100. * batch_idx / len(train_loader), loss_meter.avg, acc_meter.avg))
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\t{}: {:2f}'.format(
+                epoch, batch_idx * batch_size, len(train_loader.dataset),  100. * batch_idx / len(train_loader), 
+                loss_meter.avg, 'MSE' if args.soft_labels else 'Accuracy' , metric_meter.avg))
         
-        print('====> Epoch: {}\tLoss: {:.4f}\tAcc: {:.2f}'.format(epoch, loss_meter.avg, acc_meter.avg))
-	return loss_meter.avg, acc_meter.avg
+        print('====> Epoch: {}\tLoss: {:.4f}\tAcc: {:.2f}'.format(epoch, loss_meter.avg, metric_meter.avg))
+	return loss_meter.avg, metric_meter.avg
 
     def validate():
         model.eval()
         loss_meter = AverageMeter()
-        acc_meter = AverageMeter()
+        metric_meter = AverageMeter()
         pbar = tqdm(total=len(val_loader))
 
         for batch_idx, (photo, sketch, label) in enumerate(val_loader):
@@ -140,26 +146,33 @@ if __name__ == "__main__":
 
             photo = photo.view(batch_size * 4, 512, 28, 28)
             sketch = sketch.view(batch_size * 4, 512, 28, 28)
-            label = label.view(batch_size * 4) 
+            label = label.view(batch_size * 4, 1) 
 
             pred = model(photo, sketch)
             loss = F.binary_cross_entropy(pred, label)
             loss_meter.update(loss.data[0], batch_size)
 
-            label_np = label.cpu().data.numpy()
-            pred_np = np.round(pred.cpu().data.numpy(), 0)
-            acc = accuracy_score(label_np, pred_np)
-            acc_meter.update(acc, batch_size)
+            if args.soft_labels:
+                label_np = label.cpu().data.numpy()
+                pred_np = pred.cpu().data.numpy()
+                mse = mean_squared_error(label_np, pred_np)
+                metric_meter.update(mse, batch_size)
+            else:
+                label_np = np.round(label.cpu().data.numpy(), 0)
+                pred_np = np.round(pred.cpu().data.numpy(), 0)
+                acc = accuracy_score(label_np, pred_np)
+                metric_meter.update(acc, batch_size)
             pbar.update()
 
         pbar.close()
-        print('====> Val Loss: {:.4f}\tVal Acc: {:.2f}'.format(loss_meter.avg, acc_meter.avg))
-        return loss_meter.avg, acc_meter.avg
+        print('====> Val Loss: {:.4f}\tVal {}: {:.2f}'.format(
+            loss_meter.avg, 'MSE' if args.soft_labels else 'Accuracy', metric_meter.avg))
+        return loss_meter.avg, metric_meter.avg
 
     def test():
         model.eval()
         loss_meter = AverageMeter()
-        acc_meter = AverageMeter()
+        metric_meter = AverageMeter()
         pbar = tqdm(total=len(test_loader))
 
         for batch_idx, (photo, sketch, label) in enumerate(test_loader):
@@ -175,49 +188,56 @@ if __name__ == "__main__":
 
             photo = photo.view(batch_size * 4, 512, 28, 28)
             sketch = sketch.view(batch_size * 4, 512, 28, 28)
-            label = label.view(batch_size * 4)
+            label = label.view(batch_size * 4, 1)
 
             pred = model(photo, sketch)
             loss = F.binary_cross_entropy(pred, label)
             loss_meter.update(loss.data[0], batch_size)
 
-            label_np = label.cpu().data.numpy()
-            pred_np = np.round(pred.cpu().data.numpy(), 0).ravel()
-            acc = accuracy_score(label_np, pred_np)
-            acc_meter.update(acc, batch_size)
+            if args.soft_labels:
+                label_np = label.cpu().data.numpy()
+                pred_np = pred.cpu().data.numpy()
+                mse = mean_squared_error(label_np, pred_np)
+                metric_meter.update(mse, batch_size)
+            else:
+                label_np = np.round(label.cpu().data.numpy(), 0)
+                pred_np = np.round(pred.cpu().data.numpy(), 0)
+                acc = accuracy_score(label_np, pred_np)
+                metric_meter.update(acc, batch_size)
             pbar.update()
 
         pbar.close()
-        print('====> Test Loss: {:.4f}\tTest Acc: {:.2f}'.format(loss_meter.avg, acc_meter.avg))
-        return loss_meter.avg, acc_meter.avg
+        print('====> Test Loss: {:.4f}\tTest {}: {:.2f}'.format(
+            loss_meter.avg, 'MSE' if args.soft_labels else 'Accuracy', metric_meter.avg))
+        return loss_meter.avg, metric_meter.avg
 
     loss_db = np.zeros((args.epochs, 3))
-    acc_db = np.zeros((args.epochs, 3))
+    metric_db = np.zeros((args.epochs, 3))
     best_loss = sys.maxint
     for epoch in xrange(1, args.epochs + 1):
-        train_loss, train_acc = train(epoch)
-        val_loss, val_acc = validate()
-        test_loss, test_acc = test()
+        train_loss, train_metric = train(epoch)
+        val_loss, val_metric = validate()
+        test_loss, test_metric = test()
         is_best = val_loss < best_loss
         best_loss = min(val_loss, best_loss)
         save_checkpoint({
             'state_dict': model.state_dict(),
             'distance': args.distance,
             'train_loss': train_loss,
-            'train_acc': train_acc,
+            'train_metric': train_metric,
             'val_loss': val_loss,
-            'val_acc': val_acc,
+            'val_metric': val_metric,
             'test_loss': test_loss,
-            'test_acc': test_acc,
+            'test_metric': test_metric,
             'optimizer' : optimizer.state_dict(),
         }, is_best, folder=args.out_dir)
         # save stuff for plots
         loss_db[epoch - 1, 0] = train_loss
         loss_db[epoch - 1, 1] = val_loss
         loss_db[epoch - 1, 2] = test_loss
-        acc_db[epoch - 1, 0] = train_acc
-        acc_db[epoch - 1, 1] = val_acc
-        acc_db[epoch - 1, 2] = test_acc
+        metric_db[epoch - 1, 0] = train_metric
+        metric_db[epoch - 1, 1] = val_metric
+        metric_db[epoch - 1, 2] = test_metric
 
     # plot the training numbers
     import matplotlib.pyplot as plt
@@ -228,14 +248,18 @@ if __name__ == "__main__":
     plt.plot(loss_db[:, 0], '-', label='Train')
     plt.plot(loss_db[:, 1], '-', label='Val')
     plt.plot(loss_db[:, 2], '-', label='Test')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
     plt.legend()
     plt.tight_layout()
     plt.savefig(os.path.join(args.out_dir, 'loss.png'))
 
     plt.figure()
-    plt.plot(acc_db[:, 0], '-', label='Train')
-    plt.plot(acc_db[:, 1], '-', label='Val')
-    plt.plot(acc_db[:, 2], '-', label='Test')
+    plt.plot(metric_db[:, 0], '-', label='Train')
+    plt.plot(metric_db[:, 1], '-', label='Val')
+    plt.plot(metric_db[:, 2], '-', label='Test')
+    plt.xlabel('Epoch')
+    plt.ylabel('MSE' if args.soft_labels else 'Accuracy') 
     plt.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(args.out_dir, 'accuracy.png'))
+    plt.savefig(os.path.join(args.out_dir, 'metric.png'))

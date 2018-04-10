@@ -25,8 +25,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('model_path', type=str, help='where to find saved file')
     parser.add_argument('--split', type=str, default='test', help='train|val|test')
-    # parser.add_argument('--soft-labels', action='store_true', default=False,
-    #                     help='use soft or hard labels [default: False]')
+    parser.add_argument('--soft-labels', action='store_true', default=False,
+                        help='use soft or hard labels [default: False]')
     parser.add_argument('--batch-size', type=int, default=10, 
                         help='number of examples in a mini-batch [default: 10]')
     parser.add_argument('--cuda', action='store_true', default=False) 

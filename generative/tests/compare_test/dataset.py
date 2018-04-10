@@ -124,8 +124,14 @@ class VisualCommunicationDataset(Dataset):
                                  photo1.unsqueeze(0), photo2.unsqueeze(0)), dim=0)
         sketch_group = torch.cat((sketch1.unsqueeze(0), sketch2.unsqueeze(0), 
                                   sketch2.unsqueeze(0), sketch1.unsqueeze(0)), dim=0)
-        label_group = torch.Tensor([1, 1, 0, 0])
-	return photo_group, sketch_group, label_group
+        if self.use_soft_labels:
+            label_group = torch.FloatTensor([self.annotations[sketch1_object_ix, sketch1_object_ix, context1],
+                                             self.annotations[sketch2_object_ix, sketch2_object_ix, context2],
+                                             self.annotations[sketch2_object_ix, sketch1_object_ix, context2],
+                                             self.annotations[sketch1_object_ix, sketch2_object_ix, context1]])
+        else:
+            label_group = torch.Tensor([1, 1, 0, 0])
+	return photo_group, sketch_group, label_group.unsqueeze(1)
 
     def __len__(self):
         return self.size
