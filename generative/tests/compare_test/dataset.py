@@ -178,13 +178,14 @@ class ExhaustiveDataset(Dataset):
         def generator():
             photo_paths = self.photo_32_paths
             for photo_path in photo_paths:
-                photo_object = os.path.spitext(photo_path)[0]
+                photo_object = os.path.splitext(photo_path)[0]
                 photo = np.load(os.path.join(self.photo_dirname, photo_path))
                 photo = torch.from_numpy(photo)
                 if self.photo_transform:
                     photo = self.photo_transform(photo)
+                photo = photo.unsqueeze(0)
                 yield photo, photo_object, photo_path
-            return generator
+        return generator
 
     def __getitem__(self, index):
         sketch_path = self.sketch_paths[index]

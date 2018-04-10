@@ -2,12 +2,29 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
+import os
 import sys
 import json
-import torch
+from tqdm import tqdm
+from collections import defaultdict
 
+import torch
+from torch.autograd import Variable
 from dataset import ExhaustiveDataset
 from train import load_checkpoint
+
+
+def photo_uname(path):
+    path = os.path.splitext(os.path.basename(path))[0]
+    path = '_'.join(path.split('_')[2:])
+    return path
+
+
+def sketch_uname(path):
+    path = '_'.join(os.path.splitext(os.path.basename(path))[0].split('_')[1:])
+    path = path.split('-')[-1]
+    path = path.replace('_trial', '')
+    return path
 
 
 if __name__ == "__main__":
@@ -26,24 +43,25 @@ if __name__ == "__main__":
     dataset = ExhaustiveDataset(layer='conv42')
     loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
         
-    dist_jsons = []
+    dist_jsons = defaultdict(lambda: {})
     pbar = tqdm(total=len(loader))
-    for batch_idx, (sketch, sketch_object, sketch_context, sketch_path) in enumerate(train_loader):
+    for batch_idx, (sketch, sketch_object, sketch_context, sketch_path) in enumerate(loader):
+        sketch_name = sketch_uname(sketch_path[0])
+        sketch = Variable(sketch, volatile=True)
+        if args.cuda:
+            sketch = sketch.cuda()
         photo_generator = dataset.gen_photos()
-        for photo, photo_object, photo_path in photo_generator:
-            sketch = Variable(sketch, volatile=True)
+        for photo, photo_object, photo_path in photo_generator():
+            photo_name = photo_uname(photo_path)
             photo = Variable(photo, volatile=True)
             batch_size = len(sketch)
             if args.cuda:
                 photo = photo.cuda()
-                sketch = sketch.cuda()
-            pred = model(photo, sketch).cpu().data
-            dist_jsons.append({'sketch': sketch_path,
-                               'photo': photo_path,
-                               'distance': pred})
+            pred = model(photo, sketch).squeeze(1).cpu().data[0]
+            dist_jsons[photo_name][sketch_name] = float(pred)
         pbar.update()
     pbar.close()
 
     print('\nWriting distances to file.')
-    with open(args.json_path, 'w') as fp:
+    with open('./dump.json', 'w') as fp:
         json.dump(dist_jsons, fp)
