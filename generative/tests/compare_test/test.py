@@ -16,7 +16,7 @@ from sklearn.metrics import accuracy_score, mean_squared_error
 from train import load_checkpoint
 from train import AverageMeter
 
-from model import EmbedNet
+from model import Classifier
 from dataset import VisualCommunicationDataset
 
 

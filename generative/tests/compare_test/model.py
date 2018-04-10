@@ -10,9 +10,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class EmbedNet(nn.Module):
+class Classifier(nn.Module):
     def __init__(self, distance='cosine'):
-        super(EmbedNet, self).__init__()
+        super(Classifier, self).__init__()
         self.photo_adaptor = AdaptorNet()
         self.sketch_adaptor = AdaptorNet()
         if distance == 'cosine':
@@ -21,6 +21,19 @@ class EmbedNet(nn.Module):
             self.fusenet = FuseEuclideanClassifier()
         else:
             raise Exception('distance %s not found.' % distance.upper())
+
+    def forward(self, photo_emb, sketch_emb):
+        photo_emb = self.photo_adaptor(photo_emb)
+        sketch_emb = self.sketch_adaptor(sketch_emb)
+        return self.fusenet(photo_emb, sketch_emb)
+
+
+class Predictor(nn.Module):
+    def __init__(self):
+        super(Predictor, self).__init__()
+        self.photo_adaptor = AdaptorNet()
+        self.sketch_adaptor = AdaptorNet()
+        self.fusenet = FusePredictor()
 
     def forward(self, photo_emb, sketch_emb):
         photo_emb = self.photo_adaptor(photo_emb)
@@ -68,6 +81,16 @@ class FuseEuclideanClassifier(nn.Module):
     def forward(self, e1, e2):
         h = torch.norm(e1 - e2, 2, dim=1).unsqueeze(1)
         return F.sigmoid(self.norm(h))
+
+
+class FusePredictor(nn.Module):
+    def __init__(self):
+        super(FusePredictor, self).__init__()
+        self.fc = nn.Linear(2000, 1)
+
+    def forward(self, e1, e2):
+        h = torch.cat((e1, e2), dim=1)
+        return F.softplus(self.fc(h))
 
 
 class Swish(nn.Module):
