@@ -86,8 +86,8 @@ if __name__ == "__main__":
             same_loss = F.binary_cross_entropy(same_pred, label)
             # cat_loss = F.cross_entropy(cat_pred, category)
             cat_loss = cross_entropy(cat_pred, category)
-            loss = same_loss + cat_loss
-            # loss = same_loss
+            # loss = same_loss + cat_loss
+            loss = same_loss
             # use my own x-ent to compare soft-labels against distance
             same_loss_meter.update(same_loss.data[0], batch_size)
             cat_loss_meter.update(cat_loss.data[0], batch_size)
@@ -146,8 +146,8 @@ if __name__ == "__main__":
             same_loss = F.binary_cross_entropy(same_pred, label)
             # cat_loss = F.cross_entropy(cat_pred, category)
             cat_loss = cross_entropy(cat_pred, category)
-            loss = same_loss + cat_loss
-            # loss = same_loss
+            # loss = same_loss + cat_loss
+            loss = same_loss
 
             same_loss_meter.update(same_loss.data[0], batch_size)
             cat_loss_meter.update(cat_loss.data[0], batch_size)

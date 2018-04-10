@@ -13,11 +13,11 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.autograd import Variable
 from sklearn.metrics import accuracy_score
-from model import (ModelA, ModelB, ModelC, ModelD, ModelE, ModelF,
-                   ModelG, ModelH, ModelI, ModelJ, ModelK)
-from dataset import SketchPlusPhotoDataset, ObjectSplitDataset
 from train import load_checkpoint
 from train import AverageMeter
+
+from model import EmbedNet
+from dataset import VisualCommunicationDataset
 
 
 if __name__ == "__main__":
@@ -27,18 +27,13 @@ if __name__ == "__main__":
     parser.add_argument('--split', type=str, default='test', help='train|val|test')
     # parser.add_argument('--soft-labels', action='store_true', default=False,
     #                     help='use soft or hard labels [default: False]')
-    parser.add_argument('--batch-size', type=int, default=64, 
-                        help='number of examples in a mini-batch [default: 64]')
+    parser.add_argument('--batch-size', type=int, default=10, 
+                        help='number of examples in a mini-batch [default: 10]')
     parser.add_argument('--cuda', action='store_true', default=False) 
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    dataset_type = torch.load(args.model_path)['datasetType']
-    layer_type = torch.load(args.model_path)['layerType']
-    if dataset_type == 'Trial':
-        test_dataset = SketchPlusPhotoDataset(layer=layer_type, split=args.split, soft_labels=False)
-    elif dataset_type == 'Object':
-        test_dataset = ObjectSplitDataset(layer=layer_type, split=args.split, soft_labels=False)
+    test_dataset = VisualCommunicationDataset(layer='conv42', split=args.split, soft_labels=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
     model = load_checkpoint(args.model_path)
@@ -60,11 +55,14 @@ if __name__ == "__main__":
                 photo = photo.cuda()
                 sketch = sketch.cuda()
                 label = label.cuda()
+            photo = photo.view(batch_size * 4, 512, 28, 28)
+            sketch = sketch.view(batch_size * 4, 512, 28, 28)
+            label = label.view(batch_size * 4)
             pred = model(photo, sketch)
-            loss = F.binary_cross_entropy(pred, label.unsqueeze(1))
+            loss = F.binary_cross_entropy(pred, label)
             loss_meter.update(loss.data[0], batch_size)
-            label_np = np.round(label.cpu().data.numpy(), 0)
-            pred_np = np.round(pred.cpu().data.numpy(), 0).ravel()
+            label_np = label.cpu().data.numpy()
+            pred_np = np.round(pred.cpu().data.numpy(), 0)
             acc = accuracy_score(label_np, pred_np)
             acc_meter.update(acc, batch_size)
             pbar.update()
