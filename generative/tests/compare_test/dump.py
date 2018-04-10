@@ -16,7 +16,6 @@ from train import load_checkpoint
 
 def photo_uname(path):
     path = os.path.splitext(os.path.basename(path))[0]
-    path = '_'.join(path.split('_')[2:])
     return path
 
 
@@ -62,6 +61,5 @@ if __name__ == "__main__":
         pbar.update()
     pbar.close()
 
-    print('\nWriting distances to file.')
     with open('./dump.json', 'w') as fp:
         json.dump(dist_jsons, fp)

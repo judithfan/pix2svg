@@ -18,7 +18,7 @@ from torch.utils.data.dataset import Dataset
 class VisualCommunicationDataset(Dataset):
     """Used for training. We show a group of 4 images at a time."""
     def __init__(self, layer='fc6', split='train', soft_labels=False, photo_transform=None,
-                 sketch_transformf=None, random_seed=42):
+                 sketch_transform=None, random_seed=42):
         super(Dataset, self).__init__()
         np.random.seed(random_seed)
         random.seed(random_seed)
@@ -132,7 +132,9 @@ class VisualCommunicationDataset(Dataset):
                                              self.annotations[sketch1_object_ix, sketch2_object_ix, context1]])
         else:
             label_group = torch.Tensor([1, 1, 0, 0])
-	return photo_group, sketch_group, label_group.unsqueeze(1)
+        photo_class = torch.LongTensor([sketch1_object_ix, sketch2_object_ix, sketch1_object_ix, sketch2_object_ix])
+        sketch_class = torch.LongTensor([sketch1_object_ix, sketch2_object_ix, sketch2_object_ix, sketch1_object_ix])
+	return photo_group, sketch_group, label_group.unsqueeze(1), photo_class, sketch_class
 
     def __len__(self):
         return self.size

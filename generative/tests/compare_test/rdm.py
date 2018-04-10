@@ -5,6 +5,7 @@ from __future__ import absolute_import
 import os
 import sys
 import json
+import numpy as np
 from tqdm import tqdm
 from collections import defaultdict
 
@@ -29,7 +30,7 @@ if __name__ == "__main__":
 
     dataset = ExhaustiveDataset(layer='conv42')
     loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
-    object_order = dataset.self.object_order
+    object_order = dataset.object_order
 
     rdm_further_sums = np.zeros((32, 32))
     rdm_closer_sums  = np.zeros((32, 32))
@@ -39,7 +40,7 @@ if __name__ == "__main__":
     pbar = tqdm(total=len(loader))
     for batch_idx, (sketch, sketch_object, sketch_context, sketch_path) in enumerate(loader):
         sketch = Variable(sketch, volatile=True)
-        sketch_object_ix = object_order.index(sketch_object)
+        sketch_object_ix = object_order.index(sketch_object[0])
         if args.cuda:
             sketch = sketch.cuda()
         photo_generator = dataset.gen_photos()
@@ -65,10 +66,15 @@ if __name__ == "__main__":
     rdm_closer = rdm_closer_sums / rdm_closer_cnts
 
     import seaborn as sns; sns.set()
+    import matplotlib.pyplot as plt
+    plt.switch_backend('Agg')
+
+    plt.figure()
     ax = sns.heatmap(rdm_further, linewidths=.5)
     fig = ax.get_figure()
     fig.savefig('./rdm-further.pdf')
 
+    plt.figure()
     ax = sns.heatmap(rdm_closer, linewidths=.5)
     fig = ax.get_figure()
     fig.savefig('./rdm-closer.pdf')

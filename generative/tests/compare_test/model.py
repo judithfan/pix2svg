@@ -21,11 +21,15 @@ class Classifier(nn.Module):
             self.fusenet = FuseEuclideanClassifier()
         else:
             raise Exception('distance %s not found.' % distance.upper())
+        self.photo_classifier = CategoryClassifier()
+        self.sketch_classifier = CategoryClassifier()
 
     def forward(self, photo_emb, sketch_emb):
         photo_emb = self.photo_adaptor(photo_emb)
         sketch_emb = self.sketch_adaptor(sketch_emb)
-        return self.fusenet(photo_emb, sketch_emb)
+        photo_pred = self.photo_classifier(photo_emb)
+        sketch_pred = self.sketch_classifier(sketch_emb)
+        return self.fusenet(photo_emb, sketch_emb), photo_pred, sketch_pred
 
 
 class Predictor(nn.Module):
@@ -34,11 +38,15 @@ class Predictor(nn.Module):
         self.photo_adaptor = AdaptorNet()
         self.sketch_adaptor = AdaptorNet()
         self.fusenet = FusePredictor()
+        self.photo_classifier = CategoryClassifier()
+        self.sketch_classifier = CategoryClassifier()
 
     def forward(self, photo_emb, sketch_emb):
         photo_emb = self.photo_adaptor(photo_emb)
         sketch_emb = self.sketch_adaptor(sketch_emb)
-        return self.fusenet(photo_emb, sketch_emb)
+        photo_pred = self.photo_classifier(photo_emb)
+        sketch_pred = self.sketch_classifier(sketch_emb)
+        return self.fusenet(photo_emb, sketch_emb), photo_pred, sketch_pred
 
 
 class AdaptorNet(nn.Module):
@@ -91,6 +99,15 @@ class FusePredictor(nn.Module):
     def forward(self, e1, e2):
         h = torch.cat((e1, e2), dim=1)
         return F.softplus(self.fc(h))
+
+
+class CategoryClassifier(nn.Module):
+    def __init__(self):
+        super(CategoryClassifier, self).__init__()
+        self.fc = nn.Linear(1000, 32)
+
+    def forward(self, x):
+        return self.fc(x)
 
 
 class Swish(nn.Module):

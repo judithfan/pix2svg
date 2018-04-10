@@ -85,25 +85,35 @@ if __name__ == "__main__":
         model.train()
         loss_meter = AverageMeter()
         metric_meter = AverageMeter()
+        photo_meter = AverageMeter()
+        sketch_meter = AverageMeter()
 
-        for batch_idx, (photo, sketch, label) in enumerate(train_loader):
+        for batch_idx, (photo, sketch, label, photo_class, sketch_class) in enumerate(train_loader):
             photo = Variable(photo)
             sketch = Variable(sketch)
             label = Variable(label)
+            photo_class = Variable(photo_class)
+            sketch_class = Variable(sketch_class)
             batch_size = len(photo)
 
             if args.cuda:
                 photo = photo.cuda()
                 sketch = sketch.cuda()
                 label = label.cuda()
+                photo_class = photo_class.cuda()
+                sketch_class = sketch_class.cuda()
 
             photo = photo.view(batch_size * 4, 512, 28, 28)
             sketch = sketch.view(batch_size * 4, 512, 28, 28)
             label = label.view(batch_size * 4, 1)
+            photo_class = photo_class.view(batch_size * 4)
+            sketch_class = sketch_class.view(batch_size * 4)
 
             optimizer.zero_grad()
-            pred = model(photo, sketch)
-            loss = F.binary_cross_entropy(pred, label)
+            pred, photo_pred, sketch_pred = model(photo, sketch)
+            loss = (F.binary_cross_entropy(pred, label) + 
+                    F.cross_entropy(photo_pred, photo_class) + 
+                    F.cross_entropy(sketch_pred, sketch_class))
             loss_meter.update(loss.data[0], batch_size)
 
             if args.soft_labels:
@@ -117,40 +127,63 @@ if __name__ == "__main__":
                 acc = accuracy_score(label_np, pred_np)
                 metric_meter.update(acc, batch_size)
 
+            photo_class_np = photo_class.cpu().data.numpy()
+            photo_pred_np = photo_pred.cpu().data.numpy()
+            photo_pred_np = np.argmax(photo_pred_np, axis=1)
+            acc = np.sum(photo_pred_np == photo_class_np) / float(4. * batch_size)
+            photo_meter.update(acc, batch_size)
+
+            sketch_class_np = sketch_class.cpu().data.numpy()
+            sketch_pred_np = sketch_pred.cpu().data.numpy()
+            sketch_pred_np = np.argmax(sketch_pred_np, axis=1)
+            acc = np.sum(sketch_pred_np == sketch_class_np) / float(4. * batch_size)
+            sketch_meter.update(acc, batch_size)
+
             loss.backward()
             optimizer.step()
 
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\t{}: {:6f}'.format(
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\t{}: {:6f}\tPhoto-Acc: {:.2f}\tSketch-Acc: {:.2f}'.format(
                 epoch, batch_idx * batch_size, len(train_loader.dataset),  100. * batch_idx / len(train_loader), 
-                loss_meter.avg, 'MSE' if args.soft_labels else 'Accuracy' , metric_meter.avg))
+                loss_meter.avg, 'MSE' if args.soft_labels else 'Accuracy' , metric_meter.avg, photo_meter.avg, sketch_meter.avg))
         
-        print('====> Epoch: {}\tLoss: {:.4f}\t{}: {:.6f}'.format(
-            epoch, loss_meter.avg, 'MSE' if args.soft_labels else 'Accuracy', metric_meter.avg))
+        print('====> Epoch: {}\tLoss: {:.4f}\t{}: {:.6f}\tPhoto-Acc: {:.2f}\tSketch-Acc: {:.2f}'.format(
+            epoch, loss_meter.avg, 'MSE' if args.soft_labels else 'Accuracy', metric_meter.avg,
+            photo_meter.avg, sketch_meter.avg))
 	return loss_meter.avg, metric_meter.avg
 
     def validate():
         model.eval()
         loss_meter = AverageMeter()
         metric_meter = AverageMeter()
+        photo_meter = AverageMeter()
+        sketch_meter = AverageMeter()
         pbar = tqdm(total=len(val_loader))
 
-        for batch_idx, (photo, sketch, label) in enumerate(val_loader):
+        for batch_idx, (photo, sketch, label, photo_class, sketch_class) in enumerate(val_loader):
             photo = Variable(photo, volatile=True)
             sketch = Variable(sketch, volatile=True)
             label = Variable(label, requires_grad=False).float()
+            photo_class = Variable(photo_class, requires_grad=False)
+            sketch_class = Variable(sketch_class, requires_grad=False)
             batch_size = len(photo)
 
             if args.cuda:
                 photo = photo.cuda()
                 sketch = sketch.cuda()
                 label = label.cuda()
+                photo_class = photo_class.cuda()
+                sketch_class = sketch_class.cuda()
 
             photo = photo.view(batch_size * 4, 512, 28, 28)
             sketch = sketch.view(batch_size * 4, 512, 28, 28)
-            label = label.view(batch_size * 4, 1) 
+            label = label.view(batch_size * 4, 1)
+            photo_class = photo_class.view(batch_size * 4)
+            sketch_class = sketch_class.view(batch_size * 4)
 
-            pred = model(photo, sketch)
-            loss = F.binary_cross_entropy(pred, label)
+            pred, photo_pred, sketch_pred = model(photo, sketch)
+            loss = (F.binary_cross_entropy(pred, label) +
+                    F.cross_entropy(photo_pred, photo_class) + 
+                    F.cross_entropy(sketch_pred, sketch_class))
             loss_meter.update(loss.data[0], batch_size)
 
             if args.soft_labels:
@@ -163,36 +196,60 @@ if __name__ == "__main__":
                 pred_np = np.round(pred.cpu().data.numpy(), 0)
                 acc = accuracy_score(label_np, pred_np)
                 metric_meter.update(acc, batch_size)
+
+            photo_class_np = photo_class.cpu().data.numpy()
+            photo_pred_np = photo_pred.cpu().data.numpy()
+            photo_pred_np = np.argmax(photo_pred_np, axis=1)
+            acc = np.sum(photo_pred_np == photo_class_np) / float(4. * batch_size)
+            photo_meter.update(acc, batch_size)
+
+            sketch_class_np = sketch_class.cpu().data.numpy()
+            sketch_pred_np = sketch_pred.cpu().data.numpy()
+            sketch_pred_np = np.argmax(sketch_pred_np, axis=1)
+            acc = np.sum(sketch_pred_np == sketch_class_np) / float(4. * batch_size)
+            sketch_meter.update(acc, batch_size) 
+
             pbar.update()
 
         pbar.close()
-        print('====> Val Loss: {:.4f}\tVal {}: {:.6f}'.format(
-            loss_meter.avg, 'MSE' if args.soft_labels else 'Accuracy', metric_meter.avg))
+        print('====> Val Loss: {:.4f}\tVal {}: {:.6f}\tPhoto-Acc: {:.2f}\tSketch-Acc: {:.2f}'.format(
+            loss_meter.avg, 'MSE' if args.soft_labels else 'Accuracy', metric_meter.avg,
+            photo_meter.avg, sketch_meter.avg))
         return loss_meter.avg, metric_meter.avg
 
     def test():
         model.eval()
         loss_meter = AverageMeter()
         metric_meter = AverageMeter()
+        photo_meter = AverageMeter()
+        sketch_meter = AverageMeter()
         pbar = tqdm(total=len(test_loader))
 
-        for batch_idx, (photo, sketch, label) in enumerate(test_loader):
+        for batch_idx, (photo, sketch, label, photo_class, sketch_class) in enumerate(test_loader):
             photo = Variable(photo, volatile=True)
             sketch = Variable(sketch, volatile=True)
             label = Variable(label, requires_grad=False).float()
+            photo_class = Variable(photo_class, requires_grad=False)
+            sketch_class = Variable(sketch_class, requires_grad=False)
             batch_size = len(photo)
 
             if args.cuda:
                 photo = photo.cuda()
                 sketch = sketch.cuda()
                 label = label.cuda()
+                photo_class = photo_class.cuda()
+                sketch_class = sketch_class.cuda()
 
             photo = photo.view(batch_size * 4, 512, 28, 28)
             sketch = sketch.view(batch_size * 4, 512, 28, 28)
             label = label.view(batch_size * 4, 1)
+            photo_class = photo_class.view(batch_size * 4)
+            sketch_class = sketch_class.view(batch_size * 4)
 
-            pred = model(photo, sketch)
-            loss = F.binary_cross_entropy(pred, label)
+            pred, photo_pred, sketch_pred = model(photo, sketch)
+            loss = (F.binary_cross_entropy(pred, label) +
+                    F.cross_entropy(photo_pred, photo_class) +
+                    F.cross_entropy(sketch_pred, sketch_class))
             loss_meter.update(loss.data[0], batch_size)
 
             if args.soft_labels:
@@ -205,11 +262,24 @@ if __name__ == "__main__":
                 pred_np = np.round(pred.cpu().data.numpy(), 0)
                 acc = accuracy_score(label_np, pred_np)
                 metric_meter.update(acc, batch_size)
-            pbar.update()
+            
+            photo_class_np = photo_class.cpu().data.numpy()
+            photo_pred_np = photo_pred.cpu().data.numpy()
+            photo_pred_np = np.argmax(photo_pred_np, axis=1)
+            acc = np.sum(photo_pred_np == photo_class_np) / float(4. * batch_size)
+            photo_meter.update(acc, batch_size)
 
+            sketch_class_np = sketch_class.cpu().data.numpy()
+            sketch_pred_np = sketch_pred.cpu().data.numpy()
+            sketch_pred_np = np.argmax(sketch_pred_np, axis=1)
+            acc = np.sum(sketch_pred_np == sketch_class_np) / float(4. * batch_size)
+            sketch_meter.update(acc, batch_size)
+
+            pbar.update()
         pbar.close()
-        print('====> Test Loss: {:.4f}\tTest {}: {:.6f}'.format(
-            loss_meter.avg, 'MSE' if args.soft_labels else 'Accuracy', metric_meter.avg))
+        print('====> Test Loss: {:.4f}\tTest {}: {:.6f}\tPhoto-Acc: {:.2f}\tSketch-Acc: {:.2f}'.format(
+            loss_meter.avg, 'MSE' if args.soft_labels else 'Accuracy', metric_meter.avg,
+            photo_meter.avg, sketch_meter.avg))
         return loss_meter.avg, metric_meter.avg
 
     loss_db = np.zeros((args.epochs, 3))
