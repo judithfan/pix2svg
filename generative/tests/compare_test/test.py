@@ -12,7 +12,7 @@ import torch
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.autograd import Variable
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, mean_squared_error
 from train import load_checkpoint
 from train import AverageMeter
 
@@ -33,7 +33,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    test_dataset = VisualCommunicationDataset(layer='conv42', split=args.split, soft_labels=False)
+    test_dataset = VisualCommunicationDataset(layer='conv42', split=args.split, soft_labels=args.split)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
     model = load_checkpoint(args.model_path)
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     def test():
         model.eval()
         loss_meter = AverageMeter()
-        acc_meter = AverageMeter()
+        metric_meter = AverageMeter()
         pbar = tqdm(total=len(test_loader))
         for batch_idx, (photo, sketch, label) in enumerate(test_loader):
             photo = Variable(photo, volatile=True)
@@ -57,17 +57,26 @@ if __name__ == "__main__":
                 label = label.cuda()
             photo = photo.view(batch_size * 4, 512, 28, 28)
             sketch = sketch.view(batch_size * 4, 512, 28, 28)
-            label = label.view(batch_size * 4)
+            label = label.view(batch_size * 4, 1)
             pred = model(photo, sketch)
             loss = F.binary_cross_entropy(pred, label)
             loss_meter.update(loss.data[0], batch_size)
-            label_np = label.cpu().data.numpy()
-            pred_np = np.round(pred.cpu().data.numpy(), 0)
-            acc = accuracy_score(label_np, pred_np)
-            acc_meter.update(acc, batch_size)
+
+            if args.soft_labels:
+                label_np = label.cpu().data.numpy()
+                pred_np = pred.cpu().data.numpy()
+                mse = mean_squared_error(label_np, pred_np)
+                metric_meter.update(mse, batch_size)
+            else:
+                label_np = np.round(label.cpu().data.numpy(), 0)
+                pred_np = np.round(pred.cpu().data.numpy(), 0)
+                acc = accuracy_score(label_np, pred_np)
+                metric_meter.update(acc, batch_size)
             pbar.update()
         pbar.close()
-        return loss_meter.avg, acc_meter.avg
+        return loss_meter.avg, metric_meter.avg
 
-    test_loss, test_acc = test()
-    print('====> {} Loss: {:.4f}\t{} Acc: {:.2f}'.format(args.split.capitalize(), test_loss, args.split.capitalize(), test_acc))
+    test_loss, test_metric = test()
+    print('====> {} Loss: {:.4f}\t{} {}: {:.2f}'.format(
+        args.split.capitalize(), test_loss, args.split.capitalize(), 
+        'MSE' if args.soft_labels else 'Accuracy', test_metric))
