@@ -120,11 +120,12 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
 
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\t{}: {:2f}'.format(
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\t{}: {:6f}'.format(
                 epoch, batch_idx * batch_size, len(train_loader.dataset),  100. * batch_idx / len(train_loader), 
                 loss_meter.avg, 'MSE' if args.soft_labels else 'Accuracy' , metric_meter.avg))
         
-        print('====> Epoch: {}\tLoss: {:.4f}\tAcc: {:.2f}'.format(epoch, loss_meter.avg, metric_meter.avg))
+        print('====> Epoch: {}\tLoss: {:.4f}\t{}: {:.6f}'.format(
+            epoch, loss_meter.avg, 'MSE' if args.soft_labels else 'Accuracy', metric_meter.avg))
 	return loss_meter.avg, metric_meter.avg
 
     def validate():
@@ -165,7 +166,7 @@ if __name__ == "__main__":
             pbar.update()
 
         pbar.close()
-        print('====> Val Loss: {:.4f}\tVal {}: {:.2f}'.format(
+        print('====> Val Loss: {:.4f}\tVal {}: {:.6f}'.format(
             loss_meter.avg, 'MSE' if args.soft_labels else 'Accuracy', metric_meter.avg))
         return loss_meter.avg, metric_meter.avg
 
@@ -207,7 +208,7 @@ if __name__ == "__main__":
             pbar.update()
 
         pbar.close()
-        print('====> Test Loss: {:.4f}\tTest {}: {:.2f}'.format(
+        print('====> Test Loss: {:.4f}\tTest {}: {:.6f}'.format(
             loss_meter.avg, 'MSE' if args.soft_labels else 'Accuracy', metric_meter.avg))
         return loss_meter.avg, metric_meter.avg
 
