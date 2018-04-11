@@ -56,6 +56,10 @@ class AverageMeter(object):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('--alpha', type=float, default=1.,
+                        help='sample from same category with this probability [default: 1.]')
+    parser.add_argument('--add-class-loss', action='store_true', default=False,
+                        help='add class loss [default: False]')
     parser.add_argument('--out-dir', type=str, default='./trained_models', 
                         help='where to save checkpoints [./trained_models]')
     parser.add_argument('--batch-size', type=int, default=10, 
@@ -66,9 +70,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
    
-    train_dataset = VisualCommunicationDataset(layer='conv42', split='train', soft_labels=True)
-    val_dataset = VisualCommunicationDataset(layer='conv42', split='val', soft_labels=True)
-    test_dataset = VisualCommunicationDataset(layer='conv42', split='test', soft_labels=True)
+    train_dataset = VisualCommunicationDataset(layer='conv42', split='train', soft_labels=True, alpha=args.alpha)
+    val_dataset = VisualCommunicationDataset(layer='conv42', split='val', soft_labels=True, alpha=args.alpha)
+    test_dataset = VisualCommunicationDataset(layer='conv42', split='test', soft_labels=True, alpha=args.alpha)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
@@ -81,168 +85,199 @@ if __name__ == "__main__":
     def train(epoch):
         model.train()
         loss_meter = AverageMeter()
-        mse_meter = AverageMeter()
-        photo_meter = AverageMeter()
-        sketch_meter = AverageMeter()
+        if args.add_class_loss:
+            photo_meter = AverageMeter()
+            sketch_meter = AverageMeter()
 
         for batch_idx, (photo, sketch, label, photo_class, sketch_class) in enumerate(train_loader):
             photo = Variable(photo)
             sketch = Variable(sketch)
             label = Variable(label)
-            photo_class = Variable(photo_class)
-            sketch_class = Variable(sketch_class)
+            if args.add_class_loss:
+                photo_class = Variable(photo_class)
+                sketch_class = Variable(sketch_class)
             batch_size = len(photo)
 
             if args.cuda:
                 photo = photo.cuda()
                 sketch = sketch.cuda()
                 label = label.cuda()
-                photo_class = photo_class.cuda()
-                sketch_class = sketch_class.cuda()
+                if args.add_class_loss:
+                    photo_class = photo_class.cuda()
+                    sketch_class = sketch_class.cuda()
 
             photo = photo.view(batch_size * 4, 512, 28, 28)
             sketch = sketch.view(batch_size * 4, 512, 28, 28)
             label = label.view(batch_size * 4, 1)
-            photo_class = photo_class.view(batch_size * 4)
-            sketch_class = sketch_class.view(batch_size * 4)
+            if args.add_class_loss:
+                photo_class = photo_class.view(batch_size * 4)
+                sketch_class = sketch_class.view(batch_size * 4)
 
             optimizer.zero_grad()
             pred, photo_pred, sketch_pred = model(photo, sketch)
-            loss = (F.mse_loss(pred, label) + 
-                    F.cross_entropy(photo_pred, photo_class) + 
-                    F.cross_entropy(sketch_pred, sketch_class))
+            if args.add_class_loss:
+                loss = (F.mse_loss(pred, label) + 
+                        F.cross_entropy(photo_pred, photo_class) + 
+                        F.cross_entropy(sketch_pred, sketch_class))
+            else:
+                loss = F.mse_loss(pred, label)
             loss_meter.update(loss.data[0], batch_size)
-            mse_meter.update(F.mse_loss(pred, label).data[0], batch_size)
             loss.backward()
             optimizer.step()
 
-            photo_class_np = photo_class.cpu().data.numpy()
-            photo_pred_np = photo_pred.cpu().data.numpy()
-            photo_pred_np = np.argmax(photo_pred_np, axis=1)
-            acc = np.sum(photo_pred_np == photo_class_np) / float(4. * batch_size)
-            photo_meter.update(acc, batch_size)
+            if args.add_class_loss:
+                photo_class_np = photo_class.cpu().data.numpy()
+                photo_pred_np = photo_pred.cpu().data.numpy()
+                photo_pred_np = np.argmax(photo_pred_np, axis=1)
+                acc = np.sum(photo_pred_np == photo_class_np) / float(4. * batch_size)
+                photo_meter.update(acc, batch_size)
 
-            sketch_class_np = sketch_class.cpu().data.numpy()
-            sketch_pred_np = sketch_pred.cpu().data.numpy()
-            sketch_pred_np = np.argmax(sketch_pred_np, axis=1)
-            acc = np.sum(sketch_pred_np == sketch_class_np) / float(4. * batch_size)
-            sketch_meter.update(acc, batch_size)
+                sketch_class_np = sketch_class.cpu().data.numpy()
+                sketch_pred_np = sketch_pred.cpu().data.numpy()
+                sketch_pred_np = np.argmax(sketch_pred_np, axis=1)
+                acc = np.sum(sketch_pred_np == sketch_class_np) / float(4. * batch_size)
+                sketch_meter.update(acc, batch_size)
 
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tMSE: {:.6f}\tPhoto-Acc: {:.2f}\tSketch-Acc: {:.2f}'.format(
-                epoch, batch_idx * batch_size, len(train_loader.dataset),  
-                100. * batch_idx / len(train_loader), loss_meter.avg, 
-                mse_meter.avg, photo_meter.avg, sketch_meter.avg))
-        
-        print('====> Epoch: {}\tLoss: {:.6f}\tMSE: {:.6f}\tPhoto-Acc: {:.2f}\tSketch-Acc: {:.2f}'.format(
-            epoch, loss_meter.avg, mse_meter.avg, photo_meter.avg, sketch_meter.avg))
+            if args.add_class_loss:
+                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tPhoto-Acc: {:.2f}\tSketch-Acc: {:.2f}'.format(
+                    epoch, batch_idx * batch_size, len(train_loader.dataset),  
+                    100. * batch_idx / len(train_loader), loss_meter.avg, 
+                    photo_meter.avg, sketch_meter.avg))
+            else:
+                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                    epoch, batch_idx * batch_size, len(train_loader.dataset),
+                    100. * batch_idx / len(train_loader), loss_meter.avg))
+
+        if args.add_class_loss:
+            print('====> Epoch: {}\tLoss: {:.6f}\tPhoto-Acc: {:.2f}\tSketch-Acc: {:.2f}'.format(
+                epoch, loss_meter.avg, photo_meter.avg, sketch_meter.avg))
 	return loss_meter.avg
 
     def validate():
         model.eval()
         loss_meter = AverageMeter()
-        mse_meter = AverageMeter()
-        photo_meter = AverageMeter()
-        sketch_meter = AverageMeter()
+        if args.add_class_loss:
+            photo_meter = AverageMeter()
+            sketch_meter = AverageMeter()
         pbar = tqdm(total=len(val_loader))
 
         for batch_idx, (photo, sketch, label, photo_class, sketch_class) in enumerate(val_loader):
             photo = Variable(photo, volatile=True)
             sketch = Variable(sketch, volatile=True)
             label = Variable(label, requires_grad=False).float()
-            photo_class = Variable(photo_class, requires_grad=False)
-            sketch_class = Variable(sketch_class, requires_grad=False)
+            if args.add_class_loss:
+                photo_class = Variable(photo_class, requires_grad=False)
+                sketch_class = Variable(sketch_class, requires_grad=False)
             batch_size = len(photo)
 
             if args.cuda:
                 photo = photo.cuda()
                 sketch = sketch.cuda()
                 label = label.cuda()
-                photo_class = photo_class.cuda()
-                sketch_class = sketch_class.cuda()
+                if args.add_class_loss:
+                    photo_class = photo_class.cuda()
+                    sketch_class = sketch_class.cuda()
 
             photo = photo.view(batch_size * 4, 512, 28, 28)
             sketch = sketch.view(batch_size * 4, 512, 28, 28)
             label = label.view(batch_size * 4, 1)
-            photo_class = photo_class.view(batch_size * 4)
-            sketch_class = sketch_class.view(batch_size * 4) 
+            if args.add_class_loss:
+                photo_class = photo_class.view(batch_size * 4)
+                sketch_class = sketch_class.view(batch_size * 4) 
 
             pred, photo_pred, sketch_pred = model(photo, sketch)
-            loss = (F.mse_loss(pred, label) + 
-                    F.cross_entropy(photo_pred, photo_class) + 
-                    F.cross_entropy(sketch_pred, sketch_class))
+            if args.add_class_loss:
+                loss = (F.mse_loss(pred, label) + 
+                        F.cross_entropy(photo_pred, photo_class) + 
+                        F.cross_entropy(sketch_pred, sketch_class))
+            else:
+                loss = F.mse_loss(pred, label)
             loss_meter.update(loss.data[0], batch_size)
-            mse_meter.update(F.mse_loss(pred, label).data[0], batch_size)
             pbar.update()
 
-            photo_class_np = photo_class.cpu().data.numpy()
-            photo_pred_np = photo_pred.cpu().data.numpy()
-            photo_pred_np = np.argmax(photo_pred_np, axis=1)
-            acc = np.sum(photo_pred_np == photo_class_np) / float(4. * batch_size)
-            photo_meter.update(acc, batch_size)
+            if args.add_class_loss:
+                photo_class_np = photo_class.cpu().data.numpy()
+                photo_pred_np = photo_pred.cpu().data.numpy()
+                photo_pred_np = np.argmax(photo_pred_np, axis=1)
+                acc = np.sum(photo_pred_np == photo_class_np) / float(4. * batch_size)
+                photo_meter.update(acc, batch_size)
 
-            sketch_class_np = sketch_class.cpu().data.numpy()
-            sketch_pred_np = sketch_pred.cpu().data.numpy()
-            sketch_pred_np = np.argmax(sketch_pred_np, axis=1)
-            acc = np.sum(sketch_pred_np == sketch_class_np) / float(4. * batch_size)
-            sketch_meter.update(acc, batch_size)
+                sketch_class_np = sketch_class.cpu().data.numpy()
+                sketch_pred_np = sketch_pred.cpu().data.numpy()
+                sketch_pred_np = np.argmax(sketch_pred_np, axis=1)
+                acc = np.sum(sketch_pred_np == sketch_class_np) / float(4. * batch_size)
+                sketch_meter.update(acc, batch_size)
 
         pbar.close()
-        print('====> Val Loss: {:.6f}\tMSE: {:.6f}\tPhoto-Acc: {:.2f}\tSketch-Acc: {:.2f}'.format(
-            loss_meter.avg, mse_meter.avg, photo_meter.avg, sketch_meter.avg))
+        if args.add_class_loss:
+            print('====> Val Loss: {:.6f}\tPhoto-Acc: {:.2f}\tSketch-Acc: {:.2f}'.format(
+                loss_meter.avg, photo_meter.avg, sketch_meter.avg))
+        else:
+            print('====> Val Loss: {:.6f}'.format(loss_meter.avg))
         return loss_meter.avg
 
     def test():
         model.eval()
         loss_meter = AverageMeter()
         mse_meter = AverageMeter()
-        photo_meter = AverageMeter()
-        sketch_meter = AverageMeter()
+        if args.add_class_loss:
+            photo_meter = AverageMeter()
+            sketch_meter = AverageMeter()
         pbar = tqdm(total=len(test_loader))
 
         for batch_idx, (photo, sketch, label, photo_class, sketch_class) in enumerate(test_loader):
             photo = Variable(photo, volatile=True)
             sketch = Variable(sketch, volatile=True)
             label = Variable(label, requires_grad=False).float()
-            photo_class = Variable(photo_class, volatile=True)
-            sketch_class = Variable(sketch_class, volatile=True)
+            if args.add_class_loss:
+                photo_class = Variable(photo_class, volatile=True)
+                sketch_class = Variable(sketch_class, volatile=True)
             batch_size = len(photo)
 
             if args.cuda:
                 photo = photo.cuda()
                 sketch = sketch.cuda()
                 label = label.cuda()
-                photo_class = photo_class.cuda()
-                sketch_class = sketch_class.cuda()
+                if args.add_class_loss:
+                    photo_class = photo_class.cuda()
+                    sketch_class = sketch_class.cuda()
 
             photo = photo.view(batch_size * 4, 512, 28, 28)
             sketch = sketch.view(batch_size * 4, 512, 28, 28)
             label = label.view(batch_size * 4, 1)
-            photo_class = photo_class.view(batch_size * 4)
-            sketch_class = sketch_class.view(batch_size * 4)
+            if args.add_class_loss:
+                photo_class = photo_class.view(batch_size * 4)
+                sketch_class = sketch_class.view(batch_size * 4)
 
             pred, photo_pred, sketch_pred = model(photo, sketch)
-            loss = (F.mse_loss(pred, label) + 
-                    F.cross_entropy(photo_pred, photo_class) + 
-                    F.cross_entropy(sketch_pred, sketch_class))
+            if args.add_class_loss:
+                loss = (F.mse_loss(pred, label) + 
+                        F.cross_entropy(photo_pred, photo_class) + 
+                        F.cross_entropy(sketch_pred, sketch_class))
+            else:
+                loss = F.mse_loss(pred, label)
             loss_meter.update(loss.data[0], batch_size)
-            mse_meter.update(F.mse_loss(pred, label).data[0], batch_size)
             pbar.update()
+            
+            if args.add_class_loss:
+                photo_class_np = photo_class.cpu().data.numpy()
+                photo_pred_np = photo_pred.cpu().data.numpy()
+                photo_pred_np = np.argmax(photo_pred_np, axis=1)
+                acc = np.sum(photo_pred_np == photo_class_np) / float(4. * batch_size)
+                photo_meter.update(acc, batch_size)
 
-            photo_class_np = photo_class.cpu().data.numpy()
-            photo_pred_np = photo_pred.cpu().data.numpy()
-            photo_pred_np = np.argmax(photo_pred_np, axis=1)
-            acc = np.sum(photo_pred_np == photo_class_np) / float(4. * batch_size)
-            photo_meter.update(acc, batch_size)
-
-            sketch_class_np = sketch_class.cpu().data.numpy()
-            sketch_pred_np = sketch_pred.cpu().data.numpy()
-            sketch_pred_np = np.argmax(sketch_pred_np, axis=1)
-            acc = np.sum(sketch_pred_np == sketch_class_np) / float(4. * batch_size)
-            sketch_meter.update(acc, batch_size)
+                sketch_class_np = sketch_class.cpu().data.numpy()
+                sketch_pred_np = sketch_pred.cpu().data.numpy()
+                sketch_pred_np = np.argmax(sketch_pred_np, axis=1)
+                acc = np.sum(sketch_pred_np == sketch_class_np) / float(4. * batch_size)
+                sketch_meter.update(acc, batch_size)
 
         pbar.close()
-        print('====> Test Loss: {:.6f}\tMSE: {:.6f}\tPhoto-Acc: {:.2f}\tSketch-Acc: {:.2f}'.format(
-            loss_meter.avg, mse_meter.avg, photo_meter.avg, sketch_meter.avg))
+        if args.add_class_loss:
+            print('====> Test Loss: {:.6f}\tPhoto-Acc: {:.2f}\tSketch-Acc: {:.2f}'.format(
+                loss_meter.avg, photo_meter.avg, sketch_meter.avg))
+        else:
+            print('====> Test Loss: {:.6f}'.format(loss_meter.avg))
         return loss_meter.avg
 
     loss_db = np.zeros((args.epochs, 3))
