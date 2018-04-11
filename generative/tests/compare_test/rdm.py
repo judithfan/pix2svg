@@ -50,7 +50,8 @@ if __name__ == "__main__":
             batch_size = len(sketch)
             if args.cuda:
                 photo = photo.cuda()
-            pred = model(photo, sketch).squeeze(1).cpu().data[0]
+            pred, _, _ = model(photo, sketch)
+            pred = pred.squeeze(1).cpu().data[0]
             if sketch_context[0] == 'closer':
                 rdm_closer_sums[photo_object_ix, sketch_object_ix] += pred
                 rdm_closer_cnts[photo_object_ix, sketch_object_ix] += 1
@@ -78,3 +79,8 @@ if __name__ == "__main__":
     ax = sns.heatmap(rdm_closer, linewidths=.5)
     fig = ax.get_figure()
     fig.savefig('./rdm-closer.pdf')
+
+    plt.figure()
+    ax = sns.heatmap(rdm_closer - rdm_further, linewidths=.5)
+    fig = ax.get_figure()
+    fig.savefig('./rdm-diff.pdf')

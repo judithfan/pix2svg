@@ -13,12 +13,29 @@ from collections import defaultdict
 
 import torch
 from torch.utils.data.dataset import Dataset
+
+OBJECT_TO_CATEGORY = {
+    'basset': 'dog', 'beetle': 'car', 'bloodhound': 'dog', 'bluejay': 'bird',
+    'bluesedan': 'car', 'bluesport': 'car', 'brown': 'car', 'bullmastiff': 'dog',
+    'chihuahua': 'dog', 'crow': 'bird', 'cuckoo': 'bird', 'doberman': 'dog',
+    'goldenretriever': 'dog', 'hatchback': 'car', 'inlay': 'chair', 'knob': 'chair',
+    'leather': 'chair', 'nightingale': 'bird', 'pigeon': 'bird', 'pug': 'dog',
+    'redantique': 'car', 'redsport': 'car', 'robin': 'bird', 'sling': 'chair',
+    'sparrow': 'bird', 'squat': 'chair', 'straight': 'chair', 'tomtit': 'bird',
+    'waiting': 'chair', 'weimaraner': 'dog', 'white': 'car', 'woven': 'chair',
+}
+CATEGORY_TO_OBJECT = {
+    'dog': ['basset', 'bloodhound', 'bullmastiff', 'chihuahua', 'doberman', 'goldenretriever', 'pug', 'weimaraner'],
+    'car': ['beetle', 'bluesedan', 'bluesport', 'brown', 'hatchback', 'redantique', 'redsport', 'white'],
+    'bird': ['bluejay', 'crow', 'cuckoo', 'nightingale', 'pigeon', 'robin', 'sparrow', 'tomtit'],
+    'chair': ['inlay', 'knob', 'leather', 'sling', 'squat', 'straight', 'waiting', 'woven'],
+}
  
 
 class VisualCommunicationDataset(Dataset):
     """Used for training. We show a group of 4 images at a time."""
     def __init__(self, layer='fc6', split='train', soft_labels=False, photo_transform=None,
-                 sketch_transform=None, random_seed=42):
+                 sketch_transform=None, random_seed=42, alpha=.5):
         super(Dataset, self).__init__()
         np.random.seed(random_seed)
         random.seed(random_seed)
@@ -58,6 +75,7 @@ class VisualCommunicationDataset(Dataset):
         self.photo_dirname = photo_dirname
         self.size = len(sketch_paths)
         self.split = split
+        self.alpha = alpha
         self.use_soft_labels = soft_labels
         self.photo_32_paths = photo_32_paths
         self.object_order = object_order
@@ -77,8 +95,8 @@ class VisualCommunicationDataset(Dataset):
         for object_name in object_names:
             object_basepaths = sketch_basepaths[sketch_objects == object_name].tolist()
             num_basepaths = len(object_basepaths)
-            num_train = int(0.8 * num_basepaths)
-            num_val = int(0.9 * num_basepaths) - num_train
+            num_train = int(0.7 * num_basepaths)
+            num_val = int(0.8 * num_basepaths) - num_train
             random.shuffle(object_basepaths)
             train_sketch_basepaths += object_basepaths[:num_train]
             val_sketch_basepaths += object_basepaths[num_train:num_train+num_val]
@@ -96,7 +114,13 @@ class VisualCommunicationDataset(Dataset):
         sketch1_path = self.sketch_paths[index] 
         sketch1_object = self.label_dict[os.path.basename(sketch1_path)]
         sketch1_object_ix = self.object_order.index(sketch1_object)
-        sketch2_object = random.choice(list(set(self.object_order) - set([sketch1_object])))
+        alpha_sample = np.random.binomial(1, self.alpha)
+	sketch1_category = OBJECT_TO_CATEGORY[sketch1_object]
+	sketch2_objects = CATEGORY_TO_OBJECT[sketch1_category]
+        if alpha_sample == 1:
+            sketch2_object = random.choice(list(set(sketch2_objects) - set([sketch1_object])))
+        else:
+            sketch2_object = random.choice(list(set(self.object_order) - set(sketch2_objects)))
         sketch2_object_ix = self.object_order.index(sketch2_object)
         sketch2_path = random.choice(list(set(self.reverse_label_dict[sketch2_object]).intersection(set(self.sketch_paths))))
         photo1_path = self.photo_32_paths[sketch1_object_ix]
