@@ -49,11 +49,19 @@ class Predictor(nn.Module):
         return self.fusenet(photo_emb, sketch_emb), photo_pred, sketch_pred
 
 
-class Soft32Classifier(Classifier):
+class Soft32Classifier(nn.Module):
+    def __init__(self, distance='cosine'):
+        super(Soft32Classifier, self).__init__()
+        self.photo_adaptor = AdaptorNet()
+        self.sketch_adaptor = AdaptorNet()
+	self.fusenet = FusePredictor()
+
     def forward(self, photo_32_emb, sketch_emb):
         sketch_emb = self.sketch_adaptor(sketch_emb)
-        return torch.cat([self.fusenet(self.photo_adaptor(photo_32_emb[i]), sketch_emb) 
-                          for i in xrange(32)], dim=1)
+        pred_32 = torch.cat([self.fusenet(self.photo_adaptor(photo_32_emb[:, i]), sketch_emb) 
+                             for i in xrange(32)], dim=1)
+        pred_32 = F.softplus(pred_32)
+	return pred_32
 
 
 class AdaptorNet(nn.Module):
@@ -104,7 +112,7 @@ class FusePredictor(nn.Module):
         self.fc = nn.Linear(2000, 1)
 
     def forward(self, e1, e2):
-        h = torch.cat((e1, e2), dim=1)
+        h = swish(torch.cat((e1, e2), dim=1))
         return F.softplus(self.fc(h))
 
 
@@ -120,6 +128,10 @@ class CategoryClassifier(nn.Module):
 class Swish(nn.Module):
     def forward(self, x):
         return x * F.sigmoid(x)
+
+
+def swish(x):
+    return x * F.sigmoid(x)
 
 
 def cosine_similarity(x1, x2, dim=1, eps=1e-8):

@@ -56,8 +56,8 @@ class AverageMeter(object):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--alpha', action='store_true', default=0.5,
-                        help='sample from same category with this probability [default: 0.5]')
+    parser.add_argument('--alpha', type=float, default=1.,
+                        help='sample from same category with this probability [default: 1.]')
     parser.add_argument('--add-class-loss', action='store_true', default=False,
                         help='add class loss [default: False]')
     parser.add_argument('--soft-labels', action='store_true', default=False,

@@ -187,7 +187,7 @@ class HumanAnnotationDataset(VisualCommunicationDataset):
         else:
             label = torch.zeros(32)
             label[sketch_object_ix] = 1
-        return sketch, photo_32, label
+        return photo_32, sketch, label
 
 
 class ExhaustiveDataset(Dataset):

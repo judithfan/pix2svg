@@ -137,14 +137,14 @@ if __name__ == "__main__":
         loss_meter = AverageMeter()
         pbar = tqdm(total=len(test_loader))
 
-        for batch_idx, (photo, sketch, label) in enumerate(test_loader):
+        for batch_idx, (photo_32, sketch, label) in enumerate(test_loader):
             batch_size = len(sketch)
-            photo = Variable(photo, volatile=True)
+            photo_32 = Variable(photo_32, volatile=True)
             sketch = Variable(sketch, volatile=True)
             label = Variable(label, requires_grad=False).float()
 
             if args.cuda:
-                photo = photo.cuda()
+                photo_32 = photo_32.cuda()
                 sketch = sketch.cuda()
                 label = label.cuda()
 
@@ -154,7 +154,7 @@ if __name__ == "__main__":
             pbar.update()
         pbar.close()
         print('====> Test Loss: {:.4f}'.format(loss_meter.avg))
-        return loss_meter.avg, metric_meter.avg
+        return loss_meter.avg
 
     best_loss = sys.maxint
     loss_db = np.zeros((args.epochs, 3))
