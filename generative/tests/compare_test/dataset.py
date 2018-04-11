@@ -115,8 +115,8 @@ class VisualCommunicationDataset(Dataset):
         sketch1_object = self.label_dict[os.path.basename(sketch1_path)]
         sketch1_object_ix = self.object_order.index(sketch1_object)
         alpha_sample = np.random.binomial(1, self.alpha)
-	sketch1_category = OBJECT_TO_CATEGORY[sketch1_object]
-	sketch2_objects = CATEGORY_TO_OBJECT[sketch1_category]
+        sketch1_category = OBJECT_TO_CATEGORY[sketch1_object]
+        sketch2_objects = CATEGORY_TO_OBJECT[sketch1_category]
         if alpha_sample == 1:
             sketch2_object = random.choice(list(set(sketch2_objects) - set([sketch1_object])))
         else:
@@ -158,10 +158,36 @@ class VisualCommunicationDataset(Dataset):
             label_group = torch.Tensor([1, 1, 0, 0])
         photo_class = torch.LongTensor([sketch1_object_ix, sketch2_object_ix, sketch1_object_ix, sketch2_object_ix])
         sketch_class = torch.LongTensor([sketch1_object_ix, sketch2_object_ix, sketch2_object_ix, sketch1_object_ix])
-	return photo_group, sketch_group, label_group.unsqueeze(1), photo_class, sketch_class
+        return photo_group, sketch_group, label_group.unsqueeze(1), photo_class, sketch_class
 
     def __len__(self):
         return self.size
+
+
+class HumanAnnotationDataset(VisualCommunicationDataset):
+    def __getitem__(self, index):
+        sketch_path = self.sketch_paths[index] 
+        sketch_object = self.label_dict[os.path.basename(sketch_path)]
+        sketch_object_ix = self.object_order.index(sketch_object)
+        sketch_context = self.context_dict[os.path.basename(sketch_path)]
+        sketch_context = 0 if sketch_context == 'closer' else 1
+
+        sketch = torch.from_numpy(np.load(os.path.join(self.sketch_dirname, sketch_path)))
+        photo_32 = torch.stack([torch.from_numpy(np.load(os.path.join(self.photo_dirname, photo_path)))
+                                for photo_path in self.photo_32_paths])
+
+        if self.sketch_transform:
+            sketch = self.sketch_transform(sketch)
+
+        if self.photo_transform:
+            photo_32 = self.photo_transform(photo_32)
+
+        if self.use_soft_labels:
+            label = torch.from_numpy(self.annotations[sketch_object_ix, :, context1])
+        else:
+            label = torch.zeros(32)
+            label[sketch_object_ix] = 1
+        return sketch, photo_32, label
 
 
 class ExhaustiveDataset(Dataset):

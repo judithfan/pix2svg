@@ -49,6 +49,13 @@ class Predictor(nn.Module):
         return self.fusenet(photo_emb, sketch_emb), photo_pred, sketch_pred
 
 
+class Soft32Classifier(Classifier):
+    def forward(self, photo_32_emb, sketch_emb):
+        sketch_emb = self.sketch_adaptor(sketch_emb)
+        return torch.cat([self.fusenet(self.photo_adaptor(photo_32_emb[i]), sketch_emb) 
+                          for i in xrange(32)], dim=1)
+
+
 class AdaptorNet(nn.Module):
     def __init__(self):
         super(AdaptorNet, self).__init__()
