@@ -55,7 +55,7 @@ class LabelPredictor(nn.Module):
         self.adaptor = AdaptorNet()
         self.classifier = CategoryClassifier()
 
-    def forward(sketch):
+    def forward(self, sketch):
         sketch = swish(self.adaptor(sketch))
         return self.classifier(sketch)
 

@@ -260,10 +260,10 @@ class SketchOnlyDataset(Dataset):
         obj = self.label_dict[os.path.basename(path)]
         obj_ix = self.object_order.index(obj)
         category = OBJECT_TO_CATEGORY[obj]
-        label = self.object_order.index(category)
+        label = self.object_order.index(obj)
         context = self.context_dict[os.path.basename(path)]
         context = 0 if context == 'closer' else 1
-        sketch = torch.from_numpy(np.load(os.path.join(self.dirname, sketch)))
+        sketch = torch.from_numpy(np.load(os.path.join(self.dirname, path)))
 
         if self.transform:
             sketch = self.transform(sketch)

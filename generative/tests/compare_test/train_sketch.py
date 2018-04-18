@@ -88,15 +88,18 @@ if __name__ == "__main__":
         for batch_idx, (sketch, label) in enumerate(train_loader):
             sketch = Variable(sketch)
             label = Variable(label)
-            batch_size = len(photo)
+            batch_size = len(sketch)
 
             if args.cuda:
                 sketch = sketch.cuda()
                 label = label.cuda()
 
             optimizer.zero_grad()
-            pred = model(sketch)
-            loss = F.cross_entropy(pred, label)
+            pred_logits = model(sketch)
+            if args.soft_labels:
+                loss = F.mse_loss(F.softplus(pred_logits), label)
+            else:
+                loss = F.cross_entropy(pred_logits, label)
             loss_meter.update(loss.data[0], batch_size)
             
             if args.soft_labels:
@@ -105,10 +108,9 @@ if __name__ == "__main__":
                 mse = mean_squared_error(label_np, pred_np)
                 metric_meter.update(mse, batch_size)
             else:
-                label_np = np.round(label.cpu().data.numpy(), 0)
-                pred_np = np.round(pred.cpu().data.numpy(), 0)
-                acc = accuracy_score(label_np, pred_np)
-                metric_meter.update(acc, batch_size)
+                pred = pred_logits.data.max(1, keepdim=True)[1]
+                correct = pred.eq(label.data.view_as(pred)).long().cpu().sum()
+                metric_meter.update(correct / float(batch_size), batch_size)
 
             loss.backward()
             optimizer.step()
@@ -137,8 +139,11 @@ if __name__ == "__main__":
                 sketch = sketch.cuda()
                 label = label.cuda()
 
-            pred = model(sketch)
-            loss = F.binary_cross_entropy(pred, label)
+            pred_logits = model(sketch)
+            if args.soft_labels:
+                loss = F.mse_loss(F.softplus(pred_logits), label)
+            else:
+                loss = F.cross_entropy(pred_logits, label) 
             loss_meter.update(loss.data[0], batch_size)
 
             if args.soft_labels:
@@ -147,10 +152,9 @@ if __name__ == "__main__":
                 mse = mean_squared_error(label_np, pred_np)
                 metric_meter.update(mse, batch_size)
             else:
-                label_np = np.round(label.cpu().data.numpy(), 0)
-                pred_np = np.round(pred.cpu().data.numpy(), 0)
-                acc = accuracy_score(label_np, pred_np)
-                metric_meter.update(acc, batch_size)
+                pred = pred_logits.data.max(1, keepdim=True)[1]
+                correct = pred.eq(label.data.view_as(pred)).long().cpu().sum()
+                metric_meter.update(correct / float(batch_size), batch_size)
 
             pbar.update()
         pbar.close()
@@ -174,8 +178,11 @@ if __name__ == "__main__":
                 sketch = sketch.cuda()
                 label = label.cuda()
 
-            pred = model(sketch)
-            loss = F.binary_cross_entropy(pred, label)
+            pred_logits = model(sketch)
+            if args.soft_labels:
+                loss = F.mse_loss(F.softplus(pred_logits), label)
+            else:
+                loss = F.cross_entropy(pred_logits, label)
             loss_meter.update(loss.data[0], batch_size)
 
             if args.soft_labels:
@@ -184,11 +191,10 @@ if __name__ == "__main__":
                 mse = mean_squared_error(label_np, pred_np)
                 metric_meter.update(mse, batch_size)
             else:
-                label_np = np.round(label.cpu().data.numpy(), 0)
-                pred_np = np.round(pred.cpu().data.numpy(), 0)
-                acc = accuracy_score(label_np, pred_np)
-                metric_meter.update(acc, batch_size)
-           
+                pred = pred_logits.data.max(1, keepdim=True)[1]
+                correct = pred.eq(label.data.view_as(pred)).long().cpu().sum()
+                metric_meter.update(correct / float(batch_size), batch_size)          
+ 
             pbar.update()
         pbar.close()
 
