@@ -49,19 +49,30 @@ class Predictor(nn.Module):
         return self.fusenet(photo_emb, sketch_emb), photo_pred, sketch_pred
 
 
+class LabelPredictor(nn.Module):
+    def __init__(self):
+        super(LabelPredictor, self).__init__()
+        self.adaptor = AdaptorNet()
+        self.classifier = CategoryClassifier()
+
+    def forward(sketch):
+        sketch = swish(self.adaptor(sketch))
+        return self.classifier(sketch)
+
+
 class Soft32Classifier(nn.Module):
     def __init__(self, distance='cosine'):
         super(Soft32Classifier, self).__init__()
         self.photo_adaptor = AdaptorNet()
         self.sketch_adaptor = AdaptorNet()
-	self.fusenet = FusePredictor()
+        self.fusenet = FusePredictor()
 
     def forward(self, photo_32_emb, sketch_emb):
         sketch_emb = self.sketch_adaptor(sketch_emb)
         pred_32 = torch.cat([self.fusenet(self.photo_adaptor(photo_32_emb[:, i]), sketch_emb) 
                              for i in xrange(32)], dim=1)
         pred_32 = F.softplus(pred_32)
-	return pred_32
+        return pred_32
 
 
 class AdaptorNet(nn.Module):
@@ -162,4 +173,3 @@ def cosine_similarity(x1, x2, dim=1, eps=1e-8):
     w1 = torch.norm(x1, 2, dim)
     w2 = torch.norm(x2, 2, dim)
     return (w12 / (w1 * w2).clamp(min=eps)).squeeze()
-

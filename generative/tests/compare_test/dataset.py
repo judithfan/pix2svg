@@ -190,6 +190,93 @@ class HumanAnnotationDataset(VisualCommunicationDataset):
         return photo_32, sketch, label
 
 
+class SketchOnlyDataset(Dataset):
+    def __init__(self, layer='fc6', split='train', soft_labels=False, transform=None, random_seed=42):
+        super(Dataset, self).__init__()
+        np.random.seed(random_seed); random.seed(random_seed)
+        db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_%s' % layer
+        dirname = os.path.join(db_path, 'sketch')
+        basepaths = os.listdir(dirname)
+
+        valid_game_ids = pd.read_csv(os.path.join(db_path, 'valid_gameids_pilot2.csv'))
+        valid_game_ids = np.asarray(valid_game_ids['valid_gameids']).tolist()
+        basepaths = [path for path in basepaths if os.path.basename(path).split('_')[1] in valid_game_ids]
+
+        # this details how labels are stored (order of objects)
+        object_order = pd.read_csv('/mnt/visual_communication_dataset/human_confusion_object_order.csv')
+        object_order = np.asarray(object_order['object_name']).tolist()
+
+        # load human annotated labels.
+        self.annotations = np.load('/mnt/visual_communication_dataset/human_confusion.npy')
+
+        # load which sketches go to which contexts
+        with open(os.path.join(db_path, 'sketchpad_context_dict.pickle')) as fp:
+            self.context_dict = cPickle.load(fp)
+
+        # load which sketches go to which classes
+        with open(os.path.join(db_path, 'sketchpad_label_dict.pickle')) as fp:
+            self.label_dict = cPickle.load(fp)
+            # reverse label from string to integer
+            self.reverse_label_dict = defaultdict(lambda: [])
+            for path, label in self.label_dict.iteritems():
+                self.reverse_label_dict[label].append(path)
+
+        paths = self.train_test_split(split, basepaths)
+        self.dirname = dirname 
+        self.size = len(paths)
+        self.split = split
+        self.use_soft_labels = soft_labels
+        self.object_order = object_order
+        self.paths = paths
+        self.transform = transform
+
+    def train_test_split(self, split, basepaths):
+        train_basepaths, val_basepaths, test_basepaths = [], [], []
+
+        object_names = self.reverse_label_dict.keys()
+        sketch_objects = np.asarray([self.label_dict[basepath] for basepath in basepaths])
+        basepaths = np.asarray(basepaths)
+
+        for object_name in object_names:
+            object_basepaths = basepaths[sketch_objects == object_name].tolist()
+            num_basepaths = len(object_basepaths)
+            num_train = int(0.7 * num_basepaths)
+            num_val = int(0.8 * num_basepaths) - num_train
+            random.shuffle(object_basepaths)
+            train_basepaths += object_basepaths[:num_train]
+            val_basepaths += object_basepaths[num_train:num_train+num_val]
+            test_basepaths += object_basepaths[num_train+num_val:]
+
+        if split == 'train':
+            paths = train_basepaths
+        elif split == 'val':
+            paths = val_basepaths
+        else:  # split == 'test'
+            paths = test_basepaths
+        return paths
+
+    def __getitem__(self, index):
+        path = self.paths[index] 
+        obj = self.label_dict[os.path.basename(path)]
+        obj_ix = self.object_order.index(obj)
+        category = OBJECT_TO_CATEGORY[obj]
+        label = self.object_order.index(category)
+        context = self.context_dict[os.path.basename(path)]
+        context = 0 if context == 'closer' else 1
+        sketch = torch.from_numpy(np.load(os.path.join(self.dirname, sketch)))
+
+        if self.transform:
+            sketch = self.transform(sketch)
+
+        if self.use_soft_labels:
+            label = self.annotations[obj_ix, :, context]
+
+        return sketch, label
+
+    def __len__(self):
+        return self.size
+
+
 class ExhaustiveDataset(Dataset):
     """Used to create the RDM and JSON. Loops through every sketch & photo pair."""
     def __init__(self, layer='fc6', photo_transform=None, sketch_transform=None, random_seed=42):
