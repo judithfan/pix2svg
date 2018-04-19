@@ -13,6 +13,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.autograd import Variable
 from sklearn.metrics import accuracy_score
+from sklearn.metrics import mean_squared_error
 
 from model import LabelPredictor
 from dataset import SketchOnlyDataset
@@ -97,12 +98,16 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             pred_logits = model(sketch)
             if args.soft_labels:
-                loss = F.mse_loss(F.softplus(pred_logits), label)
+                pred = F.softplus(pred_logits)
+                pred = pred / torch.sum(pred, dim=1, keepdim=True)
+                loss = 10000. * F.mse_loss(pred, label.float())
             else:
                 loss = F.cross_entropy(pred_logits, label)
             loss_meter.update(loss.data[0], batch_size)
             
             if args.soft_labels:
+                pred = F.softplus(pred_logits)
+                pred = pred / torch.sum(pred, dim=1, keepdim=True)
                 label_np = label.cpu().data.numpy()
                 pred_np = pred.cpu().data.numpy()
                 mse = mean_squared_error(label_np, pred_np)
@@ -132,8 +137,8 @@ if __name__ == "__main__":
 
         for batch_idx, (sketch, label) in enumerate(val_loader):
             sketch = Variable(sketch, volatile=True)
-            label = Variable(label, requires_grad=False).float()
-            batch_size = len(photo)
+            label = Variable(label, requires_grad=False)
+            batch_size = len(sketch)
 
             if args.cuda:
                 sketch = sketch.cuda()
@@ -141,12 +146,16 @@ if __name__ == "__main__":
 
             pred_logits = model(sketch)
             if args.soft_labels:
-                loss = F.mse_loss(F.softplus(pred_logits), label)
+                pred = F.softplus(pred_logits)
+                pred = pred / torch.sum(pred, dim=1, keepdim=True)
+                loss = 10000. * F.mse_loss(pred, label.float())
             else:
                 loss = F.cross_entropy(pred_logits, label) 
             loss_meter.update(loss.data[0], batch_size)
 
             if args.soft_labels:
+                pred = F.softplus(pred_logits)
+                pred = pred / torch.sum(pred, dim=1, keepdim=True)
                 label_np = label.cpu().data.numpy()
                 pred_np = pred.cpu().data.numpy()
                 mse = mean_squared_error(label_np, pred_np)
@@ -171,8 +180,8 @@ if __name__ == "__main__":
 
         for batch_idx, (sketch, label) in enumerate(test_loader):
             sketch = Variable(sketch, volatile=True)
-            label = Variable(label, requires_grad=False).float()
-            batch_size = len(photo)
+            label = Variable(label, requires_grad=False)
+            batch_size = len(sketch)
 
             if args.cuda:
                 sketch = sketch.cuda()
@@ -180,12 +189,16 @@ if __name__ == "__main__":
 
             pred_logits = model(sketch)
             if args.soft_labels:
-                loss = F.mse_loss(F.softplus(pred_logits), label)
+                pred = F.softplus(pred_logits)
+                pred = pred / torch.sum(pred, dim=1, keepdim=True)
+                loss = 10000. * F.mse_loss(pred, label.float())
             else:
                 loss = F.cross_entropy(pred_logits, label)
             loss_meter.update(loss.data[0], batch_size)
 
             if args.soft_labels:
+                pred = F.softplus(pred_logits)
+                pred = pred / torch.sum(pred, dim=1, keepdim=True)
                 label_np = label.cpu().data.numpy()
                 pred_np = pred.cpu().data.numpy()
                 mse = mean_squared_error(label_np, pred_np)

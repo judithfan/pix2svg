@@ -280,7 +280,7 @@ class SketchOnlyDataset(Dataset):
 class ExhaustiveDataset(Dataset):
     """Used to create the RDM and JSON. Loops through every sketch & photo pair."""
     def __init__(self, layer='fc6', photo_transform=None, sketch_transform=None, random_seed=42):
-        super(Dataset, self).__init__()
+        super(ExhaustiveDataset, self).__init__()
         np.random.seed(random_seed)
         random.seed(random_seed)
         db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_%s' % layer
@@ -338,3 +338,47 @@ class ExhaustiveDataset(Dataset):
 
     def __len__(self):
         return self.size
+
+
+class ExhaustiveSketchDataset(Dataset):
+    def __init__(self, layer='fc6', transform=None, random_seed=42):
+        super(ExhaustiveSketchDataset, self).__init__()
+        np.random.seed(random_seed)
+        random.seed(random_seed)
+        db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_%s' % layer
+        sketch_dirname = os.path.join(db_path, 'sketch')
+        sketch_basepaths = os.listdir(sketch_dirname)
+        # remove bad/corrupted images
+        valid_game_ids = np.asarray(pd.read_csv(os.path.join(db_path, 'valid_gameids_pilot2.csv'))['valid_gameids']).tolist()
+        # only keep sketches that are in the valid_gameids (some games are garbage)
+        sketch_basepaths = [path for path in sketch_basepaths
+                            if os.path.basename(path).split('_')[1] in valid_game_ids]
+        sketch_paths = [os.path.join(sketch_dirname, path) for path in sketch_basepaths]
+        # this details how labels are stored (order of objects)
+        object_order = pd.read_csv('/mnt/visual_communication_dataset/human_confusion_object_order.csv')
+        object_order = np.asarray(object_order['object_name']).tolist()
+
+        with open(os.path.join(db_path, 'sketchpad_context_dict.pickle')) as fp:
+            self.context_dict = cPickle.load(fp)
+        with open(os.path.join(db_path, 'sketchpad_label_dict.pickle')) as fp:
+            self.label_dict = cPickle.load(fp)
+
+        self.sketch_dirname = sketch_dirname
+        self.size = len(sketch_paths)
+        self.sketch_paths = sketch_paths
+        self.object_order = object_order
+        self.transform = transform
+
+    def __getitem__(self, index):
+        sketch_path = self.sketch_paths[index]
+        context = self.context_dict[os.path.basename(sketch_path)]
+        sketch_object = self.label_dict[os.path.basename(sketch_path)]
+        sketch = np.load(os.path.join(self.sketch_dirname, sketch_path))
+        sketch = torch.from_numpy(sketch)
+        if self.transform:
+            sketch = self.transform(sketch)
+        return sketch, sketch_object, context, sketch_path
+
+    def __len__(self):
+        return self.size
+
