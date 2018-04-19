@@ -10,45 +10,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class Classifier(nn.Module):
-    def __init__(self, distance='cosine'):
-        super(Classifier, self).__init__()
-        self.photo_adaptor = AdaptorNet()
-        self.sketch_adaptor = AdaptorNet()
-        if distance == 'cosine':
-            self.fusenet = FuseCosineClassifier()
-        elif distance == 'euclidean':
-            self.fusenet = FuseEuclideanClassifier()
-        else:
-            raise Exception('distance %s not found.' % distance.upper())
-        self.photo_classifier = CategoryClassifier()
-        self.sketch_classifier = CategoryClassifier()
-
-    def forward(self, photo_emb, sketch_emb):
-        photo_emb = self.photo_adaptor(photo_emb)
-        sketch_emb = self.sketch_adaptor(sketch_emb)
-        photo_pred = self.photo_classifier(photo_emb)
-        sketch_pred = self.sketch_classifier(sketch_emb)
-        return self.fusenet(photo_emb, sketch_emb), photo_pred, sketch_pred
-
-
-class Predictor(nn.Module):
-    def __init__(self):
-        super(Predictor, self).__init__()
-        self.photo_adaptor = AdaptorNet()
-        self.sketch_adaptor = AdaptorNet()
-        self.fusenet = FusePredictor()
-        self.photo_classifier = CategoryClassifier()
-        self.sketch_classifier = CategoryClassifier()
-
-    def forward(self, photo_emb, sketch_emb):
-        photo_emb = self.photo_adaptor(photo_emb)
-        sketch_emb = self.sketch_adaptor(sketch_emb)
-        photo_pred = self.photo_classifier(photo_emb)
-        sketch_pred = self.sketch_classifier(sketch_emb)
-        return self.fusenet(photo_emb, sketch_emb), photo_pred, sketch_pred
-
-
 class LabelPredictor(nn.Module):
     def __init__(self):
         super(LabelPredictor, self).__init__()
@@ -60,19 +21,18 @@ class LabelPredictor(nn.Module):
         return self.classifier(sketch)
 
 
-class Soft32Classifier(nn.Module):
-    def __init__(self, distance='cosine'):
-        super(Soft32Classifier, self).__init__()
+class Label32Predictor(nn.Module):
+    def __init__(self):
+        super(Label32Predictor, self).__init__()
         self.photo_adaptor = AdaptorNet()
         self.sketch_adaptor = AdaptorNet()
-        self.fusenet = FusePredictor()
+        self.classifier = FusePredictor()
 
-    def forward(self, photo_32_emb, sketch_emb):
-        sketch_emb = self.sketch_adaptor(sketch_emb)
-        pred_32 = torch.cat([self.fusenet(self.photo_adaptor(photo_32_emb[:, i]), sketch_emb) 
-                             for i in xrange(32)], dim=1)
-        pred_32 = F.softplus(pred_32)
-        return pred_32
+    def forward(self, photo, sketch):
+        sketch = swish(self.sketch_adaptor(sketch))
+        photo = swish(self.photo_adaptor(photo))
+        pred = self.classifier(photo, sketch)
+        return pred
 
 
 class AdaptorNet(nn.Module):
@@ -98,23 +58,13 @@ class AdaptorNet(nn.Module):
         return self.net(x)
 
 
-class FuseCosineClassifier(nn.Module):
+class CosineClassifier(nn.Module):
     def forward(self, e1, e2):
         # center cosine similarity (pearson coefficient)
         e1 = e1 - torch.mean(e1, dim=1, keepdim=True)
         e2 = e2 - torch.mean(e2, dim=1, keepdim=True)
         e = cosine_similarity(e1, e2, dim=1).unsqueeze(1)
         return F.sigmoid(e)
-
-
-class FuseEuclideanClassifier(nn.Module):
-    def __init__(self):
-        super(FuseEuclideanClassifier, self).__init__()
-        self.norm = nn.BatchNorm1d(1)
-
-    def forward(self, e1, e2):
-        h = torch.norm(e1 - e2, 2, dim=1).unsqueeze(1)
-        return F.sigmoid(self.norm(h))
 
 
 class FusePredictor(nn.Module):

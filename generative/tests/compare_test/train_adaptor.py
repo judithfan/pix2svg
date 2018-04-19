@@ -14,8 +14,8 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from sklearn.metrics import mean_squared_error
 
-from model import LabelPredictor
-from dataset import SketchOnlyDataset
+from model import Label32Predictor
+from dataset import VisualDataset
 
 
 def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
@@ -30,7 +30,7 @@ def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
 def load_checkpoint(file_path, use_cuda=False):
     checkpoint = torch.load(file_path) if use_cuda else \
         torch.load(file_path, map_location=lambda storage, location: storage)
-    model = LabelPredictor()
+    model = Label32Predictor()
     model.load_state_dict(checkpoint['state_dict'])
     return model
 
@@ -66,14 +66,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
    
-    train_dataset = SketchOnlyDataset(layer='conv42', split='train', soft_labels=True)
-    val_dataset = SketchOnlyDataset(layer='conv42', split='val', soft_labels=True)
-    test_dataset = SketchOnlyDataset(layer='conv42', split='test', soft_labels=True)
+    train_dataset = VisualDataset(layer='conv42', split='train', soft_labels=True)
+    val_dataset = VisualDataset(layer='conv42', split='val', soft_labels=True)
+    test_dataset = VisualDataset(layer='conv42', split='test', soft_labels=True)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-    model = LabelPredictor()
+    model = Label32Predictor()
     if args.cuda:
         model.cuda()
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
@@ -92,8 +92,20 @@ if __name__ == "__main__":
                 sketch = sketch.cuda()
                 label = label.cuda()
 
+            # set optimizer defaults to 0
             optimizer.zero_grad()
-            pred_logits = model(sketch)
+
+            pred_logits = []
+            photo_generator = train_dataset.gen_photos()
+            for photo in photo_generator():
+                photo = Variable(photo)
+                if args.cuda:
+                    photo = photo.cuda()
+
+                pred_logit = model(photo, sketch)
+                pred_logits.append(pred_logit)
+                
+            pred_logits = torch.cat(pred_logits, dim=1)
             pred = F.softplus(pred_logits)
             pred = pred / torch.sum(pred, dim=1, keepdim=True)
             loss = 10000. * F.mse_loss(pred, label.float())
@@ -131,14 +143,22 @@ if __name__ == "__main__":
                 sketch = sketch.cuda()
                 label = label.cuda()
 
-            pred_logits = model(sketch)
+            pred_logits = []
+            photo_generator = val_dataset.gen_photos()
+            for photo in photo_generator():
+                photo = Variable(photo)
+                if args.cuda:
+                    photo = photo.cuda()
+
+                pred_logit = model(photo, sketch)
+                pred_logits.append(pred_logit)
+
+            pred_logits = torch.cat(pred_logits, dim=1)
             pred = F.softplus(pred_logits)
             pred = pred / torch.sum(pred, dim=1, keepdim=True)
             loss = 10000. * F.mse_loss(pred, label.float())
             loss_meter.update(loss.data[0], batch_size)
 
-            pred = F.softplus(pred_logits)
-            pred = pred / torch.sum(pred, dim=1, keepdim=True)
             label_np = label.cpu().data.numpy()
             pred_np = pred.cpu().data.numpy()
             mse = mean_squared_error(label_np, pred_np)
@@ -165,7 +185,17 @@ if __name__ == "__main__":
                 sketch = sketch.cuda()
                 label = label.cuda()
 
-            pred_logits = model(sketch)
+            pred_logits = []
+            photo_generator = val_dataset.gen_photos()
+            for photo in photo_generator():
+                photo = Variable(photo)
+                if args.cuda:
+                    photo = photo.cuda()
+
+                pred_logit = model(photo, sketch)
+                pred_logits.append(pred_logit)
+
+            pred_logits = torch.cat(pred_logits, dim=1)
             pred = F.softplus(pred_logits)
             pred = pred / torch.sum(pred, dim=1, keepdim=True)
             loss = 10000. * F.mse_loss(pred, label.float())
