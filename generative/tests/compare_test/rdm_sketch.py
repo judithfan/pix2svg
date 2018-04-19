@@ -20,8 +20,6 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('model_path', type=str, help='path to trained model')
-    parser.add_argument('--soft-labels', action='store_true', default=False,
-                        help='use soft or hard labels [default: False]')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
@@ -48,10 +46,7 @@ if __name__ == "__main__":
             sketch = sketch.cuda()
         
         pred_logits = model(sketch)
-        if args.soft_labels:
-            pred = F.softplus(pred_logits)
-        else:
-            pred = F.softmax(pred_logits)
+        pred = F.softplus(pred_logits)
         pred = pred.cpu().data.numpy()[0]
 
         if sketch_context[0] == 'closer':

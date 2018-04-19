@@ -164,34 +164,8 @@ class VisualCommunicationDataset(Dataset):
         return self.size
 
 
-class HumanAnnotationDataset(VisualCommunicationDataset):
-    def __getitem__(self, index):
-        sketch_path = self.sketch_paths[index] 
-        sketch_object = self.label_dict[os.path.basename(sketch_path)]
-        sketch_object_ix = self.object_order.index(sketch_object)
-        sketch_context = self.context_dict[os.path.basename(sketch_path)]
-        sketch_context = 0 if sketch_context == 'closer' else 1
-
-        sketch = torch.from_numpy(np.load(os.path.join(self.sketch_dirname, sketch_path)))
-        photo_32 = torch.stack([torch.from_numpy(np.load(os.path.join(self.photo_dirname, photo_path)))
-                                for photo_path in self.photo_32_paths])
-
-        if self.sketch_transform:
-            sketch = self.sketch_transform(sketch)
-
-        if self.photo_transform:
-            photo_32 = self.photo_transform(photo_32)
-
-        if self.use_soft_labels:
-            label = torch.from_numpy(self.annotations[sketch_object_ix, :, context1])
-        else:
-            label = torch.zeros(32)
-            label[sketch_object_ix] = 1
-        return photo_32, sketch, label
-
-
 class SketchOnlyDataset(Dataset):
-    def __init__(self, layer='fc6', split='train', soft_labels=False, transform=None, random_seed=42):
+    def __init__(self, layer='fc6', split='train', transform=None, random_seed=42):
         super(Dataset, self).__init__()
         np.random.seed(random_seed); random.seed(random_seed)
         db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_%s' % layer
@@ -225,7 +199,6 @@ class SketchOnlyDataset(Dataset):
         self.dirname = dirname 
         self.size = len(paths)
         self.split = split
-        self.use_soft_labels = soft_labels
         self.object_order = object_order
         self.paths = paths
         self.transform = transform
@@ -260,7 +233,6 @@ class SketchOnlyDataset(Dataset):
         obj = self.label_dict[os.path.basename(path)]
         obj_ix = self.object_order.index(obj)
         category = OBJECT_TO_CATEGORY[obj]
-        label = self.object_order.index(obj)
         context = self.context_dict[os.path.basename(path)]
         context = 0 if context == 'closer' else 1
         sketch = torch.from_numpy(np.load(os.path.join(self.dirname, path)))
@@ -268,9 +240,7 @@ class SketchOnlyDataset(Dataset):
         if self.transform:
             sketch = self.transform(sketch)
 
-        if self.use_soft_labels:
-            label = self.annotations[obj_ix, :, context]
-
+        label = self.annotations[obj_ix, :, context]
         return sketch, label
 
     def __len__(self):
