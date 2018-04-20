@@ -47,6 +47,10 @@ class CategoryClassifier(nn.Module):
         return self.fc(x)
 
 
+def swish(x):
+    return x * F.sigmoid(x)
+
+
 class Swish(nn.Module):
     def forward(self, x):
         return x * F.sigmoid(x)

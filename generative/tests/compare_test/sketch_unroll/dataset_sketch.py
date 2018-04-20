@@ -58,7 +58,7 @@ class SketchOnlyDataset(Dataset):
         annotations = zip(annotations['fname'].values, annotations['choice'].values)
         
         unrolled_dataset = defaultdict(lambda: [])
-        for annotation, choice in zip(annotations):
+        for annotation, choice in annotations:
             annotation = annotation.replace('.png', '.npy')
             choice = object_order.index(choice)
             unrolled_dataset[annotation].append(choice)
@@ -67,16 +67,16 @@ class SketchOnlyDataset(Dataset):
         with open(os.path.join(db_path, 'sketchpad_label_dict.pickle')) as fp:
             self.label_dict = cPickle.load(fp)
 
+        self.object_order = object_order
         paths = self.train_test_split(split, basepaths)
         dataset = []
         for path in paths:
-            dataset.extend(unrolled_dataset[path])
-        random.shuffle(dataset)
+            for label in unrolled_dataset[path]:
+                dataset.append((path, label))
 
         self.dirname = dirname 
-        self.size = len(unrolled_dataset)
+        self.size = len(dataset)
         self.split = split
-        self.object_order = object_order
         self.dataset = dataset
         self.transform = transform
 

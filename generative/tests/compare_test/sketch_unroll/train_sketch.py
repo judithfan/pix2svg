@@ -97,15 +97,13 @@ if __name__ == "__main__":
             loss = args.loss_scale * F.cross_entropy(pred_logits, label)
             loss_meter.update(loss.data[0], batch_size)
             
-            if batch_idx % 10 == 0:
-                pred_npy = pred.cpu().data.numpy()[0]
-                label_npy = label.cpu().data.numpy()[0]
-                print(zip(label_npy, pred_npy))
-
             pred = pred_logits.data.max(1, keepdim=True)[1]
             correct = pred.eq(label.data.view_as(pred)).long().cpu().sum()
-            accuracy = correct / batch_size
+            accuracy = correct / float(batch_size)
             acc_meter.update(accuracy, batch_size)
+
+            if batch_idx % 10 == 0:
+                print(F.softmax(pred_logits).data.cpu().numpy()[0], label.cpu().data.numpy()[0])
 
             loss.backward()
             optimizer.step()
@@ -142,7 +140,7 @@ if __name__ == "__main__":
 
             pred = pred_logits.data.max(1, keepdim=True)[1]
             correct = pred.eq(label.data.view_as(pred)).long().cpu().sum()
-            accuracy = correct / batch_size
+            accuracy = correct / float(batch_size)
             acc_meter.update(accuracy, batch_size)
             pbar.update()
         pbar.close()
@@ -172,7 +170,7 @@ if __name__ == "__main__":
 
             pred = pred_logits.data.max(1, keepdim=True)[1]
             correct = pred.eq(label.data.view_as(pred)).long().cpu().sum()
-            accuracy = correct / batch_size
+            accuracy = correct / float(batch_size)
             acc_meter.update(accuracy, batch_size)
             pbar.update()
         pbar.close()
