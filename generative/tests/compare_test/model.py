@@ -3,6 +3,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 import os
+import math
 import shutil
 
 import torch
@@ -16,6 +17,17 @@ class LabelPredictor(nn.Module):
         self.adaptor = AdaptorNet()
         self.classifier = CategoryClassifier()
 
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+            elif isinstance(m, nn.Linear):
+                m.weight.data.normal_(0, 1)
+                m.bias.data.zero_()
+
     def forward(self, sketch):
         sketch = swish(self.adaptor(sketch))
         return self.classifier(sketch)
@@ -27,10 +39,17 @@ class Label32Predictor(nn.Module):
         self.photo_adaptor = AdaptorNet()
         self.sketch_adaptor = AdaptorNet()
         self.classifier = FusePredictor()
+        # self.net = nn.Sequential(
+        #     nn.Linear(2000, 1024),
+        #     Swish(),
+        #     nn.Linear(1024, 256),
+        #     Swish(),
+        #     nn.Linear(256, 1))
 
     def forward(self, photo, sketch):
-        sketch = swish(self.sketch_adaptor(sketch))
         photo = swish(self.photo_adaptor(photo))
+        sketch = swish(self.sketch_adaptor(sketch))
+        # pred = self.net(input)
         pred = self.classifier(photo, sketch)
         return pred
 
@@ -40,16 +59,16 @@ class AdaptorNet(nn.Module):
         super(AdaptorNet, self).__init__()
         self.cnn = nn.Sequential(
             nn.Conv2d(512, 64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(64),
+            # nn.BatchNorm2d(64),
             Swish(),
             nn.MaxPool2d(2, stride=2, dilation=1),
         )
         self.net = nn.Sequential(
-            nn.Linear(64 * 14 * 14, 2048),
-            nn.BatchNorm1d(2048),
-            Swish(),
-            nn.Dropout(0.5),
-            nn.Linear(2048, 1000),
+            nn.Linear(64 * 14 * 14, 1000),
+            # nn.BatchNorm1d(2048),
+            # Swish(),
+            # nn.Dropout(0.5),
+            # nn.Linear(2048, 1000),
         )
 
     def forward(self, x):
@@ -73,8 +92,8 @@ class FusePredictor(nn.Module):
         self.fc = nn.Linear(2000, 1)
 
     def forward(self, e1, e2):
-        h = swish(torch.cat((e1, e2), dim=1))
-        return F.softplus(self.fc(h))
+        h = torch.cat((e1, e2), dim=1)
+        return self.fc(h)
 
 
 class CategoryClassifier(nn.Module):

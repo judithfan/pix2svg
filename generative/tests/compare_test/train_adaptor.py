@@ -56,6 +56,7 @@ class AverageMeter(object):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('--loss-scale', type=float, default=1., help='multiplier for loss [default: 1.]')
     parser.add_argument('--out-dir', type=str, default='./trained_models', 
                         help='where to save checkpoints [./trained_models]')
     parser.add_argument('--batch-size', type=int, default=10, 
@@ -66,9 +67,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
    
-    train_dataset = VisualDataset(layer='conv42', split='train', soft_labels=True)
-    val_dataset = VisualDataset(layer='conv42', split='val', soft_labels=True)
-    test_dataset = VisualDataset(layer='conv42', split='test', soft_labels=True)
+    train_dataset = VisualDataset(layer='conv42', split='train')
+    val_dataset = VisualDataset(layer='conv42', split='val')
+    test_dataset = VisualDataset(layer='conv42', split='test')
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
@@ -77,7 +78,8 @@ if __name__ == "__main__":
     if args.cuda:
         model.cuda()
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
-    
+    # optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
+
     def train(epoch):
         model.train()
         loss_meter = AverageMeter()
@@ -101,16 +103,22 @@ if __name__ == "__main__":
                 photo = Variable(photo)
                 if args.cuda:
                     photo = photo.cuda()
-
+                photo = photo.repeat(batch_size, 1, 1, 1)
                 pred_logit = model(photo, sketch)
                 pred_logits.append(pred_logit)
-                
+        
             pred_logits = torch.cat(pred_logits, dim=1)
             pred = F.softplus(pred_logits)
             pred = pred / torch.sum(pred, dim=1, keepdim=True)
-            loss = 10000. * F.mse_loss(pred, label.float())
+            loss = args.loss_scale * F.mse_loss(pred, label.float())
             loss_meter.update(loss.data[0], batch_size)
             
+            if batch_idx % 10 == 0:
+                pred_npy = pred.cpu().data.numpy()[0]
+                label_npy = label.cpu().data.numpy()[0]
+                sort_npy = np.argsort(label_npy)[::-1]
+                print(zip(label_npy[sort_npy], pred_npy[sort_npy]))
+
             label_np = label.cpu().data.numpy()
             pred_np = pred.cpu().data.numpy()
             mse = mean_squared_error(label_np, pred_np)
@@ -118,10 +126,11 @@ if __name__ == "__main__":
 
             loss.backward()
             optimizer.step()
-            
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tMSE: {:6f}'.format(
+            mean_grads = torch.mean(torch.cat([param.grad.cpu().data.contiguous().view(-1) 
+                                               for param in model.parameters()]))
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tMSE: {:6f}\t|Grad|: {:6f}'.format(
                 epoch, batch_idx * batch_size, len(train_loader.dataset),  100. * batch_idx / len(train_loader),
-                loss_meter.avg, mse_meter.avg))
+                loss_meter.avg, mse_meter.avg, mean_grads))
         
         print('====> Epoch: {}\tLoss: {:.4f}\tMSE: {:.6f}'.format(
             epoch, loss_meter.avg, mse_meter.avg))
@@ -149,14 +158,14 @@ if __name__ == "__main__":
                 photo = Variable(photo)
                 if args.cuda:
                     photo = photo.cuda()
-
+                photo = photo.repeat(batch_size, 1, 1, 1)
                 pred_logit = model(photo, sketch)
                 pred_logits.append(pred_logit)
 
             pred_logits = torch.cat(pred_logits, dim=1)
             pred = F.softplus(pred_logits)
             pred = pred / torch.sum(pred, dim=1, keepdim=True)
-            loss = 10000. * F.mse_loss(pred, label.float())
+            loss = args.loss_scale * F.mse_loss(pred, label.float())
             loss_meter.update(loss.data[0], batch_size)
 
             label_np = label.cpu().data.numpy()
@@ -191,14 +200,14 @@ if __name__ == "__main__":
                 photo = Variable(photo)
                 if args.cuda:
                     photo = photo.cuda()
-
+                photo = photo.repeat(batch_size, 1, 1, 1)
                 pred_logit = model(photo, sketch)
                 pred_logits.append(pred_logit)
 
             pred_logits = torch.cat(pred_logits, dim=1)
             pred = F.softplus(pred_logits)
             pred = pred / torch.sum(pred, dim=1, keepdim=True)
-            loss = 10000. * F.mse_loss(pred, label.float())
+            loss = args.loss_scale * F.mse_loss(pred, label.float())
             loss_meter.update(loss.data[0], batch_size)
 
             label_np = label.cpu().data.numpy()

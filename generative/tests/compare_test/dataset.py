@@ -38,12 +38,13 @@ class VisualDataset(Dataset):
         np.random.seed(random_seed); random.seed(random_seed)
         db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_%s' % layer
         sketch_dirname = os.path.join(db_path, 'sketch')
-        photo_dirname = os.path.join(db_path, 'photo')
+        photo_dirname = os.path.join(db_path, 'photos')
         sketch_basepaths = os.listdir(sketch_dirname)
 
         valid_game_ids = pd.read_csv(os.path.join(db_path, 'valid_gameids_pilot2.csv'))
         valid_game_ids = np.asarray(valid_game_ids['valid_gameids']).tolist()
-        basepaths = [path for path in basepaths if os.path.basename(path).split('_')[1] in valid_game_ids]
+        sketch_basepaths = [path for path in sketch_basepaths 
+                            if os.path.basename(path).split('_')[1] in valid_game_ids]
 
         # this details how labels are stored (order of objects)
         object_order = pd.read_csv('/mnt/visual_communication_dataset/human_confusion_object_order.csv')
@@ -105,14 +106,14 @@ class VisualDataset(Dataset):
 
     def gen_photos(self):
         def generator():
-            for photo_path in self.photo32_paths:
+	    for photo_path in self.photo32_paths:
                 photo_object = os.path.splitext(photo_path)[0]
                 photo = np.load(os.path.join(self.photo_dirname, photo_path))
                 photo = torch.from_numpy(photo)
                 if self.photo_transform:
                     photo = self.photo_transform(photo)
                 photo = photo.unsqueeze(0)
-                yield photo
+                yield photo 
         return generator
 
     def __getitem__(self, index):
@@ -122,9 +123,9 @@ class VisualDataset(Dataset):
         sketch_category = OBJECT_TO_CATEGORY[sketch_obj]
         context = self.context_dict[os.path.basename(sketch_path)]
         context = 0 if context == 'closer' else 1
-        sketch = torch.from_numpy(np.load(os.path.join(self.dirname, sketch_path)))
+        sketch = torch.from_numpy(np.load(os.path.join(self.sketch_dirname, sketch_path)))
 
-        if self.transform:
+        if self.sketch_transform:
             sketch = self.transform(sketch)
 
         label = self.annotations[sketch_obj_ix, :, context]

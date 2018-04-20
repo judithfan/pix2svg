@@ -56,6 +56,7 @@ class AverageMeter(object):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('--loss-scale', type=float, default=10000., help='multiplier for loss [default: 10000.]')
     parser.add_argument('--out-dir', type=str, default='./trained_models', 
                         help='where to save checkpoints [./trained_models]')
     parser.add_argument('--batch-size', type=int, default=10, 
@@ -66,9 +67,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
    
-    train_dataset = SketchOnlyDataset(layer='conv42', split='train', soft_labels=True)
-    val_dataset = SketchOnlyDataset(layer='conv42', split='val', soft_labels=True)
-    test_dataset = SketchOnlyDataset(layer='conv42', split='test', soft_labels=True)
+    train_dataset = SketchOnlyDataset(layer='conv42', split='train')
+    val_dataset = SketchOnlyDataset(layer='conv42', split='val')
+    test_dataset = SketchOnlyDataset(layer='conv42', split='test')
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
@@ -96,7 +97,7 @@ if __name__ == "__main__":
             pred_logits = model(sketch)
             pred = F.softplus(pred_logits)
             pred = pred / torch.sum(pred, dim=1, keepdim=True)
-            loss = 10000. * F.mse_loss(pred, label.float())
+            loss = args.loss_scale * F.mse_loss(pred, label.float())
             loss_meter.update(loss.data[0], batch_size)
             
             label_np = label.cpu().data.numpy()
@@ -106,10 +107,12 @@ if __name__ == "__main__":
 
             loss.backward()
             optimizer.step()
+            mean_grads = torch.mean(torch.cat([param.grad.cpu().data.contiguous().view(-1)
+                                               for param in model.parameters()]))
             
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tMSE: {:6f}'.format(
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tMSE: {:6f}\t|Grad|: {:.6f}'.format(
                 epoch, batch_idx * batch_size, len(train_loader.dataset),  100. * batch_idx / len(train_loader),
-                loss_meter.avg, mse_meter.avg))
+                loss_meter.avg, mse_meter.avg, mean_grads))
         
         print('====> Epoch: {}\tLoss: {:.4f}\tMSE: {:.6f}'.format(
             epoch, loss_meter.avg, mse_meter.avg))
@@ -134,7 +137,7 @@ if __name__ == "__main__":
             pred_logits = model(sketch)
             pred = F.softplus(pred_logits)
             pred = pred / torch.sum(pred, dim=1, keepdim=True)
-            loss = 10000. * F.mse_loss(pred, label.float())
+            loss = args.loss_scale * F.mse_loss(pred, label.float())
             loss_meter.update(loss.data[0], batch_size)
 
             pred = F.softplus(pred_logits)
@@ -168,7 +171,7 @@ if __name__ == "__main__":
             pred_logits = model(sketch)
             pred = F.softplus(pred_logits)
             pred = pred / torch.sum(pred, dim=1, keepdim=True)
-            loss = 10000. * F.mse_loss(pred, label.float())
+            loss = args.loss_scale * F.mse_loss(pred, label.float())
             loss_meter.update(loss.data[0], batch_size)
 
             label_np = label.cpu().data.numpy()
