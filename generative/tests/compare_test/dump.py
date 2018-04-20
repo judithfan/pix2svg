@@ -39,7 +39,7 @@ if __name__ == "__main__":
     if model.cuda:
         model.cuda()
 
-    dataset = ExhaustiveDataset(layer='conv42')
+    dataset = ExhaustiveDataset(layer=model.vgg_layer)
     loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
         
     dist_jsons = defaultdict(lambda: {})

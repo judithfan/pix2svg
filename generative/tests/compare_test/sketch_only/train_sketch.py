@@ -14,8 +14,8 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from sklearn.metrics import mean_squared_error
 
-from model import LabelPredictor
-from dataset import SketchOnlyDataset
+from model_sketch import LabelPredictor
+from dataset_sketch import SketchOnlyDataset
 
 
 def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):

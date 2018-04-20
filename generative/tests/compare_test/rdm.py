@@ -12,14 +12,15 @@ from collections import defaultdict
 import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
-from dataset import ExhaustiveSketchDataset
-from train_sketch_fc6 import load_checkpoint
+from dataset import ExhaustiveDataset
+from train import load_checkpoint
 
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('model_path', type=str, help='path to trained model')
+    parser.add_argument('--batch-size', type=int, default=64, help='size of minibatch [default: 64]')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
@@ -29,8 +30,8 @@ if __name__ == "__main__":
     if model.cuda:
         model.cuda()
 
-    dataset = ExhaustiveSketchDataset(layer='fc6')
-    loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
+    dataset = ExhaustiveDataset(layer=model.vgg_layer)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
     object_order = dataset.object_order
 
     rdm_further_sums = np.zeros((32, 32))
@@ -40,25 +41,35 @@ if __name__ == "__main__":
 
     pbar = tqdm(total=len(loader))
     for batch_idx, (sketch, sketch_object, sketch_context, sketch_path) in enumerate(loader):
+        batch_size = len(sketch)
         sketch = Variable(sketch, volatile=True)
-        sketch_object_ix = object_order.index(sketch_object[0])
+        sketch_object_ix = [object_order.index(sketch_object[i]) for i in xrange(batch_size)]
         if args.cuda:
             sketch = sketch.cuda()
-        
-        pred_logits = model(sketch)
-        pred = F.softplus(pred_logits)
-        pred = pred / torch.sum(pred, dim=1, keepdim=True)
-        # pred = F.softmax(pred_logits, dim=1)
-        pred = pred.cpu().data.numpy()[0]
+    
+    	pred_logits = []
+        photo_generator = dataset.gen_photos()
+        for photo, _, _ in photo_generator():
+            photo = Variable(photo)
+            if args.cuda:
+                photo = photo.cuda()
+            photo = photo.repeat(batch_size, 1, 1, 1)
+            pred_logit = model(photo, sketch)
+            pred_logits.append(pred_logit) 
 
-        if sketch_context[0] == 'closer':
-            rdm_closer_sums[:, sketch_object_ix] += pred
-            rdm_closer_cnts[sketch_object_ix] += 1
-        elif sketch_context[0] == 'further':
-            rdm_further_sums[:, sketch_object_ix] += pred
-            rdm_further_cnts[sketch_object_ix] += 1
-        else:
-            raise Exception('Unrecognized context: %s.' % sketch_context[0])
+        pred_logits = torch.cat(pred_logits, dim=1)
+        pred = F.softmax(pred_logits, dim=1)
+        pred = pred.cpu().data.numpy()
+
+        for t in xrange(batch_size):
+            if sketch_context[0] == 'closer':
+                rdm_closer_sums[:, sketch_object_ix[t]] += pred[t]
+                rdm_closer_cnts[sketch_object_ix[t]] += 1
+            elif sketch_context[0] == 'further':
+                rdm_further_sums[:, sketch_object_ix[t]] += pred[t]
+                rdm_further_cnts[sketch_object_ix[t]] += 1
+            else:
+                raise Exception('Unrecognized context: %s.' % sketch_context[0])
         pbar.update()
     pbar.close()
 
@@ -73,14 +84,14 @@ if __name__ == "__main__":
     plt.figure()
     ax = sns.heatmap(rdm_further_sums, linewidths=.5)
     fig = ax.get_figure()
-    fig.savefig('./rdm-further.pdf')
+    fig.savefig('./rdm-further-%s.png' % model.vgg_layer)
 
     plt.figure()
     ax = sns.heatmap(rdm_closer_sums, linewidths=.5)
     fig = ax.get_figure()
-    fig.savefig('./rdm-closer.pdf')
+    fig.savefig('./rdm-closer-%s.png' % model.vgg_layer)
 
     plt.figure()
     ax = sns.heatmap(rdm_closer_sums - rdm_further_sums, linewidths=.5)
     fig = ax.get_figure()
-    fig.savefig('./rdm-diff.pdf')
+    fig.savefig('./rdm-diff-%s.png' % model.vgg_layer)

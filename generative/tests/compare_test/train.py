@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from sklearn.metrics import mean_squared_error
 
-from model import Label32Predictor
+from model import PredictorFC6, PredictorCONV42
 from dataset import VisualDataset
 
 
@@ -30,13 +30,19 @@ def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
 def load_checkpoint(file_path, use_cuda=False):
     checkpoint = torch.load(file_path) if use_cuda else \
         torch.load(file_path, map_location=lambda storage, location: storage)
-    model = Label32Predictor()
+    vgg_layer = checkpoint['vgg_layer']
+    assert vgg_layer in ['conv42', 'fc6']
+    if vgg_layer == 'conv42':
+        model = PredictorCONV42()
+    elif vgg_layer == 'fc6':
+        model = PredictorFC6()
     model.load_state_dict(checkpoint['state_dict'])
+    model.vgg_layer = vgg_layer
     return model
 
 
 def cross_entropy(input, soft_targets):
-    return torch.mean(torch.sum(- soft_targets * F.log_softmax(input), dim=1))
+    return torch.mean(torch.sum(- soft_targets * F.log_softmax(input, dim=1), dim=1))
 
 
 class AverageMeter(object):
@@ -60,29 +66,35 @@ class AverageMeter(object):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--loss-scale', type=float, default=1., help='multiplier for loss [default: 1.]')
+    parser.add_argument('vgg_layer', type=str, help='conv42|fc6')
+    parser.add_argument('--loss-scale', type=float, default=10000., help='multiplier for loss [default: 10000.]')
     parser.add_argument('--out-dir', type=str, default='./trained_models', 
                         help='where to save checkpoints [./trained_models]')
     parser.add_argument('--batch-size', type=int, default=10, 
                         help='number of examples in a mini-batch [default: 10]')
-    parser.add_argument('--lr', type=float, default=1e-3, help='learning rate [default: 1e-3]')
-    parser.add_argument('--epochs', type=int, default=10, help='number of epochs [default: 10]')
+    parser.add_argument('--lr', type=float, default=1e-4, help='learning rate [default: 1e-4]')
+    parser.add_argument('--epochs', type=int, default=100, help='number of epochs [default: 100]')
     parser.add_argument('--cuda', action='store_true', default=False) 
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
+    assert args.vgg_layer in ['conv42', 'fc6']
    
-    train_dataset = VisualDataset(layer='conv42', split='train')
-    val_dataset = VisualDataset(layer='conv42', split='val')
-    test_dataset = VisualDataset(layer='conv42', split='test')
+    train_dataset = VisualDataset(layer=args.vgg_layer, split='train')
+    val_dataset = VisualDataset(layer=args.vgg_layer, split='val')
+    test_dataset = VisualDataset(layer=args.vgg_layer, split='test')
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-    model = Label32Predictor()
+    if args.vgg_layer == 'conv42':
+        model = PredictorCONV42()
+    elif args.vgg_layer == 'fc6':
+        model = PredictorFC6()
+
     if args.cuda:
         model.cuda()
+
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
-    # optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
 
     def train(epoch):
         model.train()
@@ -112,9 +124,6 @@ if __name__ == "__main__":
                 pred_logits.append(pred_logit)
         
             pred_logits = torch.cat(pred_logits, dim=1)
-            # pred = F.softplus(pred_logits)
-            # pred = pred / torch.sum(pred, dim=1, keepdim=True)
-            # loss = args.loss_scale * F.mse_loss(pred, label.float())
             pred = F.softmax(pred_logits)
             loss = args.loss_scale * cross_entropy(pred_logits, label.float())
             loss_meter.update(loss.data[0], batch_size)
@@ -169,9 +178,6 @@ if __name__ == "__main__":
                 pred_logits.append(pred_logit)
 
             pred_logits = torch.cat(pred_logits, dim=1)
-            # pred = F.softplus(pred_logits)
-            # pred = pred / torch.sum(pred, dim=1, keepdim=True)
-            # loss = args.loss_scale * F.mse_loss(pred, label.float())
             pred = F.softmax(pred_logits)
             loss = args.loss_scale * cross_entropy(pred_logits, label.float())
             loss_meter.update(loss.data[0], batch_size)
@@ -213,9 +219,6 @@ if __name__ == "__main__":
                 pred_logits.append(pred_logit)
 
             pred_logits = torch.cat(pred_logits, dim=1)
-            # pred = F.softplus(pred_logits)
-            # pred = pred / torch.sum(pred, dim=1, keepdim=True)
-            # loss = args.loss_scale * F.mse_loss(pred, label.float())
             pred = F.softmax(pred_logits)
             loss = args.loss_scale * cross_entropy(pred_logits, label.float())
             loss_meter.update(loss.data[0], batch_size)
@@ -249,6 +252,7 @@ if __name__ == "__main__":
             'test_loss': test_loss,
             'test_mse': test_mse,
             'optimizer' : optimizer.state_dict(),
+            'vgg_layer': args.vgg_layer,
         }, is_best, folder=args.out_dir)
         # save stuff for plots
         loss_db[epoch - 1, 0] = train_loss

@@ -13,9 +13,10 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.autograd import Variable
 from sklearn.metrics import accuracy_score, mean_squared_error
-from train_sketch_fc6 import load_checkpoint
-from train import AverageMeter
-from dataset import SketchOnlyDataset
+
+from train_sketch import load_checkpoint
+from train_sketch import AverageMeter
+from dataset_sketch import SketchOnlyDataset
 
 
 if __name__ == "__main__":

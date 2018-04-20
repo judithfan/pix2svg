@@ -12,7 +12,8 @@ from collections import defaultdict
 import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
-from dataset import ExhaustiveSketchDataset
+
+from dataset_sketch import ExhaustiveSketchDataset
 from train_sketch import load_checkpoint
 
 
