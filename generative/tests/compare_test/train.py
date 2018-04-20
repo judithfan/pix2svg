@@ -180,7 +180,10 @@ if __name__ == "__main__":
                 photo = Variable(photo)
                 if args.cuda:
                     photo = photo.cuda()
-                photo = photo.repeat(batch_size, 1, 1, 1)
+                if args.vgg_layer == 'fc6':
+                    photo = photo.repeat(batch_size, 1)
+                else:
+                    photo = photo.repeat(batch_size, 1, 1, 1) 
                 pred_logit = model(photo, sketch)
                 pred_logits.append(pred_logit)
 
@@ -221,7 +224,10 @@ if __name__ == "__main__":
                 photo = Variable(photo)
                 if args.cuda:
                     photo = photo.cuda()
-                photo = photo.repeat(batch_size, 1, 1, 1)
+                if args.vgg_layer == 'fc6':
+                    photo = photo.repeat(batch_size, 1)
+                else:
+                    photo = photo.repeat(batch_size, 1, 1, 1)
                 pred_logit = model(photo, sketch)
                 pred_logits.append(pred_logit)
 
