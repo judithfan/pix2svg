@@ -24,7 +24,7 @@ class LabelPredictor(nn.Module):
 
 class LabelPredictorFC6(nn.Module):
     def __init__(self):
-        super(LabelPredictor, self).__init__()
+        super(LabelPredictorFC6, self).__init__()
         self.adaptor = AdaptorNetFC6()
         self.classifier = CategoryClassifier()
 
@@ -38,6 +38,29 @@ class Label32Predictor(nn.Module):
         super(Label32Predictor, self).__init__()
         self.photo_adaptor = AdaptorNet()
         self.sketch_adaptor = AdaptorNet()
+        self.classifier = FusePredictor()
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+    def forward(self, photo, sketch):
+        photo = swish(self.photo_adaptor(photo))
+        sketch = swish(self.sketch_adaptor(sketch))
+        # pred = self.net(input)
+        pred = self.classifier(photo, sketch)
+        return pred
+
+
+class Label32PredictorFC6(nn.Module):
+    def __init__(self):
+        super(Label32PredictorFC6, self).__init__()
+        self.photo_adaptor = AdaptorNetFC6()
+        self.sketch_adaptor = AdaptorNetFC6()
         self.classifier = FusePredictor()
 
         for m in self.modules():
@@ -84,7 +107,7 @@ class AdaptorNetFC6(nn.Module):
         super(AdaptorNetFC6, self).__init__()
         self.net = nn.Sequential(
             nn.Linear(4096, 2048),
-            Swish()
+            Swish(),
             nn.Linear(2048, 1000))
 
     def forward(self, x):

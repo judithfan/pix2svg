@@ -13,7 +13,7 @@ import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
 from dataset import ExhaustiveSketchDataset
-from train_sketch import load_checkpoint
+from train_sketch_fc6 import load_checkpoint
 
 
 if __name__ == "__main__":
@@ -29,7 +29,7 @@ if __name__ == "__main__":
     if model.cuda:
         model.cuda()
 
-    dataset = ExhaustiveSketchDataset(layer='conv42')
+    dataset = ExhaustiveSketchDataset(layer='fc6')
     loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
     object_order = dataset.object_order
 
@@ -47,7 +47,8 @@ if __name__ == "__main__":
         
         pred_logits = model(sketch)
         pred = F.softplus(pred_logits)
-        # pred = pred / torch.sum(pred, dim=1, keepdim=True)
+        pred = pred / torch.sum(pred, dim=1, keepdim=True)
+        # pred = F.softmax(pred_logits, dim=1)
         pred = pred.cpu().data.numpy()[0]
 
         if sketch_context[0] == 'closer':

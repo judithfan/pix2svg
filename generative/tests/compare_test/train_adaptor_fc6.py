@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from sklearn.metrics import mean_squared_error
 
-from model import Label32Predictor
+from model import Label32PredictorFC6
 from dataset import VisualDataset
 
 
@@ -71,14 +71,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
    
-    train_dataset = VisualDataset(layer='conv42', split='train')
-    val_dataset = VisualDataset(layer='conv42', split='val')
-    test_dataset = VisualDataset(layer='conv42', split='test')
+    train_dataset = VisualDataset(layer='fc6', split='train')
+    val_dataset = VisualDataset(layer='fc6', split='val')
+    test_dataset = VisualDataset(layer='fc6', split='test')
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-    model = Label32Predictor()
+    model = Label32PredictorFC6()
     if args.cuda:
         model.cuda()
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)

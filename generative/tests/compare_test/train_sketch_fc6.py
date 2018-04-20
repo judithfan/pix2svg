@@ -35,6 +35,10 @@ def load_checkpoint(file_path, use_cuda=False):
     return model
 
 
+def cross_entropy(input, soft_targets):
+    return torch.mean(torch.sum(- soft_targets * F.log_softmax(input, dim=1), dim=1))
+
+
 class AverageMeter(object):
     """Computes and stores the average and current value"""
     def __init__(self):
@@ -98,6 +102,8 @@ if __name__ == "__main__":
             pred = F.softplus(pred_logits)
             pred = pred / torch.sum(pred, dim=1, keepdim=True)
             loss = args.loss_scale * F.mse_loss(pred, label.float())
+            # pred = F.softmax(pred_logits, dim=1)
+            # loss = args.loss_scale * cross_entropy(pred_logits, label.float())
             loss_meter.update(loss.data[0], batch_size)
             
             label_np = label.cpu().data.numpy()
@@ -138,6 +144,8 @@ if __name__ == "__main__":
             pred = F.softplus(pred_logits)
             pred = pred / torch.sum(pred, dim=1, keepdim=True)
             loss = args.loss_scale * F.mse_loss(pred, label.float())
+            # pred = F.softmax(pred_logits, dim=1)
+            # loss = args.loss_scale * cross_entropy(pred_logits, label.float())
             loss_meter.update(loss.data[0], batch_size)
 
             pred = F.softplus(pred_logits)
@@ -172,6 +180,8 @@ if __name__ == "__main__":
             pred = F.softplus(pred_logits)
             pred = pred / torch.sum(pred, dim=1, keepdim=True)
             loss = args.loss_scale * F.mse_loss(pred, label.float())
+            # pred = F.softmax(pred_logits, dim=1)
+            # loss = args.loss_scale * cross_entropy(pred_logits, label.float())
             loss_meter.update(loss.data[0], batch_size)
 
             label_np = label.cpu().data.numpy()

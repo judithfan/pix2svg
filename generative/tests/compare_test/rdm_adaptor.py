@@ -12,8 +12,8 @@ from collections import defaultdict
 import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
-from dataset import ExhaustiveSketchDataset
-from train_sketch import load_checkpoint
+from dataset import ExhaustiveDataset
+from train_adaptor import load_checkpoint
 
 
 if __name__ == "__main__":
@@ -29,7 +29,7 @@ if __name__ == "__main__":
     if model.cuda:
         model.cuda()
 
-    dataset = ExhaustiveSketchDataset(layer='conv42')
+    dataset = ExhaustiveDataset(layer='conv42')
     loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
     object_order = dataset.object_order
 
@@ -40,14 +40,25 @@ if __name__ == "__main__":
 
     pbar = tqdm(total=len(loader))
     for batch_idx, (sketch, sketch_object, sketch_context, sketch_path) in enumerate(loader):
+        batch_size = len(sketch)
         sketch = Variable(sketch, volatile=True)
         sketch_object_ix = object_order.index(sketch_object[0])
         if args.cuda:
             sketch = sketch.cuda()
-        
-        pred_logits = model(sketch)
-        pred = F.softplus(pred_logits)
-        # pred = pred / torch.sum(pred, dim=1, keepdim=True)
+    
+    	pred_logits = []
+        photo_generator = dataset.gen_photos()
+        for photo, _, _ in photo_generator():
+            photo = Variable(photo)
+            if args.cuda:
+                photo = photo.cuda()
+            photo = photo.repeat(batch_size, 1, 1, 1)
+            pred_logit = model(photo, sketch)
+            pred_logits.append(pred_logit) 
+
+        pred_logits = torch.cat(pred_logits, dim=1)
+        # pred = F.softplus(pred_logits)
+        pred = F.softmax(pred_logits, dim=1)
         pred = pred.cpu().data.numpy()[0]
 
         if sketch_context[0] == 'closer':
