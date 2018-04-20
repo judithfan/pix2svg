@@ -119,8 +119,8 @@ class SketchOnlyDataset(Dataset):
         return self.size
 
 
-class ExhaustiveSketchDataset(Dataset):
-    def __init__(self, layer='fc6', transform=None, random_seed=42):
+class ExhaustiveSketchDataset(SketchOnlyDataset):
+    def __init__(self, layer='fc6', split='test', transform=None, random_seed=42):
         super(ExhaustiveSketchDataset, self).__init__()
         np.random.seed(random_seed)
         random.seed(random_seed)
@@ -132,7 +132,6 @@ class ExhaustiveSketchDataset(Dataset):
         # only keep sketches that are in the valid_gameids (some games are garbage)
         sketch_basepaths = [path for path in sketch_basepaths
                             if os.path.basename(path).split('_')[1] in valid_game_ids]
-        sketch_paths = [os.path.join(sketch_dirname, path) for path in sketch_basepaths]
         # this details how labels are stored (order of objects)
         object_order = pd.read_csv(base_path+'human_confusion_object_order.csv')
         object_order = np.asarray(object_order['object_name']).tolist()
@@ -142,6 +141,9 @@ class ExhaustiveSketchDataset(Dataset):
         with open(os.path.join(db_path, 'sketchpad_label_dict.pickle')) as fp:
             self.label_dict = cPickle.load(fp)
 
+        if split != 'full':
+            sketch_basepaths = self.train_test_split(split, sketch_basepaths)
+        sketch_paths = [os.path.join(sketch_dirname, path) for path in sketch_basepaths]
         self.sketch_dirname = sketch_dirname
         self.size = len(sketch_paths)
         self.sketch_paths = sketch_paths
@@ -152,7 +154,7 @@ class ExhaustiveSketchDataset(Dataset):
         sketch_path = self.sketch_paths[index]
         context = self.context_dict[os.path.basename(sketch_path)]
         sketch_object = self.label_dict[os.path.basename(sketch_path)]
-        sketch = np.load(os.path.join(self.sketch_dirname, sketch_path))
+        sketch = np.load(sketch_path)
         sketch = torch.from_numpy(sketch)
         if self.transform:
             sketch = self.transform(sketch)

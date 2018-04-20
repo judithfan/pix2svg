@@ -20,6 +20,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('model_path', type=str, help='path to trained model')
+    parser.add_argument('--split', type=str, default='test', help='train|val|test|full')
     parser.add_argument('--batch-size', type=int, default=64, help='size of minibatch [default: 64]')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
@@ -30,7 +31,7 @@ if __name__ == "__main__":
     if model.cuda:
         model.cuda()
 
-    dataset = ExhaustiveDataset(layer=model.vgg_layer)
+    dataset = ExhaustiveDataset(layer=model.vgg_layer, split=args.split)
     loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
     object_order = dataset.object_order
 
