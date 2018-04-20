@@ -9,13 +9,14 @@ import shutil
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.parameter import Parameter
 
 
-class PredictorCONV42(nn.Module):
+class PredictorPOOL1(nn.Module):
     def __init__(self):
-        super(PredictorCONV42, self).__init__()
-        self.photo_adaptor = AdaptorNet()
-        self.sketch_adaptor = AdaptorNet()
+        super(PredictorPOOL1, self).__init__()
+        self.photo_adaptor = AdaptorNetPOOL1()
+        self.sketch_adaptor = AdaptorNetPOOL1()
         self.classifier = FusePredictor()
 
         for m in self.modules():
@@ -29,7 +30,28 @@ class PredictorCONV42(nn.Module):
     def forward(self, photo, sketch):
         photo = swish(self.photo_adaptor(photo))
         sketch = swish(self.sketch_adaptor(sketch))
-        # pred = self.net(input)
+        pred = self.classifier(photo, sketch)
+        return pred
+
+
+class PredictorCONV42(nn.Module):
+    def __init__(self):
+        super(PredictorCONV42, self).__init__()
+        self.photo_adaptor = AdaptorNetCONV42()
+        self.sketch_adaptor = AdaptorNetCONV42()
+        self.classifier = FusePredictor()
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+    def forward(self, photo, sketch):
+        photo = swish(self.photo_adaptor(photo))
+        sketch = swish(self.sketch_adaptor(sketch))
         pred = self.classifier(photo, sketch)
         return pred
 
@@ -52,9 +74,27 @@ class PredictorFC6(nn.Module):
     def forward(self, photo, sketch):
         photo = swish(self.photo_adaptor(photo))
         sketch = swish(self.sketch_adaptor(sketch))
-        # pred = self.net(input)
         pred = self.classifier(photo, sketch)
         return pred
+
+
+class AdaptorNetPOOL1(nn.Module):
+    def __init__(self):
+        super(AdaptorNetPOOL1, self).__init__()
+        self.pool = nn.MaxPool2d(2, stride=2)
+        self.attention = Parameter(torch.normal(torch.zeros(64), 1))
+        self.net = nn.Linear(64 * 64, 1000)
+
+    def forward(self, x):
+        h = self.pool(x)
+        W = F.softplus(self.attention)
+        W = W / torch.sum(W)
+        W = W.unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
+        h = W * h
+        h = torch.sum(h, dim=1)
+        h = h.view(-1, 64 * 64)
+        h = swish(h)
+        return self.net(h)
 
 
 class AdaptorNetCONV42(nn.Module):
@@ -63,8 +103,7 @@ class AdaptorNetCONV42(nn.Module):
         self.cnn = nn.Sequential(
             nn.Conv2d(512, 64, kernel_size=3, stride=1, padding=1),
             Swish(),
-            nn.MaxPool2d(2, stride=2, dilation=1),
-        )
+            nn.MaxPool2d(2, stride=2))
         self.net = nn.Linear(64 * 14 * 14, 1000)
 
     def forward(self, x):

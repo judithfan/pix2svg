@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from sklearn.metrics import mean_squared_error
 
-from model import PredictorFC6, PredictorCONV42
+from model import PredictorFC6, PredictorCONV42, PredictorPOOL1
 from dataset import VisualDataset
 
 
@@ -36,6 +36,8 @@ def load_checkpoint(file_path, use_cuda=False):
         model = PredictorCONV42()
     elif vgg_layer == 'fc6':
         model = PredictorFC6()
+    elif vgg_layer == 'pool1':
+        model = PredictorPOOL1()
     model.load_state_dict(checkpoint['state_dict'])
     model.vgg_layer = vgg_layer
     return model
@@ -66,7 +68,7 @@ class AverageMeter(object):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('vgg_layer', type=str, help='conv42|fc6')
+    parser.add_argument('vgg_layer', type=str, help='conv42|fc6|pool1')
     parser.add_argument('--loss-scale', type=float, default=10000., help='multiplier for loss [default: 10000.]')
     parser.add_argument('--out-dir', type=str, default='./trained_models', 
                         help='where to save checkpoints [./trained_models]')
@@ -77,7 +79,7 @@ if __name__ == "__main__":
     parser.add_argument('--cuda', action='store_true', default=False) 
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
-    assert args.vgg_layer in ['conv42', 'fc6']
+    assert args.vgg_layer in ['conv42', 'fc6', 'pool1']
    
     train_dataset = VisualDataset(layer=args.vgg_layer, split='train')
     val_dataset = VisualDataset(layer=args.vgg_layer, split='val')
@@ -90,6 +92,8 @@ if __name__ == "__main__":
         model = PredictorCONV42()
     elif args.vgg_layer == 'fc6':
         model = PredictorFC6()
+    elif args.vgg_layer == 'pool1':
+        model = PredictorPOOL1()
 
     if args.cuda:
         model.cuda()
