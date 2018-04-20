@@ -53,7 +53,10 @@ if __name__ == "__main__":
             photo = Variable(photo)
             if args.cuda:
                 photo = photo.cuda()
-            photo = photo.repeat(batch_size, 1, 1, 1)
+            if model.vgg_layer == 'fc6':
+                photo = photo.repeat(batch_size, 1)
+            else:
+                photo = photo.repeat(batch_size, 1, 1, 1) 
             pred_logit = model(photo, sketch)
             pred_logits.append(pred_logit) 
 
@@ -82,16 +85,16 @@ if __name__ == "__main__":
     plt.switch_backend('Agg')
 
     plt.figure()
-    ax = sns.heatmap(rdm_further_sums, linewidths=.5)
+    ax = sns.heatmap(rdm_further_sums)
     fig = ax.get_figure()
     fig.savefig('./rdm-further-%s.png' % model.vgg_layer)
 
     plt.figure()
-    ax = sns.heatmap(rdm_closer_sums, linewidths=.5)
+    ax = sns.heatmap(rdm_closer_sums)
     fig = ax.get_figure()
     fig.savefig('./rdm-closer-%s.png' % model.vgg_layer)
 
     plt.figure()
-    ax = sns.heatmap(rdm_closer_sums - rdm_further_sums, linewidths=.5)
+    ax = sns.heatmap(rdm_closer_sums - rdm_further_sums)
     fig = ax.get_figure()
     fig.savefig('./rdm-diff-%s.png' % model.vgg_layer)

@@ -31,7 +31,7 @@ def load_checkpoint(file_path, use_cuda=False):
     checkpoint = torch.load(file_path) if use_cuda else \
         torch.load(file_path, map_location=lambda storage, location: storage)
     vgg_layer = checkpoint['vgg_layer']
-    assert vgg_layer in ['conv42', 'fc6']
+    assert vgg_layer in ['conv42', 'fc6', 'pool1']
     if vgg_layer == 'conv42':
         model = PredictorCONV42()
     elif vgg_layer == 'fc6':
