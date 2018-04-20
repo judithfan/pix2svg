@@ -30,13 +30,17 @@ CATEGORY_TO_OBJECT = {
     'bird': ['bluejay', 'crow', 'cuckoo', 'nightingale', 'pigeon', 'robin', 'sparrow', 'tomtit'],
     'chair': ['inlay', 'knob', 'leather', 'sling', 'squat', 'straight', 'waiting', 'woven'],
 }
- 
+
+
+base_path = '/mnt/visual_communication_dataset/'
+if os.uname()[1]=='node8-neuroaicluster':
+    base_path = '/data/jefan/'
 
 class VisualDataset(Dataset):
     def __init__(self, layer='fc6', split='train', photo_transform=None, sketch_transform=None, random_seed=42):
         super(VisualDataset, self).__init__()
         np.random.seed(random_seed); random.seed(random_seed)
-        db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_%s' % layer
+        db_path = base_path + 'sketchpad_basic_fixedpose96_%s' % layer
         sketch_dirname = os.path.join(db_path, 'sketch')
         photo_dirname = os.path.join(db_path, 'photos')
         sketch_basepaths = os.listdir(sketch_dirname)
@@ -47,14 +51,14 @@ class VisualDataset(Dataset):
                             if os.path.basename(path).split('_')[1] in valid_game_ids]
 
         # this details how labels are stored (order of objects)
-        object_order = pd.read_csv('/mnt/visual_communication_dataset/human_confusion_object_order.csv')
+        object_order = pd.read_csv(base_path+'human_confusion_object_order.csv')
         object_order = np.asarray(object_order['object_name']).tolist()
 
         # load all 32 of them once since for every sketch we use the same 32 photos
         photo32_paths = [object_name + '.npy' for object_name in object_order]
 
         # load human annotated labels.
-        self.annotations = np.load('/mnt/visual_communication_dataset/human_confusion.npy')
+        self.annotations = np.load(base_path+'human_confusion.npy')
 
         # load which sketches go to which contexts
         with open(os.path.join(db_path, 'sketchpad_context_dict.pickle')) as fp:
@@ -139,7 +143,7 @@ class SketchOnlyDataset(Dataset):
     def __init__(self, layer='fc6', split='train', transform=None, random_seed=42):
         super(Dataset, self).__init__()
         np.random.seed(random_seed); random.seed(random_seed)
-        db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_%s' % layer
+        db_path = base_path+'sketchpad_basic_fixedpose96_%s' % layer
         dirname = os.path.join(db_path, 'sketch')
         basepaths = os.listdir(dirname)
 
@@ -148,11 +152,11 @@ class SketchOnlyDataset(Dataset):
         basepaths = [path for path in basepaths if os.path.basename(path).split('_')[1] in valid_game_ids]
 
         # this details how labels are stored (order of objects)
-        object_order = pd.read_csv('/mnt/visual_communication_dataset/human_confusion_object_order.csv')
+        object_order = pd.read_csv(base_path+'human_confusion_object_order.csv')
         object_order = np.asarray(object_order['object_name']).tolist()
 
         # load human annotated labels.
-        self.annotations = np.load('/mnt/visual_communication_dataset/human_confusion.npy')
+        self.annotations = np.load(base_path+'human_confusion.npy')
 
         # load which sketches go to which contexts
         with open(os.path.join(db_path, 'sketchpad_context_dict.pickle')) as fp:
@@ -224,7 +228,7 @@ class ExhaustiveDataset(Dataset):
         super(ExhaustiveDataset, self).__init__()
         np.random.seed(random_seed)
         random.seed(random_seed)
-        db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_%s' % layer
+        db_path = base_path+'sketchpad_basic_fixedpose96_%s' % layer
         photo_dirname = os.path.join(db_path, 'photos')
         sketch_dirname = os.path.join(db_path, 'sketch')
         sketch_basepaths = os.listdir(sketch_dirname)
@@ -235,7 +239,7 @@ class ExhaustiveDataset(Dataset):
                             if os.path.basename(path).split('_')[1] in valid_game_ids]
         sketch_paths = [os.path.join(sketch_dirname, path) for path in sketch_basepaths]
         # this details how labels are stored (order of objects)
-        object_order = pd.read_csv('/mnt/visual_communication_dataset/human_confusion_object_order.csv')
+        object_order = pd.read_csv(base_path+'human_confusion_object_order.csv')
         object_order = np.asarray(object_order['object_name']).tolist()
         # load all 32 of them once since for every sketch we use the same 32 photos
         photo_32_paths = [object_name + '.npy' for object_name in object_order]
@@ -286,7 +290,7 @@ class ExhaustiveSketchDataset(Dataset):
         super(ExhaustiveSketchDataset, self).__init__()
         np.random.seed(random_seed)
         random.seed(random_seed)
-        db_path = '/mnt/visual_communication_dataset/sketchpad_basic_fixedpose96_%s' % layer
+        db_path = base_path+'sketchpad_basic_fixedpose96_%s' % layer
         sketch_dirname = os.path.join(db_path, 'sketch')
         sketch_basepaths = os.listdir(sketch_dirname)
         # remove bad/corrupted images
@@ -296,7 +300,7 @@ class ExhaustiveSketchDataset(Dataset):
                             if os.path.basename(path).split('_')[1] in valid_game_ids]
         sketch_paths = [os.path.join(sketch_dirname, path) for path in sketch_basepaths]
         # this details how labels are stored (order of objects)
-        object_order = pd.read_csv('/mnt/visual_communication_dataset/human_confusion_object_order.csv')
+        object_order = pd.read_csv(base_path+'human_confusion_object_order.csv')
         object_order = np.asarray(object_order['object_name']).tolist()
 
         with open(os.path.join(db_path, 'sketchpad_context_dict.pickle')) as fp:

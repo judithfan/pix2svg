@@ -36,7 +36,7 @@ def load_checkpoint(file_path, use_cuda=False):
 
 
 def cross_entropy(input, soft_targets):
-    return torch.mean(torch.sum(- soft_targets * F.log_softmax(input, dim=1), dim=1))
+    return torch.mean(torch.sum(- soft_targets * F.log_softmax(input), dim=1))
 
 
 class AverageMeter(object):

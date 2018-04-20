@@ -84,7 +84,7 @@ class AdaptorNetFC6(nn.Module):
         super(AdaptorNetFC6, self).__init__()
         self.net = nn.Sequential(
             nn.Linear(4096, 2048),
-            Swish()
+            Swish(),
             nn.Linear(2048, 1000))
 
     def forward(self, x):
