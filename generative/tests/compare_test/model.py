@@ -17,16 +17,16 @@ class LabelPredictor(nn.Module):
         self.adaptor = AdaptorNet()
         self.classifier = CategoryClassifier()
 
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, math.sqrt(2. / n))
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                m.weight.data.normal_(0, 1)
-                m.bias.data.zero_()
+    def forward(self, sketch):
+        sketch = swish(self.adaptor(sketch))
+        return self.classifier(sketch)
+
+
+class LabelPredictorFC6(nn.Module):
+    def __init__(self):
+        super(LabelPredictor, self).__init__()
+        self.adaptor = AdaptorNetFC6()
+        self.classifier = CategoryClassifier()
 
     def forward(self, sketch):
         sketch = swish(self.adaptor(sketch))
@@ -39,12 +39,14 @@ class Label32Predictor(nn.Module):
         self.photo_adaptor = AdaptorNet()
         self.sketch_adaptor = AdaptorNet()
         self.classifier = FusePredictor()
-        # self.net = nn.Sequential(
-        #     nn.Linear(2000, 1024),
-        #     Swish(),
-        #     nn.Linear(1024, 256),
-        #     Swish(),
-        #     nn.Linear(256, 1))
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
 
     def forward(self, photo, sketch):
         photo = swish(self.photo_adaptor(photo))
@@ -74,6 +76,18 @@ class AdaptorNet(nn.Module):
     def forward(self, x):
         x = self.cnn(x)
         x = x.view(-1, 64 * 14 * 14)
+        return self.net(x)
+
+
+class AdaptorNetFC6(nn.Module):
+    def __init__(self):
+        super(AdaptorNetFC6, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(4096, 2048),
+            Swish()
+            nn.Linear(2048, 1000))
+
+    def forward(self, x):
         return self.net(x)
 
 
