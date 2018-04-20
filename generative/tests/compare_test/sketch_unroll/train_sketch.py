@@ -135,7 +135,7 @@ if __name__ == "__main__":
                 label = label.cuda()
 
             pred_logits = model(sketch)
-            loss = args.loss_scale * F.cross_entropy(pred, label)
+            loss = args.loss_scale * F.cross_entropy(pred_logits, label)
             loss_meter.update(loss.data[0], batch_size)
 
             pred = pred_logits.data.max(1, keepdim=True)[1]
@@ -165,7 +165,7 @@ if __name__ == "__main__":
                 label = label.cuda()
 
             pred_logits = model(sketch)
-            loss = args.loss_scale * F.cross_entropy(pred, label)
+            loss = args.loss_scale * F.cross_entropy(pred_logits, label)
             loss_meter.update(loss.data[0], batch_size)
 
             pred = pred_logits.data.max(1, keepdim=True)[1]
