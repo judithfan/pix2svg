@@ -35,6 +35,10 @@ def load_checkpoint(file_path, use_cuda=False):
     return model
 
 
+def cross_entropy(input, soft_targets):
+    return torch.mean(torch.sum(- soft_targets * F.log_softmax(input, dim=1), dim=1))
+
+
 class AverageMeter(object):
     """Computes and stores the average and current value"""
     def __init__(self):
@@ -108,12 +112,14 @@ if __name__ == "__main__":
                 pred_logits.append(pred_logit)
         
             pred_logits = torch.cat(pred_logits, dim=1)
-            pred = F.softplus(pred_logits)
-            pred = pred / torch.sum(pred, dim=1, keepdim=True)
-            loss = args.loss_scale * F.mse_loss(pred, label.float())
+            # pred = F.softplus(pred_logits)
+            # pred = pred / torch.sum(pred, dim=1, keepdim=True)
+            # loss = args.loss_scale * F.mse_loss(pred, label.float())
+            loss = args.loss_scale * cross_entropy(pred_logits, label.float())
             loss_meter.update(loss.data[0], batch_size)
             
             if batch_idx % 10 == 0:
+                pred = F.softmax(pred_logits)
                 pred_npy = pred.cpu().data.numpy()[0]
                 label_npy = label.cpu().data.numpy()[0]
                 sort_npy = np.argsort(label_npy)[::-1]
@@ -163,11 +169,10 @@ if __name__ == "__main__":
                 pred_logits.append(pred_logit)
 
             pred_logits = torch.cat(pred_logits, dim=1)
-            pred = F.softplus(pred_logits)
-            pred = pred / torch.sum(pred, dim=1, keepdim=True)
-            loss = args.loss_scale * F.mse_loss(pred, label.float())
+            loss = args.loss_scale * cross_entropy(pred_logits, label.float())
             loss_meter.update(loss.data[0], batch_size)
 
+            pred = F.softmax(pred_logits)
             label_np = label.cpu().data.numpy()
             pred_np = pred.cpu().data.numpy()
             mse = mean_squared_error(label_np, pred_np)
@@ -205,11 +210,10 @@ if __name__ == "__main__":
                 pred_logits.append(pred_logit)
 
             pred_logits = torch.cat(pred_logits, dim=1)
-            pred = F.softplus(pred_logits)
-            pred = pred / torch.sum(pred, dim=1, keepdim=True)
-            loss = args.loss_scale * F.mse_loss(pred, label.float())
+            loss = args.loss_scale * cross_entropy(pred_logits, label.float())
             loss_meter.update(loss.data[0], batch_size)
 
+            pred = F.softmax(pred_logits)
             label_np = label.cpu().data.numpy()
             pred_np = pred.cpu().data.numpy()
             mse = mean_squared_error(label_np, pred_np)

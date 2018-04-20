@@ -89,11 +89,13 @@ class CosineClassifier(nn.Module):
 class FusePredictor(nn.Module):
     def __init__(self):
         super(FusePredictor, self).__init__()
-        self.fc = nn.Linear(2000, 1)
+        self.fc1 = nn.Linear(2000, 256)
+        self.fc2 = nn.Linear(256, 1)
 
     def forward(self, e1, e2):
         h = torch.cat((e1, e2), dim=1)
-        return self.fc(h)
+        h = swish(self.fc1(h))
+        return self.fc2(h)
 
 
 class CategoryClassifier(nn.Module):
