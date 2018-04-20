@@ -123,12 +123,15 @@ if __name__ == "__main__":
                 photo = Variable(photo)
                 if args.cuda:
                     photo = photo.cuda()
-                photo = photo.repeat(batch_size, 1, 1, 1)
+                if args.vgg_layer == 'fc6':
+                    photo = photo.repeat(batch_size, 1)
+                else:
+                    photo = photo.repeat(batch_size, 1, 1, 1)
                 pred_logit = model(photo, sketch)
                 pred_logits.append(pred_logit)
         
             pred_logits = torch.cat(pred_logits, dim=1)
-            pred = F.softmax(pred_logits)
+            pred = F.softmax(pred_logits, dim=1)
             loss = args.loss_scale * cross_entropy(pred_logits, label.float())
             loss_meter.update(loss.data[0], batch_size)
             
@@ -182,7 +185,7 @@ if __name__ == "__main__":
                 pred_logits.append(pred_logit)
 
             pred_logits = torch.cat(pred_logits, dim=1)
-            pred = F.softmax(pred_logits)
+            pred = F.softmax(pred_logits, dim=1)
             loss = args.loss_scale * cross_entropy(pred_logits, label.float())
             loss_meter.update(loss.data[0], batch_size)
 
@@ -223,7 +226,7 @@ if __name__ == "__main__":
                 pred_logits.append(pred_logit)
 
             pred_logits = torch.cat(pred_logits, dim=1)
-            pred = F.softmax(pred_logits)
+            pred = F.softmax(pred_logits, dim=1)
             loss = args.loss_scale * cross_entropy(pred_logits, label.float())
             loss_meter.update(loss.data[0], batch_size)
 

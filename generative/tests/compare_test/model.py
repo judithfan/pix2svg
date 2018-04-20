@@ -83,7 +83,7 @@ class AdaptorNetPOOL1(nn.Module):
         super(AdaptorNetPOOL1, self).__init__()
         self.pool = nn.MaxPool2d(2, stride=2)
         self.attention = Parameter(torch.normal(torch.zeros(64), 1))
-        self.net = nn.Linear(64 * 64, 1000)
+        self.net = nn.Linear(56 * 56, 1000)
 
     def forward(self, x):
         h = self.pool(x)
@@ -92,7 +92,7 @@ class AdaptorNetPOOL1(nn.Module):
         W = W.unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
         h = W * h
         h = torch.sum(h, dim=1)
-        h = h.view(-1, 64 * 64)
+        h = h.view(-1, 56 * 56)
         h = swish(h)
         return self.net(h)
 
