@@ -21,6 +21,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('model_path', type=str, help='path to trained model')
+    parser.add_argument('--split', type=str, default='test', help='default: test')
     parser.add_argument('--batch-size', type=int, default=64, help='size of minibatch [default: 64]')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
@@ -31,7 +32,8 @@ if __name__ == "__main__":
     if model.cuda:
         model.cuda()
 
-    dataset = ExhaustiveSketchDataset(layer='conv42', split='full')
+    dataset = ExhaustiveSketchDataset(layer='conv42', split=args.split, 
+                                      synthetic_labels=model.synthetic_labels)
     loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
     object_order = dataset.object_order
 
@@ -75,14 +77,35 @@ if __name__ == "__main__":
     plt.figure()
     ax = sns.heatmap(rdm_further_sums, linewidths=.5)
     fig = ax.get_figure()
-    fig.savefig('./rdm-further.pdf')
+    fig.savefig('./rdm-further.png')
 
     plt.figure()
     ax = sns.heatmap(rdm_closer_sums, linewidths=.5)
     fig = ax.get_figure()
-    fig.savefig('./rdm-closer.pdf')
+    fig.savefig('./rdm-closer.png')
 
     plt.figure()
     ax = sns.heatmap(rdm_closer_sums - rdm_further_sums, linewidths=.5)
     fig = ax.get_figure()
-    fig.savefig('./rdm-diff.pdf')
+    fig.savefig('./rdm-diff.png')
+
+    rdm_diff_sums = rdm_closer_sums - rdm_further_sums
+    rdm_diagonals = [rdm_diff_sums[i, i] for i in xrange(32)]
+    rdm_boxes = [rdm_diff_sums[:8, :8], rdm_diff_sums[8:16, 8:16],
+                 rdm_diff_sums[16:24, 16:24], rdm_diff_sums[24:32, 24:32]]
+    rdm_off_diagonals = []
+    for rdm_box in rdm_boxes:
+        for i in xrange(8):
+            for j in xrange(8):
+                if i != j:
+                    rdm_off_diagonals.append(rdm_box[i, j])
+    plt.figure()
+    plt.hist(rdm_diagonals)
+    plt.title('RDM Difference Diagonals')
+    plt.savefig('./rdm-diagonals.png')
+
+    plt.figure()
+    plt.hist(rdm_off_diagonals)
+    plt.title('RDM Difference Off-Diagonals')
+    plt.savefig('./rdm-off-diagonals.png')
+

@@ -37,7 +37,7 @@ if os.uname()[1] == 'node8-neuroaicluster':
 
 
 class SketchOnlyDataset(Dataset):
-    def __init__(self, layer='fc6', split='train', transform=None, random_seed=42):
+    def __init__(self, layer='fc6', split='train', synthetic_labels=False, transform=None, random_seed=42):
         super(Dataset, self).__init__()
         np.random.seed(random_seed); random.seed(random_seed)
         db_path = base_path+'sketchpad_basic_fixedpose96_%s' % layer
@@ -53,7 +53,9 @@ class SketchOnlyDataset(Dataset):
         object_order = np.asarray(object_order['object_name']).tolist()
 
         # load human annotated labels.
-        annotations = pd.read_csv(os.path.join(base_path, 'sketchpad_basic_recog_group_data_augmented.csv'))
+        annotation_path = ('sketchpad_basic_recog_group_data_augmented_with_synthetic_labels_5x.csv'
+                           if synthetic_labels else 'sketchpad_basic_recog_group_data_augmented.csv')
+        annotations = pd.read_csv(os.path.join(base_path, annotation_path))
         annotations = annotations.drop(['Unnamed: 0','Unnamed: 0.1','Unnamed: 0.1.1'],axis=1)
         annotations = zip(annotations['fname'].values, annotations['choice'].values)
         
@@ -74,6 +76,7 @@ class SketchOnlyDataset(Dataset):
             for label in unrolled_dataset[path]:
                 dataset.append((path, label))
 
+        self.synthetic_labels = synthetic_labels
         self.dirname = dirname 
         self.size = len(dataset)
         self.split = split
