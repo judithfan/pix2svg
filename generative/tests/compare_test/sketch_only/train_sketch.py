@@ -99,9 +99,6 @@ if __name__ == "__main__":
                 sketch = sketch.cuda()
                 label = label.cuda()
 
-            if epoch == 3:
-                import pdb; pdb.set_trace()
-
             optimizer.zero_grad()
             pred_logits = model(sketch)
             
