@@ -30,7 +30,6 @@ def load_checkpoint(file_path, use_cuda=False):
     checkpoint = torch.load(file_path) if use_cuda else \
         torch.load(file_path, map_location=lambda storage, location: storage)
     model = SketchOnlyPredictor()
-    model.synthetic_labels = checkpoint['synthetic_labels']
     model.load_state_dict(checkpoint['state_dict'])
     return model
 

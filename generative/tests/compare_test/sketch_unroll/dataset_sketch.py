@@ -56,7 +56,6 @@ class SketchOnlyDataset(Dataset):
         annotation_path = ('sketchpad_basic_recog_group_data_augmented_with_synthetic_labels_5x.csv'
                            if synthetic_labels else 'sketchpad_basic_recog_group_data_augmented.csv')
         annotations = pd.read_csv(os.path.join(base_path, annotation_path))
-        annotations = annotations.drop(['Unnamed: 0','Unnamed: 0.1','Unnamed: 0.1.1'],axis=1)
         annotations = zip(annotations['fname'].values, annotations['choice'].values)
         
         unrolled_dataset = defaultdict(lambda: [])

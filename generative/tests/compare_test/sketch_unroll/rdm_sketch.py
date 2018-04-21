@@ -32,8 +32,7 @@ if __name__ == "__main__":
     if model.cuda:
         model.cuda()
 
-    dataset = ExhaustiveSketchDataset(layer='conv42', split=args.split, 
-                                      synthetic_labels=model.synthetic_labels)
+    dataset = ExhaustiveSketchDataset(layer='conv42', split=args.split) 
     loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
     object_order = dataset.object_order
 
@@ -75,17 +74,17 @@ if __name__ == "__main__":
     plt.switch_backend('Agg')
 
     plt.figure()
-    ax = sns.heatmap(rdm_further_sums, linewidths=.5)
+    ax = sns.heatmap(rdm_further_sums)
     fig = ax.get_figure()
     fig.savefig('./rdm-further.png')
 
     plt.figure()
-    ax = sns.heatmap(rdm_closer_sums, linewidths=.5)
+    ax = sns.heatmap(rdm_closer_sums)
     fig = ax.get_figure()
     fig.savefig('./rdm-closer.png')
 
     plt.figure()
-    ax = sns.heatmap(rdm_closer_sums - rdm_further_sums, linewidths=.5)
+    ax = sns.heatmap(rdm_closer_sums - rdm_further_sums)
     fig = ax.get_figure()
     fig.savefig('./rdm-diff.png')
 
