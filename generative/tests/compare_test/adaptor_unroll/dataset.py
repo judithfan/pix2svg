@@ -70,16 +70,16 @@ class VisualDataset(Dataset):
             choice = object_order.index(choice)
             unrolled_dataset[annotation].append(choice)
 
+        # load which sketches go to which classes
+        with open(os.path.join(db_path, 'sketchpad_label_dict.pickle')) as fp:
+            self.label_dict = cPickle.load(fp)
+
         self.object_order = object_order
         sketch_paths = self.train_test_split(split, sketch_basepaths)
         sketch_dataset = []
         for path in sketch_paths:
             for label in unrolled_dataset[path]:
                 sketch_dataset.append((path, label))
-
-        # load which sketches go to which classes
-        with open(os.path.join(db_path, 'sketchpad_label_dict.pickle')) as fp:
-            self.label_dict = cPickle.load(fp)
 
         self.synthetic_labels = synthetic_labels
         self.sketch_dataset = sketch_dataset
