@@ -21,6 +21,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('model_path', type=str, help='path to trained model')
+    parser.add_argument('--batch-size', type=int, default=64, help='size of minibatch [default: 64]')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
@@ -30,8 +31,8 @@ if __name__ == "__main__":
     if model.cuda:
         model.cuda()
 
-    dataset = ExhaustiveSketchDataset(layer='conv42')
-    loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
+    dataset = ExhaustiveSketchDataset(layer='conv42', split='full')
+    loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
     object_order = dataset.object_order
 
     rdm_further_sums = np.zeros((32, 32))
@@ -41,24 +42,25 @@ if __name__ == "__main__":
 
     pbar = tqdm(total=len(loader))
     for batch_idx, (sketch, sketch_object, sketch_context, sketch_path) in enumerate(loader):
+        batch_size = len(sketch)
         sketch = Variable(sketch, volatile=True)
-        sketch_object_ix = object_order.index(sketch_object[0])
+        sketch_object_ix = [object_order.index(sketch_object[i]) for i in xrange(batch_size)]
         if args.cuda:
             sketch = sketch.cuda()
         
         pred_logits = model(sketch)
-        pred = F.softplus(pred_logits)
-        # pred = pred / torch.sum(pred, dim=1, keepdim=True)
-        pred = pred.cpu().data.numpy()[0]
+        pred = F.softmax(pred_logits, dim=1)
+        pred = pred.cpu().data.numpy()
 
-        if sketch_context[0] == 'closer':
-            rdm_closer_sums[:, sketch_object_ix] += pred
-            rdm_closer_cnts[sketch_object_ix] += 1
-        elif sketch_context[0] == 'further':
-            rdm_further_sums[:, sketch_object_ix] += pred
-            rdm_further_cnts[sketch_object_ix] += 1
-        else:
-            raise Exception('Unrecognized context: %s.' % sketch_context[0])
+	for t in xrange(batch_size):
+            if sketch_context[0] == 'closer':
+                rdm_closer_sums[:, sketch_object_ix[t]] += pred[t]
+                rdm_closer_cnts[sketch_object_ix[t]] += 1
+            elif sketch_context[0] == 'further':
+                rdm_further_sums[:, sketch_object_ix[t]] += pred[t]
+                rdm_further_cnts[sketch_object_ix[t]] += 1
+            else:
+                raise Exception('Unrecognized context: %s.' % sketch_context[0])
         pbar.update()
     pbar.close()
 
