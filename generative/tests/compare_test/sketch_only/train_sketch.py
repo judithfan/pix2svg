@@ -14,8 +14,12 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from sklearn.metrics import mean_squared_error
 
-from model_sketch import LabelPredictor
+from model_sketch import SketchOnlyPredictor
 from dataset_sketch import SketchOnlyDataset
+
+
+def cross_entropy(input, soft_targets):
+    return torch.mean(torch.sum(- soft_targets * F.log_softmax(input, dim=1), dim=1))
 
 
 def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
@@ -30,7 +34,8 @@ def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
 def load_checkpoint(file_path, use_cuda=False):
     checkpoint = torch.load(file_path) if use_cuda else \
         torch.load(file_path, map_location=lambda storage, location: storage)
-    model = LabelPredictor()
+    model = SketchOnlyPredictor()
+    model.xent_loss = checkpoint['xent_loss']
     model.load_state_dict(checkpoint['state_dict'])
     return model
 
@@ -56,6 +61,7 @@ class AverageMeter(object):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('--xent-loss', action='store_true', default=False, help='default is mse-loss')
     parser.add_argument('--loss-scale', type=float, default=10000., help='multiplier for loss [default: 10000.]')
     parser.add_argument('--out-dir', type=str, default='./trained_models', 
                         help='where to save checkpoints [./trained_models]')
@@ -74,7 +80,7 @@ if __name__ == "__main__":
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-    model = LabelPredictor()
+    model = SketchOnlyPredictor()
     if args.cuda:
         model.cuda()
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
@@ -93,13 +99,21 @@ if __name__ == "__main__":
                 sketch = sketch.cuda()
                 label = label.cuda()
 
+            if epoch == 3:
+                import pdb; pdb.set_trace()
+
             optimizer.zero_grad()
             pred_logits = model(sketch)
-            pred = F.softplus(pred_logits)
-            pred = pred / torch.sum(pred, dim=1, keepdim=True)
-            loss = args.loss_scale * F.mse_loss(pred, label.float())
-            loss_meter.update(loss.data[0], batch_size)
             
+            if args.xent_loss:
+                pred = F.softmax(pred_logits, dim=1)
+                loss = args.loss_scale * cross_entropy(pred_logits, label.float())
+            else:
+                pred = F.softplus(pred_logits)
+                pred = pred / torch.sum(pred, dim=1, keepdim=True)
+                loss = args.loss_scale * F.mse_loss(pred, label.float())
+
+            loss_meter.update(loss.data[0], batch_size)
             label_np = label.cpu().data.numpy()
             pred_np = pred.cpu().data.numpy()
             mse = mean_squared_error(label_np, pred_np)
@@ -135,13 +149,16 @@ if __name__ == "__main__":
                 label = label.cuda()
 
             pred_logits = model(sketch)
-            pred = F.softplus(pred_logits)
-            pred = pred / torch.sum(pred, dim=1, keepdim=True)
-            loss = args.loss_scale * F.mse_loss(pred, label.float())
+            
+            if args.xent_loss:
+                pred = F.softmax(pred_logits, dim=1)
+                loss = args.loss_scale * cross_entropy(pred_logits, label.float())
+            else:
+                pred = F.softplus(pred_logits)
+                pred = pred / torch.sum(pred, dim=1, keepdim=True)
+                loss = args.loss_scale * F.mse_loss(pred, label.float())
+            
             loss_meter.update(loss.data[0], batch_size)
-
-            pred = F.softplus(pred_logits)
-            pred = pred / torch.sum(pred, dim=1, keepdim=True)
             label_np = label.cpu().data.numpy()
             pred_np = pred.cpu().data.numpy()
             mse = mean_squared_error(label_np, pred_np)
@@ -169,11 +186,16 @@ if __name__ == "__main__":
                 label = label.cuda()
 
             pred_logits = model(sketch)
-            pred = F.softplus(pred_logits)
-            pred = pred / torch.sum(pred, dim=1, keepdim=True)
-            loss = args.loss_scale * F.mse_loss(pred, label.float())
+            
+            if args.xent_loss:
+                pred = F.softmax(pred_logits, dim=1)
+                loss = args.loss_scale * cross_entropy(pred_logits, label.float())
+            else:
+                pred = F.softplus(pred_logits)
+                pred = pred / torch.sum(pred, dim=1, keepdim=True)
+                loss = args.loss_scale * F.mse_loss(pred, label.float())
+            
             loss_meter.update(loss.data[0], batch_size)
-
             label_np = label.cpu().data.numpy()
             pred_np = pred.cpu().data.numpy()
             mse = mean_squared_error(label_np, pred_np)
@@ -203,6 +225,7 @@ if __name__ == "__main__":
             'test_loss': test_loss,
             'test_mse': test_mse,
             'optimizer' : optimizer.state_dict(),
+            'xent_loss': args.xent_loss,
         }, is_best, folder=args.out_dir)
         # save stuff for plots
         loss_db[epoch - 1, 0] = train_loss

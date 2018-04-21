@@ -21,6 +21,8 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('model_path', type=str, help='path to trained model')
+    parser.add_argument('--split', type=str, default='test', help='default: test')
+    parser.add_argument('--batch-size', type=int, default=64, help='size of minibatch [default: 64]')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
@@ -30,8 +32,8 @@ if __name__ == "__main__":
     if model.cuda:
         model.cuda()
 
-    dataset = ExhaustiveSketchDataset(layer='conv42')
-    loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
+    dataset = ExhaustiveSketchDataset(layer='conv42', split=args.split)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
     object_order = dataset.object_order
 
     rdm_further_sums = np.zeros((32, 32))
@@ -41,24 +43,29 @@ if __name__ == "__main__":
 
     pbar = tqdm(total=len(loader))
     for batch_idx, (sketch, sketch_object, sketch_context, sketch_path) in enumerate(loader):
+        batch_size = len(sketch)
         sketch = Variable(sketch, volatile=True)
-        sketch_object_ix = object_order.index(sketch_object[0])
+        sketch_object_ix = [object_order.index(sketch_object[i]) for i in xrange(batch_size)]
         if args.cuda:
             sketch = sketch.cuda()
         
         pred_logits = model(sketch)
-        pred = F.softplus(pred_logits)
-        # pred = pred / torch.sum(pred, dim=1, keepdim=True)
-        pred = pred.cpu().data.numpy()[0]
-
-        if sketch_context[0] == 'closer':
-            rdm_closer_sums[:, sketch_object_ix] += pred
-            rdm_closer_cnts[sketch_object_ix] += 1
-        elif sketch_context[0] == 'further':
-            rdm_further_sums[:, sketch_object_ix] += pred
-            rdm_further_cnts[sketch_object_ix] += 1
+        if model.xent_loss:
+            pred = F.softmax(pred_logits, dim=1)
         else:
-            raise Exception('Unrecognized context: %s.' % sketch_context[0])
+            pred = F.softplus(pred_logits)
+            pred = pred / torch.sum(pred, dim=1, keepdim=True)
+        pred = pred.cpu().data.numpy()
+
+        for t in xrange(batch_size):
+            if sketch_context[0] == 'closer':
+                rdm_closer_sums[:, sketch_object_ix[t]] += pred[t]
+                rdm_closer_cnts[sketch_object_ix[t]] += 1
+            elif sketch_context[0] == 'further':
+                rdm_further_sums[:, sketch_object_ix[t]] += pred[t]
+                rdm_further_cnts[sketch_object_ix[t]] += 1
+            else:
+                raise Exception('Unrecognized context: %s.' % sketch_context[0]) 
         pbar.update()
     pbar.close()
 
@@ -71,16 +78,37 @@ if __name__ == "__main__":
     plt.switch_backend('Agg')
 
     plt.figure()
-    ax = sns.heatmap(rdm_further_sums, linewidths=.5)
+    ax = sns.heatmap(rdm_further_sums)
     fig = ax.get_figure()
-    fig.savefig('./rdm-further.pdf')
+    fig.savefig('./rdm-further.png')
 
     plt.figure()
-    ax = sns.heatmap(rdm_closer_sums, linewidths=.5)
+    ax = sns.heatmap(rdm_closer_sums)
     fig = ax.get_figure()
-    fig.savefig('./rdm-closer.pdf')
+    fig.savefig('./rdm-closer.png')
 
     plt.figure()
-    ax = sns.heatmap(rdm_closer_sums - rdm_further_sums, linewidths=.5)
+    ax = sns.heatmap(rdm_closer_sums - rdm_further_sums)
     fig = ax.get_figure()
-    fig.savefig('./rdm-diff.pdf')
+    fig.savefig('./rdm-diff.png')
+
+    rdm_diff_sums = rdm_closer_sums - rdm_further_sums
+    rdm_diagonals = [rdm_diff_sums[i, i] for i in xrange(32)]
+    rdm_boxes = [rdm_diff_sums[:8, :8], rdm_diff_sums[8:16, 8:16],
+                 rdm_diff_sums[16:24, 16:24], rdm_diff_sums[24:32, 24:32]]
+    rdm_off_diagonals = []
+    for rdm_box in rdm_boxes:
+        for i in xrange(8):
+            for j in xrange(8):
+                if i != j:
+                    rdm_off_diagonals.append(rdm_box[i, j])
+    plt.figure()
+    plt.hist(rdm_diagonals)
+    plt.title('RDM Difference Diagonals')
+    plt.savefig('./rdm-diagonals.png')
+
+    plt.figure()
+    plt.hist(rdm_off_diagonals)
+    plt.title('RDM Difference Off-Diagonals')
+    plt.savefig('./rdm-off-diagonals.png')
+
