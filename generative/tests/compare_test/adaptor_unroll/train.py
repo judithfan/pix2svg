@@ -223,7 +223,7 @@ if __name__ == "__main__":
                 pred_logits.append(pred_logit)
 
             pred_logits = torch.cat(pred_logits, dim=1)
-            loss = args.loss_scale * cross_entropy(pred_logits, label.float())
+            loss = args.loss_scale * F.cross_entropy(pred_logits, label)
             loss_meter.update(loss.data[0], batch_size)
 
             pred = pred_logits.data.max(1, keepdim=True)[1]

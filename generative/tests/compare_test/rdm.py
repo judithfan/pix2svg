@@ -99,3 +99,24 @@ if __name__ == "__main__":
     ax = sns.heatmap(rdm_closer_sums - rdm_further_sums)
     fig = ax.get_figure()
     fig.savefig('./rdm-diff-%s.png' % model.vgg_layer)
+
+    rdm_diff_sums = rdm_closer_sums - rdm_further_sums
+    rdm_diagonals = [rdm_diff_sums[i, i] for i in xrange(32)]
+    rdm_boxes = [rdm_diff_sums[:8, :8], rdm_diff_sums[8:16, 8:16],
+                 rdm_diff_sums[16:24, 16:24], rdm_diff_sums[24:32, 24:32]]
+    rdm_off_diagonals = []
+    for rdm_box in rdm_boxes:
+        for i in xrange(8):
+            for j in xrange(8):
+                if i != j:
+                    rdm_off_diagonals.append(rdm_box[i, j])
+    plt.figure()
+    plt.hist(rdm_diagonals)
+    plt.title('RDM Difference Diagonals')
+    plt.savefig('./rdm-diagonals.png')
+
+    plt.figure()
+    plt.hist(rdm_off_diagonals)
+    plt.title('RDM Difference Off-Diagonals')
+    plt.savefig('./rdm-off-diagonals.png')
+
