@@ -63,8 +63,8 @@ if __name__ == "__main__":
                         help='where to save checkpoints [./trained_models]')
     parser.add_argument('--batch-size', type=int, default=10, 
                         help='number of examples in a mini-batch [default: 10]')
-    parser.add_argument('--lr', type=float, default=1e-3, help='learning rate [default: 1e-3]')
-    parser.add_argument('--epochs', type=int, default=10, help='number of epochs [default: 10]')
+    parser.add_argument('--lr', type=float, default=1e-3, help='learning rate [default: 1e-4]')
+    parser.add_argument('--epochs', type=int, default=100, help='number of epochs [default: 100]')
     parser.add_argument('--cuda', action='store_true', default=False) 
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
