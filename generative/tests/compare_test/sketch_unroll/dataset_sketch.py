@@ -147,6 +147,7 @@ class ExhaustiveSketchDataset(SketchOnlyDataset):
         self.size = len(sketch_paths)
         self.sketch_paths = sketch_paths
         self.object_order = object_order
+        self.db_path = db_path
         self.transform = transform
 
     def __getitem__(self, index):
