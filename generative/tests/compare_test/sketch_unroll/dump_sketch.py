@@ -9,6 +9,7 @@ from tqdm import tqdm
 from collections import defaultdict
 
 import torch
+import torch.nn.functional as F
 from torch.autograd import Variable
 from dataset_sketch import ExhaustiveSketchDataset
 from train_sketch import load_checkpoint
@@ -47,7 +48,9 @@ if __name__ == "__main__":
         sketch = Variable(sketch, volatile=True)
         if args.cuda:
             sketch = sketch.cuda()
-        pred = model(sketch).cpu().data[0]  # single batch
+        pred_logits = model(sketch)
+        pred = F.softmax(pred_logits, dim=1)
+        pred = pred.cpu().data[0]  # single batch
         for dim, photo_name in enumerate(photo_ordering):
             dist_jsons[photo_name][sketch_name] = float(pred[dim])
         pbar.update()

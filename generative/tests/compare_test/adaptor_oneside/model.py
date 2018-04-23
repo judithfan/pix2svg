@@ -46,9 +46,15 @@ class AdaptorNetCONV42(nn.Module):
         super(AdaptorNetCONV42, self).__init__()
         self.cnn = nn.Sequential(
             nn.Conv2d(512, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
             Swish(),
             nn.MaxPool2d(2, stride=2))
-        self.net = nn.Linear(64 * 14 * 14, 784)
+        self.net = nn.Sequential(
+            nn.Linear(64 * 14 * 14, 2048),
+            nn.BatchNorm1d(2048),
+            Swish(),
+            nn.Dropout(0.5),
+            nn.Linear(2048, 784))
 
     def forward(self, x):
         x = self.cnn(x)
