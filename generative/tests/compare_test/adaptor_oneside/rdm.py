@@ -31,7 +31,7 @@ if __name__ == "__main__":
     if model.cuda:
         model.cuda()
 
-    dataset = ExhaustiveDataset(layer=model.vgg_layer, split=args.split)
+    dataset = ExhaustiveDataset(layer='conv42', split=args.split)
     loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
     object_order = dataset.object_order
 
@@ -54,10 +54,7 @@ if __name__ == "__main__":
             photo = Variable(photo)
             if args.cuda:
                 photo = photo.cuda()
-            if model.vgg_layer == 'fc6':
-                photo = photo.repeat(batch_size, 1)
-            else:
-                photo = photo.repeat(batch_size, 1, 1, 1) 
+            photo = photo.repeat(batch_size, 1, 1, 1) 
             pred_logit = model(photo, sketch)
             pred_logits.append(pred_logit) 
 
@@ -88,17 +85,17 @@ if __name__ == "__main__":
     plt.figure()
     ax = sns.heatmap(rdm_further_sums)
     fig = ax.get_figure()
-    fig.savefig('./rdm-further-%s.png' % model.vgg_layer)
+    fig.savefig('./rdm-further-conv42.png')
 
     plt.figure()
     ax = sns.heatmap(rdm_closer_sums)
     fig = ax.get_figure()
-    fig.savefig('./rdm-closer-%s.png' % model.vgg_layer)
+    fig.savefig('./rdm-closer-conv42.png')
 
     plt.figure()
     ax = sns.heatmap(rdm_closer_sums - rdm_further_sums)
     fig = ax.get_figure()
-    fig.savefig('./rdm-diff-%s.png' % model.vgg_layer)
+    fig.savefig('./rdm-diff-conv42.png')
 
     rdm_diff_sums = rdm_closer_sums - rdm_further_sums
     rdm_diagonals = [rdm_diff_sums[i, i] for i in xrange(32)]

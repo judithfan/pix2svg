@@ -15,21 +15,30 @@ from torch.nn.parameter import Parameter
 class PredictorCONV42(nn.Module):
     def __init__(self):
         super(PredictorCONV42, self).__init__()
+        # self.photo_sampler = DownsamplerCONV42()
         self.sketch_adaptor = AdaptorNetCONV42()
         self.classifier = FusePredictor()
 
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, math.sqrt(2. / n))
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-
     def forward(self, photo, sketch):
+        # photo = swish(self.photo_sampler(photo))
+        photo = swish(torch.mean(photo, dim=1).view(-1, 784))
         sketch = swish(self.sketch_adaptor(sketch))
         pred = self.classifier(photo, sketch)
         return pred
+
+
+class DownsamplerCONV42(nn.Module):
+    def __init__(self):
+        super(DownsamplerCONV42, self).__init__()
+        self.attention = Parameter(torch.normal(torch.zeros(512), 1))
+    
+    def forward(self, x):
+        W = F.softplus(self.attention)
+        W = W / torch.sum(W)
+        W = W.unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
+        h = W * x
+        h = torch.sum(h, dim=1)
+        return h.view(-1, 28 * 28)
 
 
 class AdaptorNetCONV42(nn.Module):
@@ -39,7 +48,7 @@ class AdaptorNetCONV42(nn.Module):
             nn.Conv2d(512, 64, kernel_size=3, stride=1, padding=1),
             Swish(),
             nn.MaxPool2d(2, stride=2))
-        self.net = nn.Linear(64 * 14 * 14, 4096)
+        self.net = nn.Linear(64 * 14 * 14, 784)
 
     def forward(self, x):
         x = self.cnn(x)
@@ -50,7 +59,7 @@ class AdaptorNetCONV42(nn.Module):
 class FusePredictor(nn.Module):
     def __init__(self):
         super(FusePredictor, self).__init__()
-        self.fc1 = nn.Linear(4096, 256)
+        self.fc1 = nn.Linear(784 * 2, 256)
         self.fc2 = nn.Linear(256, 1)
 
     def forward(self, e1, e2):
