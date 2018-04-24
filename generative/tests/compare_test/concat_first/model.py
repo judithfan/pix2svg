@@ -35,17 +35,15 @@ class FilterCollapseCONV42(nn.Module):
         super(FilterCollapseCONV42, self).__init__()
         self.net = nn.Sequential(
             nn.Linear(784 * 2, 512),
-            nn.BatchNorm1d(512),
             Swish(),
             nn.Linear(512, 256),
-            nn.BatchNorm1d(256),
             Swish(),
             nn.Linear(256, 1))
 
     def forward(self, photo, sketch):
         photo = torch.mean(photo, dim=1).view(-1, 28 * 28)
         sketch = torch.mean(sketch, dim=1).view(-1, 28 * 28)
-        hiddens = swish(torch.cat((photo, sketch)))
+        hiddens = swish(torch.cat((photo, sketch), dim=1))
         return self.net(hiddens)
 
 
@@ -54,10 +52,8 @@ class SpatialCollapseCONV42(nn.Module):
         super(SpatialCollapseCONV42, self).__init__()
         self.net = nn.Sequential(
             nn.Linear(512 * 2, 512),
-            nn.BatchNorm1d(512),
             Swish(),
             nn.Linear(512, 256),
-            nn.BatchNorm1d(256),
             Swish(),
             nn.Linear(256, 1))
 
@@ -68,7 +64,7 @@ class SpatialCollapseCONV42(nn.Module):
         sketch = sketch.view(batch_size, filter_size, 28 * 28)
         photo = torch.mean(photo, dim=2)
         sketch = torch.mean(sketch, dim=2)
-        hiddens = swish(torch.cat((photo, sketch)))
+        hiddens = swish(torch.cat((photo, sketch), dim=1))
         return self.net(hiddens)
 
 
