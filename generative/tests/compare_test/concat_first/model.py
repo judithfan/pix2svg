@@ -37,7 +37,10 @@ class FilterCollapseCONV42(nn.Module):
             nn.Linear(784 * 2, 512),
             nn.BatchNorm1d(512),
             Swish(),
-            nn.Linear(512, 1))
+            nn.Linear(512, 256),
+            nn.BatchNorm1d(256),
+            Swish(),
+            nn.Linear(256, 1))
 
     def forward(self, photo, sketch):
         photo = torch.mean(photo, dim=1).view(-1, 28 * 28)
@@ -53,7 +56,10 @@ class SpatialCollapseCONV42(nn.Module):
             nn.Linear(512 * 2, 512),
             nn.BatchNorm1d(512),
             Swish(),
-            nn.Linear(512, 1))
+            nn.Linear(512, 256),
+            nn.BatchNorm1d(256),
+            Swish(),
+            nn.Linear(256, 1))
 
     def forward(self, photo, sketch):
         batch_size = photo.size(0)
