@@ -16,7 +16,6 @@ class PredictorCONV42(nn.Module):
     def __init__(self):
         super(PredictorCONV42, self).__init__()
         self.adaptor = AdaptorNetCONV42()
-        self.classifier = FusePredictor()
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -28,9 +27,43 @@ class PredictorCONV42(nn.Module):
 
     def forward(self, photo, sketch):
         h = torch.cat((photo, sketch), dim=1)
-        h = swish(self.adaptor(h))
-        pred = self.classifier(h)
-        return pred
+        return self.adaptor(swish(h))
+
+
+class FilterCollapseCONV42(nn.Module):
+    def __init__(self):
+        super(FilterCollapseCONV42, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(784 * 2, 512),
+            nn.BatchNorm1d(512),
+            Swish(),
+            nn.Linear(512, 1))
+
+    def forward(self, photo, sketch):
+        photo = torch.mean(photo, dim=1).view(-1, 28 * 28)
+        sketch = torch.mean(sketch, dim=1).view(-1, 28 * 28)
+        hiddens = swish(torch.cat((photo, sketch)))
+        return self.net(hiddens)
+
+
+class SpatialCollapseCONV42(nn.Module):
+    def __init__(self):
+        super(SpatialCollapseCONV42, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(512 * 2, 512),
+            nn.BatchNorm1d(512),
+            Swish(),
+            nn.Linear(512, 1))
+
+    def forward(self, photo, sketch):
+        batch_size = photo.size(0)
+        filter_size = photo.size(1)
+        photo = photo.view(batch_size, filter_size, 28 * 28)
+        sketch = sketch.view(batch_size, filter_size, 28 * 28)
+        photo = torch.mean(photo, dim=2)
+        sketch = torch.mean(sketch, dim=2)
+        hiddens = swish(torch.cat((photo, sketch)))
+        return self.net(hiddens)
 
 
 class AdaptorNetCONV42(nn.Module):
@@ -46,7 +79,11 @@ class AdaptorNetCONV42(nn.Module):
                 nn.BatchNorm1d(2048),
                 Swish(),
                 nn.Dropout(0.5),
-                nn.Linear(2048, 1000))
+                nn.Linear(2048, 1000),
+                nn.BatchNorm1d(1000),
+                Swish(),
+                nn.Dropout(0.1),
+                nn.Linear(1000, 1))
 
     def forward(self, x):
         x = self.cnn(x)

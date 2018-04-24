@@ -29,8 +29,7 @@ class AdaptorNetCONV42(nn.Module):
             nn.Conv2d(512, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
             Swish(),
-            nn.MaxPool2d(2, stride=2, dilation=1),
-        )
+            nn.MaxPool2d(2, stride=2, dilation=1))
         self.net = nn.Sequential(
             nn.Linear(64 * 14 * 14, 2048),
             nn.BatchNorm1d(2048),

@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from sklearn.metrics import mean_squared_error
 
-from model import PredictorCONV42
+from model import PredictorCONV42, FilterCollapseCONV42, SpatialCollapseCONV42
 from dataset import VisualDataset
 
 
@@ -30,8 +30,14 @@ def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
 def load_checkpoint(file_path, use_cuda=False):
     checkpoint = torch.load(file_path) if use_cuda else \
         torch.load(file_path, map_location=lambda storage, location: storage)
-    vgg_layer = checkpoint['vgg_layer']
-    model = PredictorCONV42()
+    if checkpoint['model'] == 'heavy':
+        model = PredictorCONV42()
+    elif checkpoint['model'] == 'spatial':
+        model = SpatialCollapseCONV42()
+    elif checkpoint['model'] == 'filter':
+        model = FilterCollapseCONV42()
+    else:
+        raise Exception('Unrecognized model type: %s' % checkpoint['model']) 
     model.load_state_dict(checkpoint['state_dict'])
     return model
 
@@ -57,6 +63,7 @@ class AverageMeter(object):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('model', type=str, help='heavy|spatial|filter')
     parser.add_argument('--loss-scale', type=float, default=10000., help='multiplier for loss [default: 10000.]')
     parser.add_argument('--out-dir', type=str, default='./trained_models', 
                         help='where to save checkpoints [./trained_models]')
@@ -75,7 +82,15 @@ if __name__ == "__main__":
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-    model = PredictorCONV42()
+    if args.model == 'heavy':
+        model = PredictorCONV42()
+    elif args.model == 'spatial':
+        model = SpatialCollapseCONV42()
+    elif args.model == 'filter':
+        model = FilterCollapseCONV42()
+    else:
+        raise Exception('Unrecognized model type: %s' % args.model)
+
     if args.cuda:
         model.cuda()
 
@@ -227,5 +242,6 @@ if __name__ == "__main__":
             'val_acc': val_acc,
             'test_loss': test_loss,
             'test_acc': test_acc,
+            'model_type': args.model,
             'optimizer' : optimizer.state_dict(),
         }, is_best, folder=args.out_dir)
