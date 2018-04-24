@@ -111,7 +111,7 @@ if __name__ == "__main__":
             acc_meter.update(accuracy, batch_size)
 
             if batch_idx % 10 == 0:
-                print(F.softmax(pred_logits).data.cpu().numpy()[0], label.cpu().data.numpy()[0])
+                print(F.softmax(pred_logits, dim=1).data.cpu().numpy()[0], label.cpu().data.numpy()[0])
 
             loss.backward()
             optimizer.step()
