@@ -147,7 +147,6 @@ class ExhaustiveSketchDataset(SketchOnlyDataset):
             sketch_basepaths = self.train_test_split(split, sketch_basepaths)
         sketch_paths = [os.path.join(sketch_dirname, path) for path in sketch_basepaths]
         self.sketch_dirname = sketch_dirname
-        self.large_annotations = large_annotations
         self.size = len(sketch_paths)
         self.sketch_paths = sketch_paths
         self.object_order = object_order
