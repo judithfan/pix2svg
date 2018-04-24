@@ -116,4 +116,5 @@ generative/tests/objective_test/outputs/*
 generative/tests/reference_games/jsons
 **output**/
 **.pdf
+**.json
 

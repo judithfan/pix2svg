@@ -35,6 +35,7 @@ def load_checkpoint(file_path, use_cuda=False):
     checkpoint = torch.load(file_path) if use_cuda else \
         torch.load(file_path, map_location=lambda storage, location: storage)
     model = SketchOnlyPredictor()
+    model.large_annotations = checkpoint.get('large_annotations', False)
     model.xent_loss = checkpoint['xent_loss']
     model.load_state_dict(checkpoint['state_dict'])
     return model
@@ -61,6 +62,8 @@ class AverageMeter(object):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('--large-annotations', action='store_true', default=False,
+                        help='if supplied, use the new 5x collected annotations [default: False]')
     parser.add_argument('--xent-loss', action='store_true', default=False, help='default is mse-loss')
     parser.add_argument('--loss-scale', type=float, default=10000., help='multiplier for loss [default: 10000.]')
     parser.add_argument('--out-dir', type=str, default='./trained_models', 
@@ -73,9 +76,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
    
-    train_dataset = SketchOnlyDataset(layer='conv42', split='train')
-    val_dataset = SketchOnlyDataset(layer='conv42', split='val')
-    test_dataset = SketchOnlyDataset(layer='conv42', split='test')
+    train_dataset = SketchOnlyDataset(layer='conv42', split='train', large_annotations=args.large_annotations)
+    val_dataset = SketchOnlyDataset(layer='conv42', split='val', large_annotations=args.large_annotations)
+    test_dataset = SketchOnlyDataset(layer='conv42', split='test', large_annotations=args.large_annotations)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
@@ -222,6 +225,7 @@ if __name__ == "__main__":
             'test_loss': test_loss,
             'test_mse': test_mse,
             'optimizer' : optimizer.state_dict(),
+            'large_annotations': args.large_annotations,
             'xent_loss': args.xent_loss,
         }, is_best, folder=args.out_dir)
         # save stuff for plots

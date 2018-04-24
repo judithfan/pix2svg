@@ -30,6 +30,7 @@ def load_checkpoint(file_path, use_cuda=False):
     checkpoint = torch.load(file_path) if use_cuda else \
         torch.load(file_path, map_location=lambda storage, location: storage)
     model = SketchOnlyPredictor()
+    model.large_annotations = checkpoint.get('large_annotations', False)
     model.load_state_dict(checkpoint['state_dict'])
     return model
 
@@ -56,6 +57,8 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--loss-scale', type=float, default=10000., help='multiplier for loss [default: 10000.]')
+    parser.add_argument('--large-annotations', action='store_true', default=False,
+                        help='whether to use new 5x annotations or old ones [default: False]')
     parser.add_argument('--synthetic-labels', action='store_true', default=False,
                         help='whether to use a more perfect synthetic dataset [default: False]')
     parser.add_argument('--out-dir', type=str, default='./trained_models', 
@@ -68,9 +71,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
    
-    train_dataset = SketchOnlyDataset(layer='conv42', split='train', synthetic_labels=args.synthetic_labels)
-    val_dataset = SketchOnlyDataset(layer='conv42', split='val', synthetic_labels=args.synthetic_labels)
-    test_dataset = SketchOnlyDataset(layer='conv42', split='test', synthetic_labels=args.synthetic_labels)
+    train_dataset = SketchOnlyDataset(layer='conv42', split='train', synthetic_labels=args.synthetic_labels, 
+                                      large_annotations=args.large_annotations)
+    val_dataset = SketchOnlyDataset(layer='conv42', split='val', synthetic_labels=args.synthetic_labels, 
+                                    large_annotations=args.large_annotations)
+    test_dataset = SketchOnlyDataset(layer='conv42', split='test', synthetic_labels=args.synthetic_labels, 
+                                     large_annotations=args.large_annotations)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
@@ -198,7 +204,8 @@ if __name__ == "__main__":
             'val_acc': val_acc,
             'test_loss': test_loss,
             'test_acc': test_acc,
-            'synthetic_labels': args.synthetic_labels, 
+            'synthetic_labels': args.synthetic_labels,
+            'large_annotations': args.large_annotations,
             'optimizer' : optimizer.state_dict(),
         }, is_best, folder=args.out_dir)
         # save stuff for plots

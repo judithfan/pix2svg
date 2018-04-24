@@ -37,7 +37,7 @@ if os.uname()[1] == 'node8-neuroaicluster':
 
 
 class SketchOnlyDataset(Dataset):
-    def __init__(self, layer='fc6', split='train', transform=None, random_seed=42):
+    def __init__(self, layer='fc6', split='train', large_annotations=False, transform=None, random_seed=42):
         super(Dataset, self).__init__()
         np.random.seed(random_seed); random.seed(random_seed)
         db_path = base_path+'sketchpad_basic_fixedpose96_%s' % layer
@@ -53,7 +53,8 @@ class SketchOnlyDataset(Dataset):
         object_order = np.asarray(object_order['object_name']).tolist()
 
         # load human annotated labels.
-        self.annotations = np.load(base_path+'human_confusion.npy')
+        annotations_path = 'human_confusion_2.npy' if large_annotations else 'human_confusion.npy'
+        self.annotations = np.load(base_path + annotations_path)
 
         # load which sketches go to which contexts
         with open(os.path.join(db_path, 'sketchpad_context_dict.pickle')) as fp:
@@ -72,6 +73,7 @@ class SketchOnlyDataset(Dataset):
         self.size = len(paths)
         self.split = split
         self.object_order = object_order
+        self.large_annotations = large_annotations
         self.paths = paths
         self.transform = transform
 
@@ -145,6 +147,7 @@ class ExhaustiveSketchDataset(SketchOnlyDataset):
             sketch_basepaths = self.train_test_split(split, sketch_basepaths)
         sketch_paths = [os.path.join(sketch_dirname, path) for path in sketch_basepaths]
         self.sketch_dirname = sketch_dirname
+        self.large_annotations = large_annotations
         self.size = len(sketch_paths)
         self.sketch_paths = sketch_paths
         self.object_order = object_order

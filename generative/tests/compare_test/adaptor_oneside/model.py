@@ -53,7 +53,7 @@ class AdaptorNetCONV42(nn.Module):
             nn.Linear(64 * 14 * 14, 2048),
             nn.BatchNorm1d(2048),
             Swish(),
-            nn.Dropout(0.5),
+            # nn.Dropout(0.5),
             nn.Linear(2048, 784))
 
     def forward(self, x):
