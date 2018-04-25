@@ -30,11 +30,11 @@ def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
 def load_checkpoint(file_path, use_cuda=False):
     checkpoint = torch.load(file_path) if use_cuda else \
         torch.load(file_path, map_location=lambda storage, location: storage)
-    if checkpoint['model'] == 'heavy':
+    if checkpoint['model_type'] == 'heavy':
         model = PredictorCONV42()
-    elif checkpoint['model'] == 'spatial':
+    elif checkpoint['model_type'] == 'spatial':
         model = SpatialCollapseCONV42()
-    elif checkpoint['model'] == 'filter':
+    elif checkpoint['model_type'] == 'filter':
         model = FilterCollapseCONV42()
     else:
         raise Exception('Unrecognized model type: %s' % checkpoint['model']) 

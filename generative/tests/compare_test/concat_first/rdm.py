@@ -21,7 +21,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('model_path', type=str, help='path to trained model')
     parser.add_argument('--split', type=str, default='test', help='train|val|test|full')
-    parser.add_argument('--batch-size', type=int, default=64, help='size of minibatch [default: 64]')
+    parser.add_argument('--batch-size', type=int, default=1, help='size of minibatch [default: 1]')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
@@ -85,17 +85,17 @@ if __name__ == "__main__":
     plt.figure()
     ax = sns.heatmap(rdm_further_sums)
     fig = ax.get_figure()
-    fig.savefig('./rdm-further-%s.png' % model.vgg_layer)
+    fig.savefig('./rdm-further.png')
 
     plt.figure()
     ax = sns.heatmap(rdm_closer_sums)
     fig = ax.get_figure()
-    fig.savefig('./rdm-closer-%s.png' % model.vgg_layer)
+    fig.savefig('./rdm-closer.png')
 
     plt.figure()
     ax = sns.heatmap(rdm_closer_sums - rdm_further_sums)
     fig = ax.get_figure()
-    fig.savefig('./rdm-diff-%s.png' % model.vgg_layer)
+    fig.savefig('./rdm-diff.png')
 
     rdm_diff_sums = rdm_closer_sums - rdm_further_sums
     rdm_diagonals = [rdm_diff_sums[i, i] for i in xrange(32)]

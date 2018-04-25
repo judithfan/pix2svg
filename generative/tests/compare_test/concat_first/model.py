@@ -36,8 +36,10 @@ class FilterCollapseCONV42(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(784 * 2, 512),
             Swish(),
+            nn.Dropout(0.5),
             nn.Linear(512, 256),
             Swish(),
+            nn.Dropout(0.1),
             nn.Linear(256, 1))
 
     def forward(self, photo, sketch):
@@ -53,8 +55,10 @@ class SpatialCollapseCONV42(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(512 * 2, 512),
             Swish(),
+            nn.Dropout(0.5),
             nn.Linear(512, 256),
             Swish(),
+            nn.Dropout(0.1),
             nn.Linear(256, 1))
 
     def forward(self, photo, sketch):
@@ -77,15 +81,15 @@ class AdaptorNetCONV42(nn.Module):
                 Swish(),
                 nn.MaxPool2d(2, stride=2))
             self.net = nn.Sequential(
-                nn.Linear(64 * 14 * 14, 2048),
-                nn.BatchNorm1d(2048),
+                nn.Linear(64 * 14 * 14, 512),
+                nn.BatchNorm1d(512),
                 Swish(),
                 nn.Dropout(0.5),
-                nn.Linear(2048, 1000),
-                nn.BatchNorm1d(1000),
+                nn.Linear(512, 256),
+                nn.BatchNorm1d(256),
                 Swish(),
                 nn.Dropout(0.1),
-                nn.Linear(1000, 1))
+                nn.Linear(256, 1))
 
     def forward(self, x):
         x = self.cnn(x)
