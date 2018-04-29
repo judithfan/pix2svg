@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from sklearn.metrics import mean_squared_error
 
-from model import PredictorCONV42, FilterCollapseCONV42, SpatialCollapseCONV42
+from model import PredictorCONV42, FilterCollapseCONV42, SpatialCollapseCONV42, AttendedSpatialCollapseCONV42
 from dataset import VisualDataset
 
 
@@ -36,6 +36,8 @@ def load_checkpoint(file_path, use_cuda=False):
         model = SpatialCollapseCONV42()
     elif checkpoint['model_type'] == 'filter':
         model = FilterCollapseCONV42()
+    elif checkpoint['model_type'] == 'spatial2':
+        model = AttendedSpatialCollapseCONV42()
     else:
         raise Exception('Unrecognized model type: %s' % checkpoint['model']) 
     model.load_state_dict(checkpoint['state_dict'])
@@ -63,7 +65,7 @@ class AverageMeter(object):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('model', type=str, help='heavy|spatial|filter')
+    parser.add_argument('model', type=str, help='heavy|spatial|filter|spatial2')
     parser.add_argument('--loss-scale', type=float, default=10000., help='multiplier for loss [default: 10000.]')
     parser.add_argument('--out-dir', type=str, default='./trained_models', 
                         help='where to save checkpoints [./trained_models]')
@@ -88,6 +90,8 @@ if __name__ == "__main__":
         model = SpatialCollapseCONV42()
     elif args.model == 'filter':
         model = FilterCollapseCONV42()
+    elif args.model == 'spatial2':
+        model = AttendedSpatialCollapseCONV42()
     else:
         raise Exception('Unrecognized model type: %s' % args.model)
 

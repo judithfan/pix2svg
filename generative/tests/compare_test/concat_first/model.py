@@ -73,6 +73,35 @@ class SpatialCollapseCONV42(nn.Module):
         return self.net(hiddens)
 
 
+class AttendedSpatialCollapseCONV42(nn.Module):
+    def __init__(self):
+        super(SpatialCollapseCONV42, self).__init__()
+        self.photo_attn = Parameter(torch.normal(torch.zeros(28 * 28), 1))
+        self.sketch_attn = Parameter(torch.normal(torch.zeros(28 * 28), 1))
+        self.net = nn.Sequential(
+            nn.Linear(512 * 2, 512),
+            Swish(),
+            nn.Dropout(),
+            nn.Linear(512, 1))
+
+    def normalize_attention(self, attn):
+        W = F.softplus(attn)
+        W = W / torch.sum(W)
+        return W.unsqueeze(0).unsqueeze(0)
+
+    def forward(self, photo, sketch):
+        batch_size = photo.size(0)
+        filter_size = photo.size(1)
+        photo = photo.view(batch_size, filter_size, 28 * 28)
+        photo_attn = self.normalize_attention(self.photo_attn)
+        photo = torch.sum(photo_attn * photo, dim=2)
+        sketch = sketch.view(batch_size, filter_size, 28 * 28)
+        sketch_attn = self.normalize_attention(self.sketch_attn)
+        sketch = torch.sum(sketch_attn * sketch, dim=2)        
+        hiddens = swish(torch.cat((photo, sketch), dim=1))
+        return self.net(hiddens)
+
+
 class AdaptorNetCONV42(nn.Module):
     def __init__(self):
             super(AdaptorNetCONV42, self).__init__()
