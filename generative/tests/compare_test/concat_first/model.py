@@ -55,11 +55,12 @@ class SpatialCollapseCONV42(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(512 * 2, 512),
             Swish(),
-            nn.Dropout(0.5),
-            nn.Linear(512, 256),
-            Swish(),
-            nn.Dropout(0.1),
-            nn.Linear(256, 1))
+            # nn.Dropout(0.5),
+            # nn.Linear(512, 256),
+            # Swish(),
+            nn.Dropout(),
+            # nn.Linear(256, 1))
+            nn.Linear(512, 1))
 
     def forward(self, photo, sketch):
         batch_size = photo.size(0)

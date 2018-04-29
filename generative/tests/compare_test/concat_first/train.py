@@ -228,6 +228,8 @@ if __name__ == "__main__":
 
 
     best_loss = sys.maxint
+    store_loss = np.zeros((args.epochs, 3))
+    store_acc = np.zeros((args.epochs, 3))
     for epoch in xrange(1, args.epochs + 1):
         train_loss, train_acc = train(epoch)
         val_loss, val_acc = validate()
@@ -245,3 +247,13 @@ if __name__ == "__main__":
             'model_type': args.model,
             'optimizer' : optimizer.state_dict(),
         }, is_best, folder=args.out_dir)
+        store_loss[epoch - 1, 0] = train_loss
+        store_loss[epoch - 1, 1] = val_loss
+        store_loss[epoch  - 1, 2] = test_loss
+        store_acc[epoch - 1, 0] = train_acc
+        store_acc[epoch - 1, 1] = val_acc
+        store_acc[epoch - 1, 2] = test_acc
+        
+        np.save(os.path.join(args.out_dir, 'summary-loss.npy'), store_loss)
+        np.save(os.path.join(args.out_dir, 'summary-acc.npy'), store_acc)
+
