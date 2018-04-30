@@ -75,7 +75,7 @@ class SpatialCollapseCONV42(nn.Module):
 
 class AttendedSpatialCollapseCONV42(nn.Module):
     def __init__(self):
-        super(SpatialCollapseCONV42, self).__init__()
+        super(AttendedSpatialCollapseCONV42, self).__init__()
         self.photo_attn = Parameter(torch.normal(torch.zeros(28 * 28), 1))
         self.sketch_attn = Parameter(torch.normal(torch.zeros(28 * 28), 1))
         self.net = nn.Sequential(
