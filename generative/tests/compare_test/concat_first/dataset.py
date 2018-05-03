@@ -3,6 +3,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 import os
+import json
 import copy
 import cPickle
 import random
@@ -73,7 +74,7 @@ class VisualDataset(Dataset):
             self.label_dict = cPickle.load(fp)
 
         self.object_order = object_order
-        preloaded_split = os.path.join(os.path.basename(os.path.realpath(__file__)), '%s_split.json' % split)
+        preloaded_split = os.path.join(os.path.dirname(os.path.realpath(__file__)), '%s_split.json' % split)
         if os.path.isfile(preloaded_split):
             with open(preloaded_split) as fp:
                 sketch_paths = json.load(fp)
