@@ -73,7 +73,12 @@ class VisualDataset(Dataset):
             self.label_dict = cPickle.load(fp)
 
         self.object_order = object_order
-        sketch_paths = self.train_test_split(split, sketch_basepaths)
+        preloaded_split = os.path.join(os.path.basename(os.path.realpath(__file__)), '%s_split.json' % split)
+        if os.path.isfile(preloaded_split):
+            with open(preloaded_split) as fp:
+                sketch_paths = json.load(fp)
+        else:
+            sketch_paths = self.train_test_split(split, sketch_basepaths)
         sketch_dataset = []
         for path in sketch_paths:
             for label in unrolled_dataset[path]:
