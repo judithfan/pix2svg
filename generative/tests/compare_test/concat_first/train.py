@@ -14,7 +14,9 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from sklearn.metrics import mean_squared_error
 
-from model import PredictorCONV42, FilterCollapseCONV42, SpatialCollapseCONV42, AttendedSpatialCollapseCONV42
+from model import AttendedSpatialCollapseCONV42  # best CONV42 model
+from model import AttendedSpatialCollapsePOOL1   # best POOL1 model
+from model import PredictorFC6                   # best FC6 model
 from dataset import VisualDataset
 
 
@@ -30,17 +32,16 @@ def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
 def load_checkpoint(file_path, use_cuda=False):
     checkpoint = torch.load(file_path) if use_cuda else \
         torch.load(file_path, map_location=lambda storage, location: storage)
-    if checkpoint['model_type'] == 'heavy':
-        model = PredictorCONV42()
-    elif checkpoint['model_type'] == 'spatial':
-        model = SpatialCollapseCONV42()
-    elif checkpoint['model_type'] == 'filter':
-        model = FilterCollapseCONV42()
-    elif checkpoint['model_type'] == 'spatial2':
+    if checkpoint['layer'] == 'fc6':
+        model = PredictorFC6()
+    elif checkpoint['layer'] == 'conv42':
         model = AttendedSpatialCollapseCONV42()
+    elif checkpoint['layer'] == 'pool1':
+        model = AttendedSpatialCollapsePOOL1()
     else:
-        raise Exception('Unrecognized model type: %s' % checkpoint['model']) 
+        raise Exception('Unrecognized layer: %s' % checkpoint['layer']) 
     model.load_state_dict(checkpoint['state_dict'])
+    model.layer = checkpoint['layer']
     return model
 
 
@@ -65,7 +66,7 @@ class AverageMeter(object):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('model', type=str, help='heavy|spatial|filter|spatial2')
+    parser.add_argument('layer', type=str, help='fc6|conv42|pool1')
     parser.add_argument('--loss-scale', type=float, default=10000., help='multiplier for loss [default: 10000.]')
     parser.add_argument('--out-dir', type=str, default='./trained_models', 
                         help='where to save checkpoints [./trained_models]')
@@ -77,23 +78,21 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
    
-    train_dataset = VisualDataset(layer='conv42', split='train')
-    val_dataset = VisualDataset(layer='conv42', split='val')
-    test_dataset = VisualDataset(layer='conv42', split='test')
+    train_dataset = VisualDataset(layer=args.layer, split='train')
+    val_dataset = VisualDataset(layer=args.layer, split='val')
+    test_dataset = VisualDataset(layer=args.layer, split='test')
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-    if args.model == 'heavy':
-        model = PredictorCONV42()
-    elif args.model == 'spatial':
-        model = SpatialCollapseCONV42()
-    elif args.model == 'filter':
-        model = FilterCollapseCONV42()
-    elif args.model == 'spatial2':
+    if args.layer == 'fc6':
+        model = PredictorFC6()
+    elif args.layer == 'conv42':
         model = AttendedSpatialCollapseCONV42()
+    elif args.layer == 'pool1':
+        model = AttendedSpatialCollapsePOOL1()
     else:
-        raise Exception('Unrecognized model type: %s' % args.model)
+        raise Exception('Unrecognized layer: %s' % args.layer)
 
     if args.cuda:
         model.cuda()
@@ -123,7 +122,8 @@ if __name__ == "__main__":
                 photo = Variable(photo)
                 if args.cuda:
                     photo = photo.cuda()
-                photo = photo.repeat(batch_size, 1, 1, 1)
+                photo = (photo.repeat(batch_size, 1) if args.layer == 'fc6' else 
+                         photo.repeat(batch_size, 1, 1, 1))
                 pred_logit = model(photo, sketch)
                 pred_logits.append(pred_logit)
         
@@ -170,7 +170,8 @@ if __name__ == "__main__":
                 photo = Variable(photo)
                 if args.cuda:
                     photo = photo.cuda()
-                photo = photo.repeat(batch_size, 1, 1, 1) 
+                photo = (photo.repeat(batch_size, 1) if args.layer == 'fc6' else 
+                         photo.repeat(batch_size, 1, 1, 1))
                 pred_logit = model(photo, sketch)
                 pred_logits.append(pred_logit)
 
@@ -211,7 +212,8 @@ if __name__ == "__main__":
                 photo = Variable(photo)
                 if args.cuda:
                     photo = photo.cuda()
-                photo = photo.repeat(batch_size, 1, 1, 1)
+                photo = (photo.repeat(batch_size, 1) if args.layer == 'fc6' else 
+                         photo.repeat(batch_size, 1, 1, 1))
                 pred_logit = model(photo, sketch)
                 pred_logits.append(pred_logit)
 
@@ -248,7 +250,7 @@ if __name__ == "__main__":
             'val_acc': val_acc,
             'test_loss': test_loss,
             'test_acc': test_acc,
-            'model_type': args.model,
+            'layer': args.layer,
             'optimizer' : optimizer.state_dict(),
         }, is_best, folder=args.out_dir)
         store_loss[epoch - 1, 0] = train_loss

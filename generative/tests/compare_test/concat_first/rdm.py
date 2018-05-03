@@ -31,7 +31,7 @@ if __name__ == "__main__":
     if model.cuda:
         model.cuda()
 
-    dataset = ExhaustiveDataset(layer='conv42', split=args.split)
+    dataset = ExhaustiveDataset(layer=model.layer, split=args.split)
     loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
     object_order = dataset.object_order
 
@@ -54,7 +54,8 @@ if __name__ == "__main__":
             photo = Variable(photo)
             if args.cuda:
                 photo = photo.cuda()
-            photo = photo.repeat(batch_size, 1, 1, 1) 
+            photo = (photo.repeat(batch_size, 1) if model.layer == 'fc6' else 
+                     photo.repeat(batch_size, 1, 1, 1)) 
             pred_logit = model(photo, sketch)
             pred_logits.append(pred_logit) 
 

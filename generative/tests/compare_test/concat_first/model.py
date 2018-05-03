@@ -17,17 +17,24 @@ class PredictorCONV42(nn.Module):
         super(PredictorCONV42, self).__init__()
         self.adaptor = AdaptorNetCONV42()
 
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, math.sqrt(2. / n))
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-
     def forward(self, photo, sketch):
         h = torch.cat((photo, sketch), dim=1)
         return self.adaptor(swish(h))
+
+
+class PredictorFC6(nn.Module):
+    # there isn't any spatial pooling to be done here
+    def __init__(self):
+        super(PredictorFC6, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(4096 * 2, 512),
+            Swish(),
+            nn.Dropout(),
+            nn.Linear(512, 1))
+
+    def forward(self, photo, sketch):
+        h = torch.cat((photo, sketch), dim=1)
+        return self.net(swish(h))
 
 
 class FilterCollapseCONV42(nn.Module):
@@ -96,6 +103,35 @@ class AttendedSpatialCollapseCONV42(nn.Module):
         photo_attn = self.normalize_attention(self.photo_attn)
         photo = torch.sum(photo_attn * photo, dim=2)
         sketch = sketch.view(batch_size, filter_size, 28 * 28)
+        sketch_attn = self.normalize_attention(self.sketch_attn)
+        sketch = torch.sum(sketch_attn * sketch, dim=2)        
+        hiddens = swish(torch.cat((photo, sketch), dim=1))
+        return self.net(hiddens)
+
+
+class AttendedSpatialCollapsePOOL1(nn.Module):
+    def __init__(self):
+        super(AttendedSpatialCollapsePOOL1, self).__init__()
+        self.photo_attn = Parameter(torch.normal(torch.zeros(112 * 112), 1))
+        self.sketch_attn = Parameter(torch.normal(torch.zeros(112 * 112), 1))
+        self.net = nn.Sequential(
+            nn.Linear(64 * 2, 64),
+            Swish(),
+            nn.Dropout(),
+            nn.Linear(64, 1))
+
+    def normalize_attention(self, attn):
+        W = F.softplus(attn)
+        W = W / torch.sum(W)
+        return W.unsqueeze(0).unsqueeze(0)
+
+    def forward(self, photo, sketch):
+        batch_size = photo.size(0)
+        filter_size = photo.size(1)
+        photo = photo.view(batch_size, filter_size, 112 * 112)
+        photo_attn = self.normalize_attention(self.photo_attn)
+        photo = torch.sum(photo_attn * photo, dim=2)
+        sketch = sketch.view(batch_size, filter_size, 112 * 112)
         sketch_attn = self.normalize_attention(self.sketch_attn)
         sketch = torch.sum(sketch_attn * sketch, dim=2)        
         hiddens = swish(torch.cat((photo, sketch), dim=1))
