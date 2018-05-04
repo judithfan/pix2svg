@@ -169,7 +169,12 @@ class ExhaustiveDataset(VisualDataset):
             self.label_dict = cPickle.load(fp)
 
         if split != 'full':
-            sketch_basepaths = self.train_test_split(split, sketch_basepaths)
+            preloaded_split = os.path.join(os.path.dirname(os.path.realpath(__file__)), '%s_split.json' % split)
+            if os.path.isfile(preloaded_split):
+                with open(preloaded_split) as fp:
+                    sketch_basepaths = json.load(fp)
+            else:
+                sketch_basepaths = self.train_test_split(split, sketch_basepaths)
 
         sketch_paths = [os.path.join(sketch_dirname, path) for path in sketch_basepaths]
         self.sketch_dirname = sketch_dirname 
