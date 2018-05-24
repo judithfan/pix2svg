@@ -47,11 +47,11 @@ class VisualDataset(Dataset):
         photo_dirname = os.path.join(db_path, 'photos')
         sketch_basepaths = os.listdir(sketch_dirname)
 
-        valid_game_ids = pd.read_csv(os.path.join(db_path, 'valid_gameids_pilot2.csv'))
-        valid_game_ids = np.asarray(valid_game_ids['valid_gameids']).tolist()
-        sketch_basepaths = [path for path in sketch_basepaths 
-                            if os.path.basename(path).split('_')[1] in valid_game_ids]
-
+        with open(os.path.join(db_path, 'invalid_trial_paths_pilot2.txt')) as fp:
+            invalid_basepaths = [x.strip().replace('.png', '.npy') for x in fp.readlines()]
+        with open(os.path.join(db_path, 'incorrect_trial_paths_pilot2.txt')) as fp:
+            incorrect_basepaths = [x.strip().replace('.png', '.npy') for x in fp.readlines()]
+            incorrect_basepaths = ['_'.join(x.split('_')[:-1]) + '.npy' for x in incorrect_basepaths]
         # this details how labels are stored (order of objects)
         object_order = pd.read_csv(base_path+'human_confusion_object_order.csv')
         object_order = np.asarray(object_order['object_name']).tolist()
@@ -72,12 +72,12 @@ class VisualDataset(Dataset):
         annotations = zip(annotations['fname'].values, annotations['choice'].values)
 
         unrolled_dataset = defaultdict(lambda: [])
-        unrolled_context = defaultdict(lambda: [])
         for annotation, choice in annotations:
             annotation = annotation.replace('.png', '.npy')
             choice = object_order.index(choice)
             unrolled_dataset[annotation].append(choice)
-            unrolled_context[annotation].append(self.context_dict[annotation])
+
+        average_annotations = np.load(base_path+'human_confusion.npy')
 
         self.object_order = object_order
         preloaded_split = os.path.join(os.path.dirname(os.path.realpath(__file__)), '%s_split.json' % split)
@@ -88,17 +88,14 @@ class VisualDataset(Dataset):
             sketch_paths = self.train_test_split(split, sketch_basepaths)
 
         if average_labels:
-            def average_unrolled(labels):
-                average_labels = np.zeros((len(labels, 32)))
-                for i, label in enumerate(labels):
-                    average_labels[i, label] = 1
-                average_labels = np.mean(average_labels, axis=0)
-                return average_labels
-
             sketch_dataset = []
             for path in sketch_paths:
-                average_labels = average_unrolled(unrolled_dataset[path])
-                sketch_dataset.append((path, average_labels))
+                object_ = self.label_dict[path]
+                object_ix = object_order.index(object_)
+                context = self.context_dict[path]
+                context_ix = 0 if context == 'closer' else 1
+                labels = average_annotations[object_ix, :, context_ix]
+                sketch_dataset.append((path, labels))
         else:
             sketch_dataset = []
             for path in sketch_paths:

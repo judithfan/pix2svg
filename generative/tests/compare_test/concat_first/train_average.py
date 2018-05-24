@@ -53,6 +53,23 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
+def cross_entropy(input, target, eps=1e-6):
+    """k-Class Cross Entropy (Log Softmax + Log Loss)
+    @param input: torch.Tensor (size N x K)
+    @param target: torch.Tensor (size N x K)
+    @param eps: error to add (default: 1e-6)
+    @return loss: torch.Tensor (size N)
+    """
+    if not (target.size(0) == input.size(0)):
+        raise ValueError(
+            "Target size ({}) must be the same as input size ({})".format(
+                target.size(0), input.size(0)))
+
+    log_input = F.log_softmax(input + eps, dim=1)
+    loss = target * log_input
+    return -torch.mean(torch.sum(loss, dim=1))
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
@@ -83,11 +100,10 @@ if __name__ == "__main__":
     def train(epoch):
         model.train()
         loss_meter = AverageMeter()
-        acc_meter = AverageMeter()
 
         for batch_idx, (sketch, label) in enumerate(train_loader):
             sketch = Variable(sketch)
-            label = Variable(label)
+            label = Variable(label.float())
             batch_size = len(sketch)
 
             if args.cuda:
@@ -106,38 +122,31 @@ if __name__ == "__main__":
                 photo = photo.repeat(batch_size, 1)
                 pred_logit = model(photo, sketch)
                 pred_logits.append(pred_logit)
-        
+       
             pred_logits = torch.cat(pred_logits, dim=1)
-            loss = args.loss_scale * F.cross_entropy(pred_logits, label)
+            loss = args.loss_scale * cross_entropy(pred_logits, label)
             loss_meter.update(loss.data[0], batch_size)
-
-            pred = pred_logits.data.max(1, keepdim=True)[1]
-            correct = pred.eq(label.data.view_as(pred)).long().cpu().sum()
-            accuracy = correct / float(batch_size)
-            acc_meter.update(accuracy, batch_size)
 
             loss.backward()
             optimizer.step()
             mean_grads = torch.mean(torch.cat([param.grad.cpu().data.contiguous().view(-1) 
                                                for param in model.parameters()]))
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tAccuracy: {:6f}\t|Grad|: {:6f}'.format(
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\t|Grad|: {:6f}'.format(
                 epoch, batch_idx * batch_size, len(train_loader.dataset),  100. * batch_idx / len(train_loader),
-                loss_meter.avg, acc_meter.avg, mean_grads))
+                loss_meter.avg, mean_grads))
         
-        print('====> Epoch: {}\tLoss: {:.4f}\tAccuracy: {:.6f}'.format(
-            epoch, loss_meter.avg, acc_meter.avg))
+        print('====> Epoch: {}\tLoss: {:.4f}'.format(epoch, loss_meter.avg))
         
-        return loss_meter.avg, acc_meter.avg
+        return loss_meter.avg
 
     def validate():
         model.eval()
         loss_meter = AverageMeter()
-        acc_meter = AverageMeter()
         pbar = tqdm(total=len(val_loader))
 
         for batch_idx, (sketch, label) in enumerate(val_loader):
             sketch = Variable(sketch, volatile=True)
-            label = Variable(label, requires_grad=False)
+            label = Variable(label.float(), requires_grad=False)
             batch_size = len(sketch)
 
             if args.cuda:
@@ -155,30 +164,24 @@ if __name__ == "__main__":
                 pred_logits.append(pred_logit)
 
             pred_logits = torch.cat(pred_logits, dim=1)
-            loss = args.loss_scale * F.cross_entropy(pred_logits, label)
+            loss = args.loss_scale * cross_entropy(pred_logits, label)
             loss_meter.update(loss.data[0], batch_size)
 
-            pred = pred_logits.data.max(1, keepdim=True)[1]
-            correct = pred.eq(label.data.view_as(pred)).long().cpu().sum()
-            accuracy = correct / float(batch_size)
-            acc_meter.update(accuracy, batch_size) 
             pbar.update()
         pbar.close()
 
-        print('====> Val Loss: {:.4f}\tVal Accuracy: {:.6f}'.format(
-            loss_meter.avg, acc_meter.avg))
-        return loss_meter.avg, acc_meter.avg
+        print('====> Val Loss: {:.4f}'.format(loss_meter.avg))
+        return loss_meter.avg
 
 
     def test():
         model.eval()
         loss_meter = AverageMeter()
-        acc_meter = AverageMeter()
         pbar = tqdm(total=len(test_loader))
 
         for batch_idx, (sketch, label) in enumerate(test_loader):
             sketch = Variable(sketch, volatile=True)
-            label = Variable(label, requires_grad=False)
+            label = Variable(label.float(), requires_grad=False)
             batch_size = len(sketch)
 
             if args.cuda:
@@ -196,47 +199,34 @@ if __name__ == "__main__":
                 pred_logits.append(pred_logit)
 
             pred_logits = torch.cat(pred_logits, dim=1)
-            loss = args.loss_scale * F.cross_entropy(pred_logits, label)
+            loss = args.loss_scale * cross_entropy(pred_logits, label)
             loss_meter.update(loss.data[0], batch_size)
 
-            pred = pred_logits.data.max(1, keepdim=True)[1]
-            correct = pred.eq(label.data.view_as(pred)).long().cpu().sum()
-            accuracy = correct / float(batch_size)
-            acc_meter.update(accuracy, batch_size)
             pbar.update()
         pbar.close()
 
-        print('====> Test Loss: {:.4f}\tTest Accuracy: {:.6f}'.format(
-            loss_meter.avg, acc_meter.avg))
-        return loss_meter.avg, acc_meter.avg
+        print('====> Test Loss: {:.4f}'.format(loss_meter.avg))
+        return loss_meter.avg
 
 
     best_loss = sys.maxint
     store_loss = np.zeros((args.epochs, 3))
-    store_acc = np.zeros((args.epochs, 3))
     for epoch in xrange(1, args.epochs + 1):
-        train_loss, train_acc = train(epoch)
-        val_loss, val_acc = validate()
-        test_loss, test_acc = test()
+        train_loss = train(epoch)
+        val_loss = validate()
+        test_loss = test()
         is_best = val_loss < best_loss
         best_loss = min(val_loss, best_loss)
         save_checkpoint({
             'state_dict': model.state_dict(),
             'train_loss': train_loss,
-            'train_acc': train_acc,
             'val_loss': val_loss,
-            'val_acc': val_acc,
             'test_loss': test_loss,
-            'test_acc': test_acc,
             'optimizer' : optimizer.state_dict(),
         }, is_best, folder=args.out_dir)
         store_loss[epoch - 1, 0] = train_loss
         store_loss[epoch - 1, 1] = val_loss
         store_loss[epoch  - 1, 2] = test_loss
-        store_acc[epoch - 1, 0] = train_acc
-        store_acc[epoch - 1, 1] = val_acc
-        store_acc[epoch - 1, 2] = test_acc
         
         np.save(os.path.join(args.out_dir, 'summary-loss.npy'), store_loss)
-        np.save(os.path.join(args.out_dir, 'summary-acc.npy'), store_acc)
 
