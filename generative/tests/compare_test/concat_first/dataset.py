@@ -38,7 +38,8 @@ if os.uname()[1] == 'node8-neuroaicluster':
 
 
 class VisualDataset(Dataset):
-    def __init__(self, layer='fc6', split='train', photo_transform=None, sketch_transform=None, random_seed=42):
+    def __init__(self, layer='fc6', split='train', average_labels=False, 
+                 photo_transform=None, sketch_transform=None, random_seed=42):
         super(VisualDataset, self).__init__()
         np.random.seed(random_seed); random.seed(random_seed)
         db_path = base_path + 'sketchpad_basic_fixedpose96_%s' % layer
@@ -58,23 +59,25 @@ class VisualDataset(Dataset):
         # load all 32 of them once since for every sketch we use the same 32 photos
         photo32_paths = [object_name + '.npy' for object_name in object_order]
 
-        # load human annotated labels.
-        annotation_path = 'sketchpad_basic_recog_group_data_2_augmented.csv'
-        annotations = pd.read_csv(os.path.join(base_path, annotation_path))
-        annotations = zip(annotations['fname'].values, annotations['choice'].values)
-
-        unrolled_dataset = defaultdict(lambda: [])
-        for annotation, choice in annotations:
-            annotation = annotation.replace('.png', '.npy')
-            choice = object_order.index(choice)
-            unrolled_dataset[annotation].append(choice)
-
         # load which sketches go to which classes
         with open(os.path.join(db_path, 'sketchpad_label_dict.pickle')) as fp:
             self.label_dict = cPickle.load(fp)
 
         with open(os.path.join(db_path, 'sketchpad_context_dict.pickle')) as fp:
             self.context_dict = cPickle.load(fp)
+
+        # load human annotated labels.
+        annotation_path = 'sketchpad_basic_recog_group_data_2_augmented.csv'
+        annotations = pd.read_csv(os.path.join(base_path, annotation_path))
+        annotations = zip(annotations['fname'].values, annotations['choice'].values)
+
+        unrolled_dataset = defaultdict(lambda: [])
+        unrolled_context = defaultdict(lambda: [])
+        for annotation, choice in annotations:
+            annotation = annotation.replace('.png', '.npy')
+            choice = object_order.index(choice)
+            unrolled_dataset[annotation].append(choice)
+            unrolled_context[annotation].append(self.context_dict[annotation])
 
         self.object_order = object_order
         preloaded_split = os.path.join(os.path.dirname(os.path.realpath(__file__)), '%s_split.json' % split)
@@ -83,10 +86,24 @@ class VisualDataset(Dataset):
                 sketch_paths = json.load(fp)
         else:
             sketch_paths = self.train_test_split(split, sketch_basepaths)
-        sketch_dataset = []
-        for path in sketch_paths:
-            for label in unrolled_dataset[path]:
-                sketch_dataset.append((path, label))
+
+        if average_labels:
+            def average_unrolled(labels):
+                average_labels = np.zeros((len(labels, 32)))
+                for i, label in enumerate(labels):
+                    average_labels[i, label] = 1
+                average_labels = np.mean(average_labels, axis=0)
+                return average_labels
+
+            sketch_dataset = []
+            for path in sketch_paths:
+                average_labels = average_unrolled(unrolled_dataset[path])
+                sketch_dataset.append((path, average_labels))
+        else:
+            sketch_dataset = []
+            for path in sketch_paths:
+                for label in unrolled_dataset[path]:
+                    sketch_dataset.append((path, label))
 
         self.sketch_dataset = sketch_dataset
         self.sketch_dirname = sketch_dirname 
