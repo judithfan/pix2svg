@@ -99,7 +99,7 @@ class VisualDataset(Dataset):
         self.sketch_transform = sketch_transform
 
     def train_test_split(self, split, basepaths):
-        train_basepaths, val_basepaths, test_basepaths = [], [], []
+        train_basepaths, val_basepaths, test_basepaths, extra_basepaths = [], [], [], []
         object_names = self.object_order
         sketch_objects = np.asarray([self.label_dict[basepath] for basepath in basepaths])
         basepaths = np.asarray(basepaths)
@@ -108,22 +108,52 @@ class VisualDataset(Dataset):
         # classes in the training dataset
         context_dict = self.context_dict
 
+        # store difference here
+        context_diff = {}
         for object_name in object_names:
-            object_basepaths = basepaths[sketch_objects == object_name].tolist()
-            num_basepaths = len(object_basepaths)
-            num_train = int(0.7 * num_basepaths)
-            num_val = int(0.8 * num_basepaths) - num_train
-            random.shuffle(object_basepaths)
-            train_basepaths += object_basepaths[:num_train]
-            val_basepaths += object_basepaths[num_train:num_train+num_val]
-            test_basepaths += object_basepaths[num_train+num_val:]
+            object_basepaths = basepaths[sketch_objects == object_name]
+            np.random.shuffle(object_basepaths)
+            object_contexts = np.array([self.context_dict[path] for path in object_basepaths])
+            num_closer = sum(object_contexts == 'closer')
+            num_further = sum(object_contexts == 'further')
+            context_diff[object_name] = num_further - num_closer
+            
+            # we always want to have balance
+            num_examples = min(num_closer, num_further)            
+            for context in ['closer', 'further']:
+                context_basepaths = object_basepaths[object_contexts == context]
+                train_ix = int(0.8 * num_examples)
+                val_ix = int(0.9 * num_examples)
+                test_ix = int(num_examples)
+                train_basepaths += context_basepaths[:train_ix].tolist()
+                val_basepaths += context_basepaths[train_ix:val_ix].tolist()
+                test_basepaths += context_basepaths[val_ix:test_ix].tolist()
+                extra_basepaths += context_basepaths[test_ix:].tolist()
+
+        random.shuffle(train_basepaths)
+        random.shuffle(val_basepaths)
+        random.shuffle(test_basepaths)
+        random.shuffle(extra_basepaths)
+
+        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'train_split.json'), 'wb') as fp:
+            json.dump(train_basepaths, fp)
+        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'val_split.json'), 'wb') as fp:
+            json.dump(val_basepaths, fp)
+        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'test_split.json'), 'wb') as fp:
+            json.dump(test_basepaths, fp)
+        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'extra_split.json'), 'wb') as fp:
+            json.dump(extra_basepaths, fp)
 
         if split == 'train':
             paths = train_basepaths
         elif split == 'val':
             paths = val_basepaths
-        else:  # split == 'test'
+        elif split == 'test':
             paths = test_basepaths
+        elif split == 'extra':
+            paths = extra_basepaths
+        else:
+            raise Exception('split %s not recognized.' % split)
         return paths
 
     def gen_photos(self):
