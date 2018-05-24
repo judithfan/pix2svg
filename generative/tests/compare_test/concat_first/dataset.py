@@ -73,6 +73,9 @@ class VisualDataset(Dataset):
         with open(os.path.join(db_path, 'sketchpad_label_dict.pickle')) as fp:
             self.label_dict = cPickle.load(fp)
 
+        with open(os.path.join(db_path, 'sketchpad_context_dict.pickle')) as fp:
+            self.context_dict = cPickle.load(fp)
+
         self.object_order = object_order
         preloaded_split = os.path.join(os.path.dirname(os.path.realpath(__file__)), '%s_split.json' % split)
         if os.path.isfile(preloaded_split):
@@ -100,6 +103,10 @@ class VisualDataset(Dataset):
         object_names = self.object_order
         sketch_objects = np.asarray([self.label_dict[basepath] for basepath in basepaths])
         basepaths = np.asarray(basepaths)
+
+        # for each class we want to make sure that we balance the 
+        # classes in the training dataset
+        context_dict = self.context_dict
 
         for object_name in object_names:
             object_basepaths = basepaths[sketch_objects == object_name].tolist()
