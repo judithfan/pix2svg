@@ -15,6 +15,8 @@ if __name__ == "__main__":
         dset = VisualDataset(layer='fc6', split='train', average_labels=False, 
                              photo_transform=None, sketch_transform=None, 
                              random_seed=random_seeds[i])
+        if not os.path.isdir('./train_test_split/%d' % (i + 1)):
+            os.makedirs('./train_test_split/%d' % (i + 1))
         shutil.move('./train_split.json', './train_test_split/%d/train_split.json' % (i + 1))
-        shutil.move('./val_split.json', './val_test_split/%d/val_split.json' % (i + 1))
-        shutil.move('./test_split.json', './test_test_split/%d/test_split.json' % (i + 1))
+        shutil.move('./val_split.json', './train_test_split/%d/val_split.json' % (i + 1))
+        shutil.move('./test_split.json', './train_test_split/%d/test_split.json' % (i + 1))

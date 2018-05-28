@@ -13,6 +13,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from dataset import ExhaustiveDataset
 from train import load_checkpoint
+from train_average import load_checkpoint as load_checkpoint2
 
 
 def photo_uname(path):
@@ -31,11 +32,17 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('model_path', type=str, help='path to trained model')
+    parser.add_argument('--average-labels', action='store_true', default=False,
+                        help='model is trained with average labels [default: False]')
     parser.add_argument('--cuda', action='store_true', default=False)
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
-    
-    model = load_checkpoint(args.model_path, use_cuda=args.cuda)
+   
+    if args.average_labels:
+        model = load_checkpoint2(args.model_path, use_cuda=args.cuda)
+        model.layer = 'fc6'
+    else:
+        model = load_checkpoint(args.model_path, use_cuda=args.cuda)
     model.eval()
     if model.cuda:
         model.cuda()
