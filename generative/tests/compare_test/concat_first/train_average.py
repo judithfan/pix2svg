@@ -76,6 +76,8 @@ if __name__ == "__main__":
     parser.add_argument('--loss-scale', type=float, default=10000., help='multiplier for loss [default: 10000.]')
     parser.add_argument('--out-dir', type=str, default='./trained_models', 
                         help='where to save checkpoints [./trained_models]')
+    parser.add_argument('--train-test-split-dir', type=str, default='./train_test_split/1',
+                        help='where to load train_test_split paths [default: ./train_test_split/1]')
     parser.add_argument('--batch-size', type=int, default=10, 
                         help='number of examples in a mini-batch [default: 10]')
     parser.add_argument('--lr', type=float, default=1e-4, help='learning rate [default: 1e-4]')
@@ -84,9 +86,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
    
-    train_dataset = VisualDataset(layer='fc6', split='train', average_labels=True)
-    val_dataset = VisualDataset(layer='fc6', split='val', average_labels=True)
-    test_dataset = VisualDataset(layer='fc6', split='test', average_labels=True)
+    train_dataset = VisualDataset(layer='fc6', split='train', average_labels=True,
+                                  train_test_split_dir=args.train_test_split_dir)
+    val_dataset = VisualDataset(layer='fc6', split='val', average_labels=True,
+                                train_test_split_dir=args.train_test_split_dir)
+    test_dataset = VisualDataset(layer='fc6', split='test', average_labels=True,
+                                 train_test_split_dir=args.train_test_split_dir)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)

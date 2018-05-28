@@ -68,6 +68,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('layer', type=str, help='fc6|conv42|pool1')
     parser.add_argument('--loss-scale', type=float, default=10000., help='multiplier for loss [default: 10000.]')
+    parser.add_argument('--train-test-split-dir', type=str, default='./train_test_split/1',
+                        help='where to load train_test_split paths [default: ./train_test_split/1]')                    
     parser.add_argument('--out-dir', type=str, default='./trained_models', 
                         help='where to save checkpoints [./trained_models]')
     parser.add_argument('--batch-size', type=int, default=10, 
@@ -78,9 +80,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
    
-    train_dataset = VisualDataset(layer=args.layer, split='train')
-    val_dataset = VisualDataset(layer=args.layer, split='val')
-    test_dataset = VisualDataset(layer=args.layer, split='test')
+    train_dataset = VisualDataset(layer=args.layer, split='train',
+                                  train_test_split_dir=args.train_test_split_dir)
+    val_dataset = VisualDataset(layer=args.layer, split='val',
+                                train_test_split_dir=args.train_test_split_dir)
+    test_dataset = VisualDataset(layer=args.layer, split='test',
+                                 train_test_split_dir=args.train_test_split_dir)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)

@@ -40,7 +40,8 @@ if os.uname()[1] == 'node8-neuroaicluster':
 class VisualDataset(Dataset):
     def __init__(self, layer='fc6', split='train', average_labels=False, 
                  overwrite_train_test_split=False, photo_transform=None, 
-                 sketch_transform=None, random_seed=42):
+                 sketch_transform=None, train_test_split_dir='./train_test_split/1', 
+                 random_seed=42):
         super(VisualDataset, self).__init__()
         np.random.seed(random_seed); random.seed(random_seed)
         db_path = base_path + 'sketchpad_basic_fixedpose96_%s' % layer
@@ -81,7 +82,7 @@ class VisualDataset(Dataset):
         average_annotations = np.load(base_path+'human_confusion.npy')
 
         self.object_order = object_order
-        preloaded_split = os.path.join(os.path.dirname(os.path.realpath(__file__)), '%s_split.json' % split)
+        preloaded_split = os.path.join(train_test_split_dir, '%s_split.json' % split)
         if os.path.isfile(preloaded_split) or overwrite_train_test_split:
             with open(preloaded_split) as fp:
                 sketch_paths = json.load(fp)
