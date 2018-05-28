@@ -39,7 +39,8 @@ if os.uname()[1] == 'node8-neuroaicluster':
 
 class VisualDataset(Dataset):
     def __init__(self, layer='fc6', split='train', average_labels=False, 
-                 photo_transform=None, sketch_transform=None, random_seed=42):
+                 overwrite_train_test_split=False, photo_transform=None, 
+                 sketch_transform=None, random_seed=42):
         super(VisualDataset, self).__init__()
         np.random.seed(random_seed); random.seed(random_seed)
         db_path = base_path + 'sketchpad_basic_fixedpose96_%s' % layer
@@ -81,7 +82,7 @@ class VisualDataset(Dataset):
 
         self.object_order = object_order
         preloaded_split = os.path.join(os.path.dirname(os.path.realpath(__file__)), '%s_split.json' % split)
-        if os.path.isfile(preloaded_split):
+        if os.path.isfile(preloaded_split) or overwrite_train_test_split:
             with open(preloaded_split) as fp:
                 sketch_paths = json.load(fp)
         else:
@@ -149,13 +150,17 @@ class VisualDataset(Dataset):
         random.shuffle(test_basepaths)
         random.shuffle(extra_basepaths)
 
-        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'train_split.json'), 'wb') as fp:
+        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 
+                               'train_split.json'), 'wb') as fp:
             json.dump(train_basepaths, fp)
-        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'val_split.json'), 'wb') as fp:
+        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 
+                               'val_split.json'), 'wb') as fp:
             json.dump(val_basepaths, fp)
-        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'test_split.json'), 'wb') as fp:
+        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 
+                               'test_split.json'), 'wb') as fp:
             json.dump(test_basepaths, fp)
-        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'extra_split.json'), 'wb') as fp:
+        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 
+                               'extra_split.json'), 'wb') as fp:
             json.dump(extra_basepaths, fp)
 
         if split == 'train':
