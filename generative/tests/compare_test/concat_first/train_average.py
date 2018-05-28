@@ -97,14 +97,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
 
-    if not os.path.sidr(args.out_dir):
+    if not os.path.isdir(args.out_dir):
         os.makedirs(args.out_dir)
    
-    train_dataset = VisualDataset(layer='fc6', split='train', average_labels=True,
+    train_dataset = VisualDataset(layer=args.layer, split='train', average_labels=True,
                                   train_test_split_dir=args.train_test_split_dir)
-    val_dataset = VisualDataset(layer='fc6', split='val', average_labels=True,
+    val_dataset = VisualDataset(layer=args.layer, split='val', average_labels=True,
                                 train_test_split_dir=args.train_test_split_dir)
-    test_dataset = VisualDataset(layer='fc6', split='test', average_labels=True,
+    test_dataset = VisualDataset(layer=args.layer, split='test', average_labels=True,
                                  train_test_split_dir=args.train_test_split_dir)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)

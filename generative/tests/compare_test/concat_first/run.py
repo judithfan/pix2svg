@@ -7,10 +7,9 @@ import subprocess
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    args = parser.parse_args()
     parser.add_argument('layer', type=str, help='fc6|conv42|pool1')
     parser.add_argument('--cuda-device', type=int, default=0, help='0|1|2|3 [default: 0]')
-    args.cuda = args.cuda and torch.cuda.is_available()
+    args = parser.parse_args()
 
     for i in xrange(5):
         out_dir = './trained_models/%s/%d' % (args.layer, i + 1)
