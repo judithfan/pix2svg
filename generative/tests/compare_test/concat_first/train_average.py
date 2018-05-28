@@ -14,7 +14,9 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from sklearn.metrics import mean_squared_error
 
-from model import PredictorFC6
+from model import AttendedSpatialCollapseCONV42  # best CONV42 model
+from model import AttendedSpatialCollapsePOOL1   # best POOL1 model
+from model import PredictorFC6                   # best FC6 model
 from dataset import VisualDataset
 
 
@@ -30,8 +32,16 @@ def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
 def load_checkpoint(file_path, use_cuda=False):
     checkpoint = torch.load(file_path) if use_cuda else \
         torch.load(file_path, map_location=lambda storage, location: storage)
-    model = PredictorFC6()
+    if checkpoint['layer'] == 'fc6':
+        model = PredictorFC6()
+    elif checkpoint['layer'] == 'conv42':
+        model = AttendedSpatialCollapseCONV42()
+    elif checkpoint['layer'] == 'pool1':
+        model = AttendedSpatialCollapsePOOL1()
+    else:
+        raise Exception('Unrecognized layer: %s' % checkpoint['layer']) 
     model.load_state_dict(checkpoint['state_dict'])
+    model.layer = checkpoint['layer']
     return model
 
 
@@ -73,11 +83,12 @@ def cross_entropy(input, target, eps=1e-6):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('layer', type=str, help='fc6|conv42|pool1')
     parser.add_argument('--loss-scale', type=float, default=10000., help='multiplier for loss [default: 10000.]')
-    parser.add_argument('--out-dir', type=str, default='./trained_models', 
-                        help='where to save checkpoints [./trained_models]')
     parser.add_argument('--train-test-split-dir', type=str, default='./train_test_split/1',
                         help='where to load train_test_split paths [default: ./train_test_split/1]')
+    parser.add_argument('--out-dir', type=str, default='./trained_models', 
+                        help='where to save checkpoints [./trained_models]')
     parser.add_argument('--batch-size', type=int, default=10, 
                         help='number of examples in a mini-batch [default: 10]')
     parser.add_argument('--lr', type=float, default=1e-4, help='learning rate [default: 1e-4]')
@@ -96,7 +107,15 @@ if __name__ == "__main__":
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-    model = PredictorFC6()
+    if args.layer == 'fc6':
+        model = PredictorFC6()
+    elif args.layer == 'conv42':
+        model = AttendedSpatialCollapseCONV42()
+    elif args.layer == 'pool1':
+        model = AttendedSpatialCollapsePOOL1()
+    else:
+        raise Exception('Unrecognized layer: %s' % args.layer)
+
     if args.cuda:
         model.cuda()
 
@@ -124,7 +143,8 @@ if __name__ == "__main__":
                 photo = Variable(photo)
                 if args.cuda:
                     photo = photo.cuda()
-                photo = photo.repeat(batch_size, 1)
+                photo = (photo.repeat(batch_size, 1) if args.layer == 'fc6' else 
+                         photo.repeat(batch_size, 1, 1, 1))
                 pred_logit = model(photo, sketch)
                 pred_logits.append(pred_logit)
        
@@ -164,7 +184,8 @@ if __name__ == "__main__":
                 photo = Variable(photo)
                 if args.cuda:
                     photo = photo.cuda()
-                photo = photo.repeat(batch_size, 1)
+                photo = (photo.repeat(batch_size, 1) if args.layer == 'fc6' else 
+                         photo.repeat(batch_size, 1, 1, 1))
                 pred_logit = model(photo, sketch)
                 pred_logits.append(pred_logit)
 
@@ -194,12 +215,13 @@ if __name__ == "__main__":
                 label = label.cuda()
 
             pred_logits = []
-            photo_generator = val_dataset.gen_photos()
+            photo_generator = test_dataset.gen_photos()
             for photo in photo_generator():
                 photo = Variable(photo)
                 if args.cuda:
                     photo = photo.cuda()
-                photo = photo.repeat(batch_size, 1)
+                photo = (photo.repeat(batch_size, 1) if args.layer == 'fc6' else 
+                         photo.repeat(batch_size, 1, 1, 1))
                 pred_logit = model(photo, sketch)
                 pred_logits.append(pred_logit)
 
@@ -234,4 +256,3 @@ if __name__ == "__main__":
         store_loss[epoch  - 1, 2] = test_loss
         
         np.save(os.path.join(args.out_dir, 'summary-loss.npy'), store_loss)
-

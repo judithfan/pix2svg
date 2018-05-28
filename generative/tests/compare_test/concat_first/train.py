@@ -212,7 +212,7 @@ if __name__ == "__main__":
                 label = label.cuda()
 
             pred_logits = []
-            photo_generator = val_dataset.gen_photos()
+            photo_generator = test_dataset.gen_photos()
             for photo in photo_generator():
                 photo = Variable(photo)
                 if args.cuda:
