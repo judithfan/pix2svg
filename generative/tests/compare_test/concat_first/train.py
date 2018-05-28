@@ -79,6 +79,9 @@ if __name__ == "__main__":
     parser.add_argument('--cuda', action='store_true', default=False) 
     args = parser.parse_args()
     args.cuda = args.cuda and torch.cuda.is_available()
+
+    if not os.path.sidr(args.out_dir):
+        os.makedirs(args.out_dir)
    
     train_dataset = VisualDataset(layer=args.layer, split='train',
                                   train_test_split_dir=args.train_test_split_dir)
