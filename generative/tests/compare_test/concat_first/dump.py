@@ -32,6 +32,8 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('model_path', type=str, help='path to trained model')
+    parser.add_argument('--out-dir', type=str, default='./', 
+                        help='where to dump files [default: ./]')
     parser.add_argument('--average-labels', action='store_true', default=False,
                         help='model is trained with average labels [default: False]')
     parser.add_argument('--cuda', action='store_true', default=False)
@@ -71,9 +73,8 @@ if __name__ == "__main__":
         pbar.update()
     pbar.close()
 
-    with open('./dump.json', 'w') as fp:
+    with open(os.path.join(args.out_dir, 'dump.json'), 'w') as fp:
         json.dump(dist_jsons, fp)
 
-    with open('./dump-paths.json', 'w') as fp:
+    with open(os.path.join(args.out_dir, 'dump-paths.json'), 'w') as fp:
         json.dump(test_sketchpaths, fp)
-
