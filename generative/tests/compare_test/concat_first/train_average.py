@@ -29,9 +29,11 @@ def save_checkpoint(state, is_best, folder='./', filename='checkpoint.pth.tar'):
                         os.path.join(folder, 'model_best.pth.tar'))
 
 
-def load_checkpoint(file_path, use_cuda=False):
+def load_checkpoint(file_path, overwrite_layer=None, use_cuda=False):
     checkpoint = torch.load(file_path) if use_cuda else \
         torch.load(file_path, map_location=lambda storage, location: storage)
+    if overwrite_layer is not None:
+        checkpoint['layer'] = overwrite_layer
     if checkpoint['layer'] == 'fc6':
         model = PredictorFC6()
     elif checkpoint['layer'] == 'conv42':
@@ -252,6 +254,7 @@ if __name__ == "__main__":
             'train_loss': train_loss,
             'val_loss': val_loss,
             'test_loss': test_loss,
+            'layer': args.layer,
             'optimizer' : optimizer.state_dict(),
         }, is_best, folder=args.out_dir)
         store_loss[epoch - 1, 0] = train_loss

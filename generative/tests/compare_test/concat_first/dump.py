@@ -32,6 +32,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('model_path', type=str, help='path to trained model')
+    parser.add_argument('--overwrite-layer', default=None, help='HACK: fix me')
     parser.add_argument('--out-dir', type=str, default='./', 
                         help='where to dump files [default: ./]')
     parser.add_argument('--average-labels', action='store_true', default=False,
@@ -41,7 +42,8 @@ if __name__ == "__main__":
     args.cuda = args.cuda and torch.cuda.is_available()
    
     if args.average_labels:
-        model = load_checkpoint2(args.model_path, use_cuda=args.cuda)
+        model = load_checkpoint2(args.model_path, overwrite_layer=args.overwrite_layer, 
+                                 use_cuda=args.cuda)
         model.layer = 'fc6'
     else:
         model = load_checkpoint(args.model_path, use_cuda=args.cuda)
