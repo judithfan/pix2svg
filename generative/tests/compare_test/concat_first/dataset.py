@@ -49,13 +49,22 @@ class VisualDataset(Dataset):
         photo_dirname = os.path.join(db_path, 'photos')
         sketch_basepaths = os.listdir(sketch_dirname)
 
+        # load all the different things that we will use to remove paths
+        valid_game_ids = pd.read_csv(os.path.join(db_path, 'valid_gameids_pilot2.csv'))
+        valid_game_ids = np.asarray(valid_game_ids['valid_gameids']).tolist()
         with open(os.path.join(db_path, 'invalid_trial_paths_pilot2.txt')) as fp:
             invalid_basepaths = [x.strip().replace('.png', '.npy') for x in fp.readlines()]
         with open(os.path.join(db_path, 'incorrect_trial_paths_pilot2.txt')) as fp:
             incorrect_basepaths = [x.strip().replace('.png', '.npy') for x in fp.readlines()]
             incorrect_basepaths = ['_'.join(x.split('_')[:-1]) + '.npy' for x in incorrect_basepaths]
+        # do the actual removal of the paths
+        sketch_basepaths = [path for path in sketch_basepaths 
+                            if os.path.basename(path).split('_')[1] in valid_game_ids]
+        sketch_basepaths = set(sketch_basepaths) - set(invalid_basepaths) - set(incorrect_basepaths)
+        sketch_basepaths = list(sketch_basepaths)
+
         # this details how labels are stored (order of objects)
-        object_order = pd.read_csv(base_path+'human_confusion_object_order.csv')
+        object_order = pd.read_csv(base_path + 'human_confusion_object_order.csv')
         object_order = np.asarray(object_order['object_name']).tolist()
 
         # load all 32 of them once since for every sketch we use the same 32 photos
@@ -210,11 +219,19 @@ class ExhaustiveDataset(VisualDataset):
         sketch_dirname = os.path.join(db_path, 'sketch')
         sketch_basepaths = os.listdir(sketch_dirname)
 
+        # load all the different things that we will use to remove paths
+        valid_game_ids = pd.read_csv(os.path.join(db_path, 'valid_gameids_pilot2.csv'))
+        valid_game_ids = np.asarray(valid_game_ids['valid_gameids']).tolist()
         with open(os.path.join(db_path, 'invalid_trial_paths_pilot2.txt')) as fp:
             invalid_basepaths = [x.strip().replace('.png', '.npy') for x in fp.readlines()]
         with open(os.path.join(db_path, 'incorrect_trial_paths_pilot2.txt')) as fp:
             incorrect_basepaths = [x.strip().replace('.png', '.npy') for x in fp.readlines()]
             incorrect_basepaths = ['_'.join(x.split('_')[:-1]) + '.npy' for x in incorrect_basepaths]
+        # do the actual removal of the paths
+        sketch_basepaths = [path for path in sketch_basepaths 
+                            if os.path.basename(path).split('_')[1] in valid_game_ids]
+        sketch_basepaths = set(sketch_basepaths) - set(invalid_basepaths) - set(incorrect_basepaths)
+        sketch_basepaths = list(sketch_basepaths)
 
         # this details how labels are stored (order of objects)
         object_order = pd.read_csv(base_path+'human_confusion_object_order.csv')
