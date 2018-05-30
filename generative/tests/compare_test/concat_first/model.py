@@ -24,13 +24,14 @@ class PredictorCONV42(nn.Module):
 
 class PredictorFC6(nn.Module):
     # there isn't any spatial pooling to be done here
-    def __init__(self):
+    def __init__(self, hiddens_dim=512):
         super(PredictorFC6, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(4096 * 2, 512),
+            nn.Linear(4096 * 2, hiddens_dim),
             Swish(),
             nn.Dropout(),
-            nn.Linear(512, 1))
+            nn.Linear(hiddens_dim, 1))
+        self.hiddens_dim = hiddens_dim
 
     def forward(self, photo, sketch):
         h = torch.cat((photo, sketch), dim=1)

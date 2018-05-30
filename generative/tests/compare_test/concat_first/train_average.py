@@ -35,7 +35,7 @@ def load_checkpoint(file_path, overwrite_layer=None, use_cuda=False):
     if overwrite_layer is not None:
         checkpoint['layer'] = overwrite_layer
     if checkpoint['layer'] == 'fc6':
-        model = PredictorFC6()
+        model = PredictorFC6(hiddens_dim=checkpoint['hiddens_dim'])
     elif checkpoint['layer'] == 'conv42':
         model = AttendedSpatialCollapseCONV42()
     elif checkpoint['layer'] == 'pool1':
@@ -86,6 +86,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('layer', type=str, help='fc6|conv42|pool1')
+    parser.add_argument('--hiddens-dim', type=int, default=512, help='number of hidden dims [default: 512]')
     parser.add_argument('--loss-scale', type=float, default=10000., help='multiplier for loss [default: 10000.]')
     parser.add_argument('--train-test-split-dir', type=str, default='./train_test_split/1',
                         help='where to load train_test_split paths [default: ./train_test_split/1]')
@@ -113,7 +114,7 @@ if __name__ == "__main__":
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
     if args.layer == 'fc6':
-        model = PredictorFC6()
+        model = PredictorFC6(args.hiddens_dim)
     elif args.layer == 'conv42':
         model = AttendedSpatialCollapseCONV42()
     elif args.layer == 'pool1':
@@ -255,6 +256,7 @@ if __name__ == "__main__":
             'val_loss': val_loss,
             'test_loss': test_loss,
             'layer': args.layer,
+            'hiddens_dim': args.hiddens_dim,
             'optimizer' : optimizer.state_dict(),
         }, is_best, folder=args.out_dir)
         store_loss[epoch - 1, 0] = train_loss
