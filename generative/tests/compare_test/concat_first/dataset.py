@@ -201,32 +201,36 @@ class VisualDataset(Dataset):
 
 class ExhaustiveDataset(VisualDataset):
     """Used to create the RDM and JSON. Loops through every sketch & photo pair."""
-    def __init__(self, layer='fc6', split='test', photo_transform=None, sketch_transform=None, random_seed=42):
+    def __init__(self, layer='fc6', split='test', photo_transform=None, sketch_transform=None, 
+                 train_test_split_dir='./train_test_split/1', random_seed=42):
         super(ExhaustiveDataset, self).__init__()
-        np.random.seed(random_seed)
-        random.seed(random_seed)
-        db_path = base_path+'sketchpad_basic_fixedpose96_%s' % layer
+        np.random.seed(random_seed); random.seed(random_seed)
+        db_path = base_path + 'sketchpad_basic_fixedpose96_%s' % layer
         photo_dirname = os.path.join(db_path, 'photos')
         sketch_dirname = os.path.join(db_path, 'sketch')
         sketch_basepaths = os.listdir(sketch_dirname)
-        # remove bad/corrupted images
-        valid_game_ids = np.asarray(pd.read_csv(os.path.join(db_path, 'valid_gameids_pilot2.csv'))['valid_gameids']).tolist()
-        # only keep sketches that are in the valid_gameids (some games are garbage)
-        sketch_basepaths = [path for path in sketch_basepaths 
-                            if os.path.basename(path).split('_')[1] in valid_game_ids]
+
+        with open(os.path.join(db_path, 'invalid_trial_paths_pilot2.txt')) as fp:
+            invalid_basepaths = [x.strip().replace('.png', '.npy') for x in fp.readlines()]
+        with open(os.path.join(db_path, 'incorrect_trial_paths_pilot2.txt')) as fp:
+            incorrect_basepaths = [x.strip().replace('.png', '.npy') for x in fp.readlines()]
+            incorrect_basepaths = ['_'.join(x.split('_')[:-1]) + '.npy' for x in incorrect_basepaths]
+
         # this details how labels are stored (order of objects)
         object_order = pd.read_csv(base_path+'human_confusion_object_order.csv')
         object_order = np.asarray(object_order['object_name']).tolist()
+        
         # load all 32 of them once since for every sketch we use the same 32 photos
         photo_32_paths = [object_name + '.npy' for object_name in object_order]
         
         with open(os.path.join(db_path, 'sketchpad_context_dict.pickle')) as fp:
             self.context_dict = cPickle.load(fp)
+        
         with open(os.path.join(db_path, 'sketchpad_label_dict.pickle')) as fp:
             self.label_dict = cPickle.load(fp)
 
         if split != 'full':
-            preloaded_split = os.path.join(os.path.dirname(os.path.realpath(__file__)), '%s_split.json' % split)
+            preloaded_split = os.path.join(train_test_split_dir, '%s_split.json' % split)
             if os.path.isfile(preloaded_split):
                 with open(preloaded_split) as fp:
                     sketch_basepaths = json.load(fp)

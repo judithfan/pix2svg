@@ -10,6 +10,7 @@ if __name__ == "__main__":
             print('Dumping files for (%s|%d)' % (layer, i))
             model_path = './trained_models/%s/%d/model_best.pth.tar' % (layer, i + 1)
             out_dir = './trained_models/%s/%d/' % (layer, i + 1)
-            command = 'CUDA_VISIBLE_DEVICES=0 python dump.py {model} --out-dir {outdir} --average-labels --overwrite-layer {layer} --cuda'.format(
-                model=model_path, outdir=out_dir, layer=layer)
+            split_dir = './train_test_split/%d' % (i + 1)
+            command = 'CUDA_VISIBLE_DEVICES=0 python dump.py {model} --train-test-split-dir {splitdir} --out-dir {outdir} --average-labels --overwrite-layer {layer} --cuda'.format(
+                model=model_path, splitdir=split_dir, outdir=out_dir, layer=layer)
             subprocess.call(command, shell=True)

@@ -32,6 +32,8 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('model_path', type=str, help='path to trained model')
+    parser.add_argument('--train-test-split-dir', type=str, default='./train_test_split/1',
+                        help='where to load train_test_split paths [default: ./train_test_split/1]')
     parser.add_argument('--overwrite-layer', default=None, help='HACK: fix me')
     parser.add_argument('--out-dir', type=str, default='./', 
                         help='where to dump files [default: ./]')
@@ -50,7 +52,8 @@ if __name__ == "__main__":
     if model.cuda:
         model.cuda()
 
-    dataset = ExhaustiveDataset(layer=model.layer, split='test')
+    dataset = ExhaustiveDataset(layer=model.layer, split='test', 
+                                train_test_split_dir=args.train_test_split_dir)
     loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
         
     dist_jsons = defaultdict(lambda: {})
