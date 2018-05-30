@@ -96,7 +96,7 @@ class VisualDataset(Dataset):
             with open(preloaded_split) as fp:
                 sketch_paths = json.load(fp)
         else:
-            sketch_paths = self.train_test_split(split, sketch_basepaths)
+            sketch_paths = self.train_test_split(split, sketch_basepaths, train_test_split_dir)
 
         if average_labels:
             sketch_dataset = []
@@ -123,7 +123,7 @@ class VisualDataset(Dataset):
         self.photo_transform = photo_transform
         self.sketch_transform = sketch_transform
 
-    def train_test_split(self, split, basepaths):
+    def train_test_split(self, split, basepaths, out_dir):
         train_basepaths, val_basepaths, test_basepaths, extra_basepaths = [], [], [], []
         object_names = self.object_order
         sketch_objects = np.asarray([self.label_dict[basepath] for basepath in basepaths])
@@ -160,17 +160,16 @@ class VisualDataset(Dataset):
         random.shuffle(test_basepaths)
         random.shuffle(extra_basepaths)
 
-        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 
-                               'train_split.json'), 'wb') as fp:
+        if not os.path.isdir(out_dir):
+            os.makedirs(out_dir)
+
+        with open(os.path.join(out_dir, 'train_split.json'), 'wb') as fp:
             json.dump(train_basepaths, fp)
-        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 
-                               'val_split.json'), 'wb') as fp:
+        with open(os.path.join(out_dir, 'val_split.json'), 'wb') as fp:
             json.dump(val_basepaths, fp)
-        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 
-                               'test_split.json'), 'wb') as fp:
+        with open(os.path.join(out_dir,  'test_split.json'), 'wb') as fp:
             json.dump(test_basepaths, fp)
-        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 
-                               'extra_split.json'), 'wb') as fp:
+        with open(os.path.join(out_dir, 'extra_split.json'), 'wb') as fp:
             json.dump(extra_basepaths, fp)
 
         if split == 'train':
