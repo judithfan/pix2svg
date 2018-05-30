@@ -44,7 +44,6 @@ if __name__ == "__main__":
     if args.average_labels:
         model = load_checkpoint2(args.model_path, overwrite_layer=args.overwrite_layer, 
                                  use_cuda=args.cuda)
-        model.layer = 'fc6'
     else:
         model = load_checkpoint(args.model_path, use_cuda=args.cuda)
     model.eval()

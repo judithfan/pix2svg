@@ -5,7 +5,7 @@ from __future__ import absolute_import
 import subprocess
 
 if __name__ == "__main__":
-    for layer in ['fc6', 'conv42', 'pool1']:
+    for layer in ['conv42', 'pool1']:  # ['fc6', 'conv42', 'pool1']:
         for i in xrange(5):
             print('Dumping files for (%s|%d)' % (layer, i))
             model_path = './trained_models/%s/%d/model_best.pth.tar' % (layer, i + 1)
