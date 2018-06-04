@@ -86,7 +86,9 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('layer', type=str, help='fc6|conv42|pool1')
-    parser.add_argument('--hiddens-dim', type=int, default=512, help='number of hidden dims [default: 512]')
+    # we pick 128 as the default b/c it seems the point as which we can 
+    # still get good performance is 128.
+    parser.add_argument('--hiddens-dim', type=int, default=128, help='number of hidden dims [default: 128]')
     parser.add_argument('--loss-scale', type=float, default=10000., help='multiplier for loss [default: 10000.]')
     parser.add_argument('--train-test-split-dir', type=str, default='./train_test_split/1',
                         help='where to load train_test_split paths [default: ./train_test_split/1]')
