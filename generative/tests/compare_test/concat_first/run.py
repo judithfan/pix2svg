@@ -12,7 +12,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     for i in xrange(5):
-        out_dir = '/mnt/visual_communication_dataset/trained_models_5_30_18/%s/%d' % (args.layer, i + 1)
+        out_dir = '/mnt/visual_communication_dataset/trained_models_6_5_18/%s/%d' % (args.layer, i + 1)
         train_test_split_dir = './train_test_split/%d' % (i + 1)
         command = 'CUDA_VISIBLE_DEVICES={device} python train_average.py {layer} --train-test-split-dir {split_dir} --out-dir {out_dir} --cuda'.format(
             device=args.cuda_device, layer=args.layer, split_dir=train_test_split_dir, out_dir=out_dir)

@@ -9,8 +9,8 @@ if __name__ == "__main__":
     for layer in ['fc6', 'conv42', 'pool1']:
         for i in xrange(5):
             print('Dumping files for (%s|%d)' % (layer, i))
-            model_path = './trained_models/%s/%d/model_best.pth.tar' % (layer, i + 1)
-            out_dir = './dump_outputs/%s/%d/' % (layer, i + 1)
+            model_path = '/mnt/visual_communication_dataset/trained_models_6_5_18/%s/%d/model_best.pth.tar' % (layer, i + 1)
+            out_dir = './dump_outputs_6_5_2018/%s/%d/' % (layer, i + 1)
             if not os.path.isdir(out_dir):
                 os.makedirs(out_dir)
             split_dir = './train_test_split/%d' % (i + 1)
