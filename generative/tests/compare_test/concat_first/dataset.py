@@ -35,12 +35,13 @@ CATEGORY_TO_OBJECT = {
 base_path = '/mnt/visual_communication_dataset/'
 if os.uname()[1] == 'node8-neuroaicluster':
     base_path = '/data/jefan/'
+cur_folder_path = os.path.realpath(os.path.dirname(__file__))
 
 
 class VisualDataset(Dataset):
-    def __init__(self, layer='fc6', split='train', average_labels=False, 
-                 overwrite_train_test_split=False, photo_transform=None, 
-                 sketch_transform=None, train_test_split_dir='./train_test_split/1', 
+    def __init__(self, layer='fc6', split='train', average_labels=False,
+                 overwrite_train_test_split=False, photo_transform=None,
+                 sketch_transform=None, train_test_split_dir='./train_test_split/1',
                  random_seed=42):
         super(VisualDataset, self).__init__()
         np.random.seed(random_seed); random.seed(random_seed)
@@ -58,7 +59,7 @@ class VisualDataset(Dataset):
             incorrect_basepaths = [x.strip().replace('.png', '.npy') for x in fp.readlines()]
             incorrect_basepaths = ['_'.join(x.split('_')[:-1]) + '.npy' for x in incorrect_basepaths]
         # do the actual removal of the paths
-        sketch_basepaths = [path for path in sketch_basepaths 
+        sketch_basepaths = [path for path in sketch_basepaths
                             if os.path.basename(path).split('_')[1] in valid_game_ids]
         sketch_basepaths = set(sketch_basepaths) - set(invalid_basepaths) - set(incorrect_basepaths)
         sketch_basepaths = list(sketch_basepaths)
@@ -88,7 +89,7 @@ class VisualDataset(Dataset):
             choice = object_order.index(choice)
             unrolled_dataset[annotation].append(choice)
 
-        average_annotations = np.load(base_path+'human_confusion.npy')
+        average_annotations = np.load(os.path.join(cur_folder_path, 'annotations', 'human_confusion.npy'))
 
         self.object_order = object_order
         preloaded_split = os.path.join(train_test_split_dir, '%s_split.json' % split)
@@ -114,7 +115,7 @@ class VisualDataset(Dataset):
                     sketch_dataset.append((path, label))
 
         self.sketch_dataset = sketch_dataset
-        self.sketch_dirname = sketch_dirname 
+        self.sketch_dirname = sketch_dirname
         self.photo_dirname = photo_dirname
         self.size = len(sketch_dataset)
         self.split = split
@@ -129,7 +130,7 @@ class VisualDataset(Dataset):
         sketch_objects = np.asarray([self.label_dict[basepath] for basepath in basepaths])
         basepaths = np.asarray(basepaths)
 
-        # for each class we want to make sure that we balance the 
+        # for each class we want to make sure that we balance the
         # classes in the training dataset
         context_dict = self.context_dict
 
@@ -142,9 +143,9 @@ class VisualDataset(Dataset):
             num_closer = sum(object_contexts == 'closer')
             num_further = sum(object_contexts == 'further')
             context_diff[object_name] = num_further - num_closer
-            
+
             # we always want to have balance
-            num_examples = min(num_closer, num_further)            
+            num_examples = min(num_closer, num_further)
             for context in ['closer', 'further']:
                 context_basepaths = object_basepaths[object_contexts == context]
                 train_ix = int(0.8 * num_examples)
@@ -193,11 +194,11 @@ class VisualDataset(Dataset):
                 if self.photo_transform:
                     photo = self.photo_transform(photo)
                 photo = photo.unsqueeze(0)
-                yield photo 
+                yield photo
         return generator
 
     def __getitem__(self, index):
-        sketch_path, label = self.sketch_dataset[index] 
+        sketch_path, label = self.sketch_dataset[index]
         sketch = torch.from_numpy(np.load(os.path.join(self.sketch_dirname, sketch_path)))
         if self.sketch_transform:
             sketch = self.transform(sketch)
@@ -209,7 +210,7 @@ class VisualDataset(Dataset):
 
 class ExhaustiveDataset(VisualDataset):
     """Used to create the RDM and JSON. Loops through every sketch & photo pair."""
-    def __init__(self, layer='fc6', split='test', photo_transform=None, sketch_transform=None, 
+    def __init__(self, layer='fc6', split='test', photo_transform=None, sketch_transform=None,
                  train_test_split_dir='./train_test_split/1', random_seed=42):
         super(ExhaustiveDataset, self).__init__()
         np.random.seed(random_seed); random.seed(random_seed)
@@ -227,7 +228,7 @@ class ExhaustiveDataset(VisualDataset):
             incorrect_basepaths = [x.strip().replace('.png', '.npy') for x in fp.readlines()]
             incorrect_basepaths = ['_'.join(x.split('_')[:-1]) + '.npy' for x in incorrect_basepaths]
         # do the actual removal of the paths
-        sketch_basepaths = [path for path in sketch_basepaths 
+        sketch_basepaths = [path for path in sketch_basepaths
                             if os.path.basename(path).split('_')[1] in valid_game_ids]
         sketch_basepaths = set(sketch_basepaths) - set(invalid_basepaths) - set(incorrect_basepaths)
         sketch_basepaths = list(sketch_basepaths)
@@ -235,13 +236,13 @@ class ExhaustiveDataset(VisualDataset):
         # this details how labels are stored (order of objects)
         object_order = pd.read_csv(base_path+'human_confusion_object_order.csv')
         object_order = np.asarray(object_order['object_name']).tolist()
-        
+
         # load all 32 of them once since for every sketch we use the same 32 photos
         photo_32_paths = [object_name + '.npy' for object_name in object_order]
-        
+
         with open(os.path.join(db_path, 'sketchpad_context_dict.pickle')) as fp:
             self.context_dict = cPickle.load(fp)
-        
+
         with open(os.path.join(db_path, 'sketchpad_label_dict.pickle')) as fp:
             self.label_dict = cPickle.load(fp)
 
@@ -254,7 +255,7 @@ class ExhaustiveDataset(VisualDataset):
                 sketch_basepaths = self.train_test_split(split, sketch_basepaths)
 
         sketch_paths = [os.path.join(sketch_dirname, path) for path in sketch_basepaths]
-        self.sketch_dirname = sketch_dirname 
+        self.sketch_dirname = sketch_dirname
         self.photo_dirname = photo_dirname
         self.size = len(sketch_paths)
         self.sketch_paths = sketch_paths
