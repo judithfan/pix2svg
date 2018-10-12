@@ -11,7 +11,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 
 from train_average import load_checkpoint, AverageMeter
-from dataset import VisualDataset, OBJECT_TO_CATEGORY
+from dataset import ExhaustiveDataset, OBJECT_TO_CATEGORY
 
 
 if __name__ == "__main__":
@@ -34,22 +34,21 @@ if __name__ == "__main__":
 
     test_dataset = ExhaustiveDataset(layer=model.layer, split='test',
                                      train_test_split_dir=args.train_test_split_dir)
-    loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False)
 
     model.eval()
-    object_acc_meter = AverageMeter()
-    category_acc_meter = AverageMeter()
+    object_acc_meter = 0
+    category_acc_meter = 0
     pbar = tqdm(total=len(test_loader))
 
     for batch_idx, (sketch, sketch_object, sketch_context, sketch_path) in enumerate(test_loader):
         sketch = Variable(sketch, volatile=True)
-        label = Variable(label.float(), requires_grad=False)
         batch_size = len(sketch)
+        sketch_object = sketch_object[0]
         sketch_category = OBJECT_TO_CATEGORY[sketch_object]
 
         if args.cuda:
             sketch = sketch.cuda()
-            label = label.cuda()
 
         pred_logits = []
         photo_objects = []
@@ -64,18 +63,34 @@ if __name__ == "__main__":
                      photo.repeat(batch_size, 1, 1, 1))
             pred_logit = model(photo, sketch)
             pred_logits.append(pred_logit)
-            photo_objects.append(photo_objects)
+            photo_objects.append(photo_object)
             photo_categories.append(photo_category)
 
         pred_logits = torch.cat(pred_logits, dim=1)
         pred = F.softmax(pred_logits, dim=1)
         pred = torch.max(pred_logits, dim=1)[1]
-        import pdb; pdb.set_trace()
+        pred = pred.data[0]
 
-        accuracy = torch.sum(pred == label.long()) / batch_size
-        acc_meter.update(accuracy.data[0])
+        pred_sketch_object = photo_objects[pred]
+        pred_sketch_category = photo_categories[pred]
+
+        object_acc = pred_sketch_object == sketch_object
+        category_acc = pred_sketch_category == sketch_category
+
+        object_acc_meter += object_acc
+        category_acc_meter += category_acc
 
         pbar.update()
     pbar.close()
 
-    print('Accuracy: %f' % acc_meter.avg)
+    object_acc_meter /= float(len(test_loader))
+    category_acc_meter /= float(len(test_loader))
+
+    print('------------------------------')
+    print(args.checkpoint_path)
+    print('------------------------------')
+    print('Object-level Accuracy: %f' % object_acc_meter)
+    print('Category-level Accuracy: %f' % category_acc_meter)
+    print('------------------------------')
+    print('')
+
